@@ -1,0 +1,18 @@
+{
+  "schema": "gideon-windows-prebuilt-tools/v1",
+  "agent_version": "2.4.56",
+  "compiler": ".NET Framework csc.exe 4.8",
+  "tools": {
+    "sfx_stub": {
+      "binary": "GIDEONAgentSfxStub.exe",
+      "binary_sha256": "9417900aef4d65323b0fc087584fbfa0d5c7fe4dd0d5d8ca6fa934070b6c889b",
+      "source_sha256": "4964c9b298410efe760ee37cf74c5307424741e8bfdf9a032b38577b2c7ea3b5",
+      "manifest_sha256": "5809146c609206c35a12e3c00854aca79eebf068a78ec0e0c4e93c5260957395"
+    },
+    "service_host": {
+      "binary": "GIDEONAgentServiceHost.exe",
+      "binary_sha256": "aa5851874ed7acb035d6717a63a9c8f794868b4bca777aac214e88d2ada42a71",
+      "source_sha256": "877d263b567be5ee7df9176b15d43b44589531f529e4ff183d3d315e02c65eb1"
+    }
+  }
+}

@@ -1,0 +1,849 @@
+#!/bin/bash
+# Launch the GIDEON VLC companion only in the active *physical* desktop.
+#
+# The root-owned timer may invoke this script automatically, but playback is
+# still authorized only by a verified GIDEON-signed campaign manifest. It never
+# reads private Agent identity, tokens, certificates or Gateway configuration.
+# It derives the Agent ID from the signed public campaign envelope and hands
+# the unprivileged desktop process only local, public paths. The service-owned
+# manifest remains read-only; a narrowly
+# scoped ACL is granted solely to the transient status/lock directory used by
+# the companion. The enabled policy follows the physical console rather than a
+# particular account: after a local user switch, the old companion detects that
+# it no longer owns the console and exits; this launcher can attach the new
+# physical desktop on its next timer run. A local administrator may explicitly
+# disable playback without weakening the signed-manifest checks.
+set -euo pipefail
+
+# This launcher is invoked by systemd or sudo as root.  Do not inherit a
+# caller-controlled PATH or GIDEON_* location: either would turn a local Player
+# helper into a root code-execution primitive.
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+ROOT="/opt/gideon-agent"
+if [[ ! -d "$ROOT" && -d /usr/lib/gideon-agent ]]; then ROOT="/usr/lib/gideon-agent"; fi
+STATE="/var/lib/gideon-agent"
+MEDIA_ROOT="/opt/gideon/Distribucion/Videos"
+PUBLIC_ROOT="$MEDIA_ROOT/.gideon-player"
+RUNTIME_DIR="$PUBLIC_ROOT/runtime"
+MANIFEST="$PUBLIC_ROOT/current.json"
+STATUS="$STATE/player/launcher-status.json"
+FALLBACK_RECORD="$STATE/player/fallback-companion.json"
+FALLBACK_PID_FILE="$STATE/player/fallback-companion.pid"
+USER_STATE="$STATE/player/console-user"
+PILOT_CONFIG="/etc/gideon-agent/player-pilot.conf"
+PY="$ROOT/venv/bin/python"
+ENABLE_PILOT=0
+DISABLE_PILOT=0
+SHOW_STATUS=0
+START_PLAYER=1
+REQUESTED_USER=""
+LIST_OUTPUTS=0
+MAP_OUTPUT=""
+MAP_SCREEN_NUMBER=""
+PLAYER_RUNTIME_SHA=""
+
+log(){ printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S%z')" "$*" >>"$STATE/player-launch.log" 2>/dev/null || true; }
+
+usage(){
+  cat <<'EOF'
+Uso:
+  sudo gideon-agent-player-launch --enable --start [--user USUARIO]
+  sudo gideon-agent-player-launch --status
+  sudo gideon-agent-player-launch --list-outputs
+  sudo gideon-agent-player-launch --map-output IDENTIDAD --screen-number N
+  sudo gideon-agent-player-launch --disable
+
+El Player usa sólo una sesión gráfica local X11/Wayland activa y un manifiesto
+de campaña firmado. No instala VLC, no abre puertos, no reinicia el Agent y no
+expone secretos. El timer sólo reintenta enlazar la sesión física local.
+EOF
+}
+
+valid_user(){ [[ "$1" =~ ^[a-zA-Z_][a-zA-Z0-9_.-]*\$?$ ]]; }
+valid_output_identity(){ [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$ ]]; }
+valid_screen_number(){ [[ "$1" =~ ^[0-9]{1,2}$ ]] && (( 10#$1 >= 1 && 10#$1 <= 24 )); }
+
+config_enabled(){
+  [[ -f "$PILOT_CONFIG" && ! -L "$PILOT_CONFIG" ]] || return 1
+  grep -Eq '^GIDEON_PLAYER_PILOT_ENABLED=1$' "$PILOT_CONFIG" 2>/dev/null
+}
+
+config_disabled(){
+  [[ -f "$PILOT_CONFIG" && ! -L "$PILOT_CONFIG" ]] || return 1
+  grep -Eq '^GIDEON_PLAYER_DISABLED=1$' "$PILOT_CONFIG" 2>/dev/null
+}
+
+config_user(){
+  [[ -f "$PILOT_CONFIG" && ! -L "$PILOT_CONFIG" ]] || return 0
+  sed -n 's/^GIDEON_PLAYER_PILOT_USER=//p' "$PILOT_CONFIG" | head -n1
+}
+
+write_pilot_config(){
+  local user="$1" directory temporary
+  directory="$(dirname "$PILOT_CONFIG")"
+  [[ ! -L "$directory" ]] || { write_status "PILOT_CONFIG_REJECTED" "PLAYER_PILOT_CONFIG_SYMLINK"; return 1; }
+  install -d -o root -g root -m 0750 "$directory"
+  temporary="$(mktemp "$directory/.player-pilot.XXXXXX")"
+  umask 077
+  {
+    printf '%s\n' 'GIDEON_PLAYER_PILOT_ENABLED=1'
+    # This is an operational audit marker, not an authorization binding. A
+    # screen campaign remains associated with its physical output across local
+    # user switches.
+    printf 'GIDEON_PLAYER_PILOT_USER=%s\n' "$user"
+  } >"$temporary"
+  chown root:root "$temporary"
+  chmod 0600 "$temporary"
+  mv -f "$temporary" "$PILOT_CONFIG"
+}
+
+remove_pilot_config(){
+  [[ ! -L "$PILOT_CONFIG" ]] || { write_status "PILOT_CONFIG_REJECTED" "PLAYER_PILOT_CONFIG_SYMLINK"; return 1; }
+  rm -f "$PILOT_CONFIG"
+}
+
+write_disabled_config(){
+  local directory temporary
+  directory="$(dirname "$PILOT_CONFIG")"
+  [[ ! -L "$directory" ]] || { write_status "PLAYER_CONFIG_REJECTED" "PLAYER_CONFIG_SYMLINK"; return 1; }
+  install -d -o root -g root -m 0750 "$directory"
+  temporary="$(mktemp "$directory/.player-disabled.XXXXXX")"
+  umask 077
+  printf '%s\n' 'GIDEON_PLAYER_DISABLED=1' >"$temporary"
+  chown root:root "$temporary"
+  chmod 0600 "$temporary"
+  mv -f "$temporary" "$PILOT_CONFIG"
+}
+
+is_safe_root_directory(){
+  local path="$1" owner mode
+  [[ -d "$path" && ! -L "$path" ]] || return 1
+  owner="$(stat -c '%u' "$path" 2>/dev/null || true)"
+  mode="$(stat -c '%a' "$path" 2>/dev/null || true)"
+  [[ "$owner" == 0 && -n "$mode" ]] || return 1
+  # A group- or world-writable cache permits a local account to race a
+  # verified asset.  Desktop access is granted only as a narrow read ACL below.
+  (( (8#$mode & 0022) == 0 ))
+}
+
+require_safe_root_directory(){
+  local path="$1"
+  is_safe_root_directory "$path" || { write_status "MEDIA_PATH_REJECTED" "PLAYER_MEDIA_PATH_OWNER_OR_MODE_INVALID"; return 1; }
+}
+
+# RUNTIME_DIR is the sole media-tree directory that the active desktop user
+# must be able to write.  setfacl therefore makes the synthetic group mode
+# writable through the ACL mask (normally 0775), even though the owning group
+# itself remains read-only.  Keep the generic path checks strict and accept
+# this one intentional exception only after validating the complete POSIX ACL.
+is_safe_player_runtime_directory(){
+  local path="$1" owner mode acl entry permissions
+  local saw_base_group=0 saw_other=0
+  [[ -d "$path" && ! -L "$path" ]] || return 1
+  owner="$(stat -c '%u' "$path" 2>/dev/null || true)"
+  mode="$(stat -c '%a' "$path" 2>/dev/null || true)"
+  [[ "$owner" == 0 && -n "$mode" ]] || return 1
+  # The ACL mask may make the group mode bit writable for a named user, but
+  # unauthenticated local accounts (other::) must never be able to write.
+  (( (8#$mode & 0002) == 0 )) || return 1
+  command -v getfacl >/dev/null 2>&1 || return 1
+  acl="$(LC_ALL=C getfacl -cpE -- "$path" 2>/dev/null)" || return 1
+  while IFS= read -r entry; do
+    [[ -n "$entry" ]] || continue
+    case "$entry" in
+      default:*) return 1 ;;
+      user::[rwx-][rwx-][rwx-]) ;;
+      user:*:[rwx-][rwx-][rwx-]) ;;
+      group::[rwx-][rwx-][rwx-])
+        permissions="${entry##*:}"
+        [[ "$permissions" != *w* ]] || return 1
+        saw_base_group=1
+        ;;
+      group:*:*) return 1 ;;
+      mask::[rwx-][rwx-][rwx-]) ;;
+      other::[rwx-][rwx-][rwx-])
+        permissions="${entry##*:}"
+        [[ "$permissions" != *w* ]] || return 1
+        saw_other=1
+        ;;
+      *) return 1 ;;
+    esac
+  done <<<"$acl"
+  (( saw_base_group == 1 && saw_other == 1 ))
+}
+
+require_safe_player_runtime_directory(){
+  local path="$1"
+  is_safe_player_runtime_directory "$path" || {
+    write_status "MEDIA_PATH_REJECTED" "PLAYER_RUNTIME_PATH_OWNER_OR_ACL_INVALID"
+    return 1
+  }
+}
+
+require_safe_agent_root(){
+  local unsafe
+  is_safe_root_directory "$ROOT" || return 1
+  # Older vulnerable packages owned the application tree by gideonagent.  Before
+  # Python is ever executed as root, reject any file or directory a local group
+  # or account could replace.  Symlinks inside a root-owned venv are allowed,
+  # but their parent must remain non-writable.
+  unsafe="$(find -P "$ROOT" -xdev \( -type f -o -type d \) -perm /022 -print -quit)" || return 1
+  [[ -z "$unsafe" ]]
+}
+
+require_safe_media_file(){
+  local path="$1" owner mode links
+  [[ -f "$path" && ! -L "$path" ]] || { write_status "MEDIA_PATH_REJECTED" "PLAYER_MEDIA_FILE_SYMLINK_OR_MISSING"; return 1; }
+  owner="$(stat -c '%u' "$path" 2>/dev/null || true)"
+  mode="$(stat -c '%a' "$path" 2>/dev/null || true)"
+  links="$(stat -c '%h' "$path" 2>/dev/null || true)"
+  [[ "$owner" == 0 && -n "$mode" && "$links" == 1 ]] || { write_status "MEDIA_PATH_REJECTED" "PLAYER_MEDIA_FILE_OWNER_OR_LINK_INVALID"; return 1; }
+  (( (8#$mode & 0022) == 0 )) || { write_status "MEDIA_PATH_REJECTED" "PLAYER_MEDIA_FILE_GROUP_OR_WORLD_WRITABLE"; return 1; }
+}
+
+write_status(){
+  local state="$1" reason="${2:-}" runtime_sha="${3:-}"
+  [[ -n "$PY" ]] || return 0
+  "$PY" - "$STATUS" "$state" "$reason" "$runtime_sha" <<'PY' >/dev/null 2>&1 || true
+import datetime as dt,json,os,re,stat,sys,tempfile
+path,state,reason,runtime_sha=sys.argv[1:5]
+os.makedirs(os.path.dirname(path),exist_ok=True)
+payload={"Schema":"gideon-agent-player-launch/v1","State":str(state)[:80],"Reason":str(reason)[:240],"UpdatedAt":dt.datetime.now().astimezone().isoformat(timespec="seconds")}
+runtime_sha=str(runtime_sha or "").strip().lower()
+if not re.fullmatch(r"[0-9a-f]{64}",runtime_sha):
+    runtime_sha=""
+    try:
+        st=os.lstat(path)
+        if stat.S_ISREG(st.st_mode) and st.st_uid==0 and not (st.st_mode & 0o022) and st.st_size<=65536:
+            old=json.loads(open(path,"r",encoding="utf-8").read())
+            candidate=str(old.get("RuntimeSha256") or "").strip().lower() if isinstance(old,dict) else ""
+            if re.fullmatch(r"[0-9a-f]{64}",candidate): runtime_sha=candidate
+    except (OSError,ValueError,TypeError,json.JSONDecodeError):
+        pass
+if runtime_sha:
+    payload["RuntimeSha256"]=runtime_sha
+fd,tmp=tempfile.mkstemp(prefix=".launcher-status.",suffix=".json",dir=os.path.dirname(path))
+try:
+    with os.fdopen(fd,"w",encoding="utf-8",newline="\n") as f:
+        json.dump(payload,f,ensure_ascii=False,sort_keys=True,separators=(",",":"));f.write("\n")
+        f.flush();os.fsync(f.fileno())
+    os.chmod(tmp,0o600);os.replace(tmp,path);os.chmod(path,0o600)
+finally:
+    try: os.unlink(tmp)
+    except FileNotFoundError: pass
+PY
+}
+
+read_recorded_runtime_sha(){
+  "$PY" - "$STATUS" <<'PY' 2>/dev/null || true
+import json,os,re,stat,sys
+path=sys.argv[1]
+try:
+    st=os.lstat(path)
+    if not stat.S_ISREG(st.st_mode) or st.st_uid!=0 or (st.st_mode & 0o022) or st.st_size>65536:
+        raise SystemExit(0)
+    value=json.loads(open(path,"r",encoding="utf-8").read())
+    digest=str(value.get("RuntimeSha256") or "").strip().lower() if isinstance(value,dict) else ""
+    if re.fullmatch(r"[0-9a-f]{64}",digest): print(digest)
+except (OSError,ValueError,TypeError,json.JSONDecodeError):
+    pass
+PY
+}
+
+# A Player release is a small Python closure, not just its entrypoint.  Hash
+# the root-owned modules the desktop runtime imports directly so a signed Agent
+# update cannot leave an interpreter running an old display-capability or
+# bootstrap implementation.  This runs only when the 30-second launcher timer
+# evaluates a real local graphical session; it never hashes media files.
+runtime_closure_sha(){
+  local file digest material=""
+  for file in gideon_agent_player.py gideon_agent_display_capability.py gideon_agent_bootstrap.py; do
+    [[ -f "$ROOT/$file" && ! -L "$ROOT/$file" ]] || return 1
+    digest="$(sha256sum -- "$ROOT/$file" 2>/dev/null | awk '{print tolower($1)}')"
+    [[ "$digest" =~ ^[0-9a-f]{64}$ ]] || return 1
+    material+="${digest}  ${file}"$'\n'
+  done
+  printf '%s' "$material" | sha256sum | awk '{print tolower($1)}'
+}
+
+# The normal path is a transient GIDEON user unit.  Validate its fixed command
+# before stopping it on an update so a local account cannot cause this root
+# launcher to stop an unrelated unit merely by reusing its unit name.
+systemd_player_unit_is_gideon_owned(){
+  local detail
+  detail="$(runuser -u "$user" -- env "${run_env[@]}" systemctl --user show --property=ExecStart --value gideon-agent-player 2>/dev/null || true)"
+  [[ "$detail" == *"$ROOT/gideon_agent_player.py"* && "$detail" == *"--run"* && "$detail" == *"--agent-root"* && "$detail" == *"$STATE"* && "$detail" == *"--media-root"* && "$detail" == *"$MEDIA_ROOT"* ]]
+}
+
+# Fallback support is deliberately narrower than the transient-unit path.  It
+# tracks only the exact root-owned Python entrypoint it launched, including the
+# PID start tick, Agent ID and trusted arguments.  It never searches for or
+# terminates a generic VLC process.  This also lets a later signed update retire
+# an older no-user-bus Player without waiting for logout/reboot.
+player_process_record(){
+  local pid="$1" expected_uid="$2" expected_agent="$3"
+  "$PY" - "$pid" "$expected_uid" "$PY" "$ROOT/gideon_agent_player.py" "$STATE" "$MEDIA_ROOT" "$expected_agent" <<'PY' 2>/dev/null || true
+import os,re,sys
+pid_text,uid_text,python_path,script_path,state_root,media_root,agent_id=sys.argv[1:]
+try:
+    if not re.fullmatch(r"[1-9][0-9]{0,8}",pid_text) or not re.fullmatch(r"[0-9]{1,10}",uid_text):
+        raise ValueError
+    pid=int(pid_text); expected_uid=int(uid_text)
+    proc=f"/proc/{pid}"
+    if os.stat(proc).st_uid != expected_uid:
+        raise ValueError
+    raw=open(f"{proc}/cmdline","rb").read(16384)
+    args=[item.decode("utf-8","strict") for item in raw.split(b"\0") if item]
+    if len(args)<2 or args[0] != python_path or args[1] != script_path or "--run" not in args:
+        raise ValueError
+    def value(flag):
+        index=args.index(flag)
+        return args[index+1] if index+1 < len(args) else ""
+    if value("--agent-root") != state_root or value("--media-root") != media_root or value("--agent-id") != agent_id:
+        raise ValueError
+    stat_text=open(f"{proc}/stat","r",encoding="ascii").read()
+    suffix=stat_text.rsplit(")",1)[1].split()
+    start=int(suffix[19])
+    if start <= 0:
+        raise ValueError
+    print(f"{pid}\t{start}")
+except (OSError,UnicodeError,ValueError,IndexError):
+    pass
+PY
+}
+
+read_fallback_record(){
+  local expected_agent="$1"
+  "$PY" - "$FALLBACK_RECORD" "$expected_agent" <<'PY' 2>/dev/null || true
+import json,os,re,stat,sys
+path,agent_id=sys.argv[1:]
+try:
+    st=os.lstat(path)
+    if not stat.S_ISREG(st.st_mode) or st.st_uid!=0 or (st.st_mode & 0o022) or st.st_size>65536:
+        raise ValueError
+    value=json.loads(open(path,"r",encoding="utf-8").read())
+    if not isinstance(value,dict) or value.get("Schema")!="gideon-agent-player-fallback/v1" or str(value.get("AgentId") or "")!=agent_id:
+        raise ValueError
+    pid=str(value.get("Pid") or ""); start=str(value.get("ProcStartTicks") or ""); digest=str(value.get("RuntimeSha256") or "").lower()
+    if not re.fullmatch(r"[1-9][0-9]{0,8}",pid) or not re.fullmatch(r"[1-9][0-9]{0,19}",start) or not re.fullmatch(r"[0-9a-f]{64}",digest):
+        raise ValueError
+    print(f"{pid}\t{start}\t{digest}")
+except (OSError,ValueError,TypeError,json.JSONDecodeError):
+    pass
+PY
+}
+
+write_fallback_record(){
+  local pid="$1" start_ticks="$2" agent_id="$3" runtime_sha="$4"
+  "$PY" - "$FALLBACK_RECORD" "$pid" "$start_ticks" "$agent_id" "$runtime_sha" <<'PY' >/dev/null 2>&1 || return 1
+import datetime as dt,json,os,re,sys,tempfile
+path,pid,start,agent_id,digest=sys.argv[1:]
+if not re.fullmatch(r"[1-9][0-9]{0,8}",pid) or not re.fullmatch(r"[1-9][0-9]{0,19}",start): raise SystemExit(1)
+if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,159}",agent_id) or not re.fullmatch(r"[0-9a-f]{64}",digest): raise SystemExit(1)
+payload={"Schema":"gideon-agent-player-fallback/v1","Pid":int(pid),"ProcStartTicks":int(start),"AgentId":agent_id,"RuntimeSha256":digest,"UpdatedAt":dt.datetime.now().astimezone().isoformat(timespec="seconds")}
+fd,tmp=tempfile.mkstemp(prefix=".fallback-player.",suffix=".json",dir=os.path.dirname(path))
+try:
+    with os.fdopen(fd,"w",encoding="utf-8",newline="\n") as handle:
+        json.dump(payload,handle,sort_keys=True,separators=(",",":")); handle.write("\n"); handle.flush(); os.fsync(handle.fileno())
+    os.chown(tmp,0,0); os.chmod(tmp,0o600); os.replace(tmp,path); os.chmod(path,0o600)
+finally:
+    try: os.unlink(tmp)
+    except FileNotFoundError: pass
+PY
+}
+
+clear_fallback_tracking(){
+  local path owner mode
+  for path in "$FALLBACK_RECORD" "$FALLBACK_PID_FILE"; do
+    [[ -e "$path" || -L "$path" ]] || continue
+    [[ ! -L "$path" && -f "$path" ]] || return 1
+    owner="$(stat -c '%u' "$path" 2>/dev/null || true)"
+    mode="$(stat -c '%a' "$path" 2>/dev/null || true)"
+    [[ "$owner" == 0 && -n "$mode" ]] || return 1
+    (( (8#$mode & 0022) == 0 )) || return 1
+    rm -f -- "$path"
+  done
+}
+
+stop_verified_player_record(){
+  local pid="$1" start_ticks="$2" expected_uid="$3" expected_agent="$4" current
+  current="$(player_process_record "$pid" "$expected_uid" "$expected_agent")"
+  [[ "$current" == "$pid"$'\t'"$start_ticks" ]] || return 0
+  kill -TERM "$pid" 2>/dev/null || return 1
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    current="$(player_process_record "$pid" "$expected_uid" "$expected_agent")"
+    [[ "$current" == "$pid"$'\t'"$start_ticks" ]] || return 0
+    sleep 0.2
+  done
+  return 1
+}
+
+find_verified_player_records(){
+  local expected_uid="$1" expected_agent="$2" proc pid record
+  for proc in /proc/[0-9]*; do
+    pid="${proc#/proc/}"
+    record="$(player_process_record "$pid" "$expected_uid" "$expected_agent")"
+    [[ -n "$record" ]] && printf '%s\n' "$record"
+  done
+}
+
+write_output_map(){
+  local identity="$1" screen_number="$2"
+  "$PY" - "$PUBLIC_ROOT" "$identity" "$screen_number" <<'PY'
+import json,os,stat,sys,tempfile
+from pathlib import Path
+root=Path(sys.argv[1]); identity=sys.argv[2]; screen=int(sys.argv[3])
+if root.is_symlink() or not root.is_dir(): raise SystemExit("PLAYER_OUTPUT_MAPPING_PATH_INVALID")
+rst=root.lstat()
+if rst.st_uid != 0 or (rst.st_mode & 0o022): raise SystemExit("PLAYER_OUTPUT_MAPPING_PATH_UNSAFE")
+path=root/"output-map.json"
+document={"Schema":"gideon-player-output-map/v1","Outputs":[]}
+if path.exists():
+    st=path.lstat()
+    if path.is_symlink() or not stat.S_ISREG(st.st_mode) or st.st_uid != rst.st_uid or (st.st_mode & 0o022) or st.st_size>65536:
+        raise SystemExit("PLAYER_OUTPUT_MAPPING_UNSAFE")
+    document=json.loads(path.read_text(encoding="utf-8"))
+if not isinstance(document,dict) or document.get("Schema")!="gideon-player-output-map/v1" or not isinstance(document.get("Outputs"),list):
+    raise SystemExit("PLAYER_OUTPUT_MAPPING_INVALID")
+outputs=[]
+for row in document["Outputs"]:
+    if not isinstance(row,dict): raise SystemExit("PLAYER_OUTPUT_MAPPING_INVALID")
+    key=str(row.get("OutputIdentity") or "")
+    value=int(row.get("VlcScreenNumber") or 0)
+    if not key or not 1<=value<=24: raise SystemExit("PLAYER_OUTPUT_MAPPING_INVALID")
+    if key==identity: continue
+    if value==screen: raise SystemExit("PLAYER_OUTPUT_MAPPING_DUPLICATE")
+    outputs.append({"OutputIdentity":key,"VlcScreenNumber":value})
+outputs.append({"OutputIdentity":identity,"VlcScreenNumber":screen})
+outputs.sort(key=lambda row: row["OutputIdentity"].casefold())
+document={"Schema":"gideon-player-output-map/v1","Outputs":outputs}
+fd,tmp=tempfile.mkstemp(prefix=".output-map.",suffix=".json",dir=root)
+try:
+    with os.fdopen(fd,"w",encoding="utf-8",newline="\n") as handle:
+        json.dump(document,handle,sort_keys=True,separators=(",",":")); handle.write("\n"); handle.flush(); os.fsync(handle.fileno())
+    os.chown(tmp,0,0); os.chmod(tmp,0o644); os.replace(tmp,path); os.chmod(path,0o644)
+finally:
+    try: os.unlink(tmp)
+    except FileNotFoundError: pass
+PY
+}
+
+list_outputs(){
+  "$PY" - "$ROOT" <<'PY'
+import sys
+sys.path.insert(0,sys.argv[1])
+from gideon_agent_display_capability import detect_display_capability
+for item in detect_display_capability().get("Outputs",[]):
+    if not isinstance(item,dict): continue
+    print("Identity={}; Label={}; Connected={}; Enabled={}; InventoryIndex={}".format(
+        str(item.get("OutputIdentity") or ""),str(item.get("Label") or ""),
+        "yes" if item.get("Connected") else "no","yes" if item.get("Enabled") else "no",item.get("Index") or ""))
+PY
+}
+
+# The timer must never make an endpoint less stable. It fails closed with a
+# small status rather than installing VLC, changing firewall policy, exposing
+# Agent state, or weakening a directory to world-writable.
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --enable) ENABLE_PILOT=1 ;;
+    --disable) DISABLE_PILOT=1; START_PLAYER=0 ;;
+    --start) START_PLAYER=1 ;;
+    --status) SHOW_STATUS=1; START_PLAYER=0 ;;
+    --list-outputs) LIST_OUTPUTS=1; START_PLAYER=0 ;;
+    --map-output)
+      shift
+      [[ "$#" -gt 0 ]] || { printf '%s\n' 'PLAYER_OUTPUT_MAPPING_ARGUMENT_INVALID: --map-output requiere una identidad.' >&2; exit 2; }
+      MAP_OUTPUT="$1"
+      ;;
+    --screen-number)
+      shift
+      [[ "$#" -gt 0 ]] || { printf '%s\n' 'PLAYER_OUTPUT_MAPPING_ARGUMENT_INVALID: --screen-number requiere un número.' >&2; exit 2; }
+      MAP_SCREEN_NUMBER="$1"
+      ;;
+    --user)
+      shift
+      [[ "$#" -gt 0 ]] || { printf '%s\n' 'PLAYER_PILOT_ARGUMENT_INVALID: --user requiere una cuenta local.' >&2; exit 2; }
+      REQUESTED_USER="$1"
+      ;;
+    --help|-h) usage; exit 0 ;;
+    *) printf 'PLAYER_PILOT_ARGUMENT_INVALID: %s\n' "$1" >&2; exit 2 ;;
+  esac
+  shift
+done
+
+if [[ "$(id -u)" -ne 0 ]]; then
+  log "PLAYER_LAUNCH_REJECTED_NOT_ROOT"
+  printf '%s\n' 'PLAYER_PILOT_ROOT_REQUIRED: ejecute mediante sudo.' >&2
+  exit 1
+fi
+
+# Bootstrap only fixed, root-owned locations before write_status() can invoke
+# the packaged Python interpreter. This protects upgraded hosts that still
+# have a previously insecure application tree.
+install -d -o root -g root -m 0750 "$STATE" || { printf '%s\n' 'PLAYER_LAUNCH_STATE_UNAVAILABLE' >&2; exit 1; }
+if ! is_safe_root_directory "$STATE"; then
+  printf '%s\n' 'PLAYER_LAUNCH_STATE_REJECTED' >&2
+  exit 1
+fi
+if ! require_safe_agent_root; then
+  printf '%s\n' 'PLAYER_LAUNCH_APP_ROOT_REJECTED: reinstale o repare el Agent antes de iniciar Player.' >&2
+  exit 1
+fi
+if [[ -e "$STATE/player" && -L "$STATE/player" ]]; then
+  printf '%s\n' 'PLAYER_LAUNCH_STATE_REJECTED' >&2
+  exit 1
+fi
+install -d -o root -g root -m 0750 "$STATE/player" || { printf '%s\n' 'PLAYER_LAUNCH_STATE_UNAVAILABLE' >&2; exit 1; }
+if ! is_safe_root_directory "$STATE/player"; then
+  printf '%s\n' 'PLAYER_LAUNCH_STATE_REJECTED' >&2
+  exit 1
+fi
+
+if [[ "$SHOW_STATUS" -eq 1 ]]; then
+  if config_disabled; then
+    printf '%s\n' 'State=EXPLICITLY_DISABLED'
+  elif config_enabled; then
+    printf '%s\n' 'State=ENABLED'
+  else
+    printf '%s\n' 'State=AUTOMATIC'
+  fi
+  printf 'ConfiguredUser=%s\n' "$(config_user || true)"
+  printf 'ManifestAvailable=%s\n' "$( [[ -r "$MANIFEST" ]] && printf true || printf false)"
+  printf 'OutputMapAvailable=%s\n' "$( [[ -r "$PUBLIC_ROOT/output-map.json" && ! -L "$PUBLIC_ROOT/output-map.json" ]] && printf true || printf false)"
+  printf 'AclToolAvailable=%s\n' "$(command -v setfacl >/dev/null 2>&1 && printf true || printf false)"
+  printf 'VlcInstalled=%s\n' "$(command -v cvlc >/dev/null 2>&1 || command -v vlc >/dev/null 2>&1 && printf true || printf false)"
+  exit 0
+fi
+
+if [[ "$LIST_OUTPUTS" -eq 1 ]]; then
+  list_outputs
+  exit 0
+fi
+
+if [[ -n "$MAP_OUTPUT$MAP_SCREEN_NUMBER" ]]; then
+  valid_output_identity "$MAP_OUTPUT" && valid_screen_number "$MAP_SCREEN_NUMBER" || {
+    write_status "OUTPUT_MAPPING_REJECTED" "PLAYER_OUTPUT_MAPPING_ARGUMENT_INVALID"
+    exit 2
+  }
+  require_safe_root_directory /opt/gideon || { write_status "OUTPUT_MAPPING_REJECTED" "PLAYER_OUTPUT_MAPPING_PATH_UNSAFE"; exit 1; }
+  require_safe_root_directory /opt/gideon/Distribucion || { write_status "OUTPUT_MAPPING_REJECTED" "PLAYER_OUTPUT_MAPPING_PATH_UNSAFE"; exit 1; }
+  require_safe_root_directory "$MEDIA_ROOT" || { write_status "OUTPUT_MAPPING_REJECTED" "PLAYER_OUTPUT_MAPPING_PATH_UNSAFE"; exit 1; }
+  require_safe_root_directory "$PUBLIC_ROOT" || { write_status "OUTPUT_MAPPING_REJECTED" "PLAYER_OUTPUT_MAPPING_PATH_UNSAFE"; exit 1; }
+  if write_output_map "$MAP_OUTPUT" "$MAP_SCREEN_NUMBER"; then
+    write_status "OUTPUT_MAPPING_SAVED" "PLAYER_OUTPUT_MAPPING_LOCAL_ADMIN"
+    printf '%s\n' 'PLAYER_OUTPUT_MAPPING_SAVED'
+    exit 0
+  fi
+  write_status "OUTPUT_MAPPING_REJECTED" "PLAYER_OUTPUT_MAPPING_WRITE_FAILED"
+  exit 1
+fi
+
+if [[ "$DISABLE_PILOT" -eq 1 ]]; then
+  write_disabled_config || exit 1
+  write_status "PLAYER_DISABLED" "PLAYER_DISABLED_BY_LOCAL_ADMIN"
+  log "PLAYER_DISABLED_BY_LOCAL_ADMIN"
+  printf '%s\n' 'PLAYER_DISABLED'
+  exit 0
+fi
+
+if [[ "$ENABLE_PILOT" -eq 0 ]] && config_disabled; then
+  write_status "PLAYER_DISABLED" "PLAYER_DISABLED_BY_LOCAL_ADMIN"
+  exit 0
+fi
+
+if [[ ! -x "$PY" || ! -r "$ROOT/gideon_agent_player.py" || ! -r "$ROOT/gideon_agent_signing_public.pem" ]]; then
+  write_status "RUNTIME_UNAVAILABLE" "PLAYER_RUNTIME_OR_SIGNING_KEY_MISSING"
+  exit 0
+fi
+PLAYER_RUNTIME_SHA="$(runtime_closure_sha)"
+[[ "$PLAYER_RUNTIME_SHA" =~ ^[0-9a-f]{64}$ ]] || {
+  write_status "RUNTIME_UNAVAILABLE" "PLAYER_RUNTIME_CLOSURE_SHA256_UNAVAILABLE"
+  exit 0
+}
+if [[ ! -r "$MANIFEST" || ! -d "$RUNTIME_DIR" ]]; then
+  write_status "IDLE_NO_CAMPAIGN" "PLAYER_PUBLIC_MANIFEST_UNAVAILABLE"
+  exit 0
+fi
+require_safe_root_directory /opt/gideon || exit 0
+require_safe_root_directory /opt/gideon/Distribucion || exit 0
+require_safe_root_directory "$MEDIA_ROOT" || exit 0
+require_safe_root_directory "$PUBLIC_ROOT" || exit 0
+require_safe_player_runtime_directory "$RUNTIME_DIR" || exit 0
+require_safe_media_file "$MANIFEST" || exit 0
+if ! command -v setfacl >/dev/null 2>&1; then
+  # Do not weaken permissions or use a generic group when ACL tooling is absent.
+  write_status "ACL_UNAVAILABLE" "PLAYER_SET_FACL_REQUIRED"
+  exit 0
+fi
+
+session="" user="" uid="" leader=""
+if command -v loginctl >/dev/null 2>&1; then
+  while read -r sid _; do
+    [[ -n "$sid" ]] || continue
+    active="$(loginctl show-session "$sid" -p Active --value 2>/dev/null || true)"
+    remote="$(loginctl show-session "$sid" -p Remote --value 2>/dev/null || true)"
+    type="$(loginctl show-session "$sid" -p Type --value 2>/dev/null || true)"
+    cls="$(loginctl show-session "$sid" -p Class --value 2>/dev/null || true)"
+    [[ "$active" == yes && "$remote" == no ]] || continue
+    case "$type" in x11|wayland) ;; *) continue;; esac
+    [[ "$cls" == user || -z "$cls" ]] || continue
+    session="$sid"
+    user="$(loginctl show-session "$sid" -p Name --value 2>/dev/null || true)"
+    leader="$(loginctl show-session "$sid" -p Leader --value 2>/dev/null || true)"
+    break
+  done < <(loginctl list-sessions --no-legend 2>/dev/null || true)
+fi
+[[ -n "$user" ]] || { write_status "WAITING_FOR_PHYSICAL_SESSION" "PLAYER_LOCAL_GRAPHICAL_SESSION_REQUIRED"; exit 0; }
+valid_user "$user" || { write_status "WAITING_FOR_PHYSICAL_SESSION" "PLAYER_CONSOLE_USER_INVALID"; exit 0; }
+if [[ -n "$REQUESTED_USER" ]]; then
+  valid_user "$REQUESTED_USER" || { write_status "PILOT_CONFIG_REJECTED" "PLAYER_REQUESTED_USER_INVALID"; exit 0; }
+  [[ "$REQUESTED_USER" == "$user" ]] || { write_status "PILOT_CONFIG_REJECTED" "PLAYER_REQUESTED_USER_NOT_ACTIVE"; exit 0; }
+fi
+uid="$(id -u "$user" 2>/dev/null || true)"
+[[ -n "$uid" ]] || { write_status "WAITING_FOR_PHYSICAL_SESSION" "PLAYER_CONSOLE_USER_UNRESOLVED"; exit 0; }
+
+env_from_pid(){
+  local key="$1" pid="$2"
+  [[ -n "$pid" && -r "/proc/$pid/environ" ]] || return 0
+  tr '\0' '\n' <"/proc/$pid/environ" 2>/dev/null | sed -n "s/^${key}=//p" | head -n1
+}
+display="$(env_from_pid DISPLAY "$leader")"
+wayland="$(env_from_pid WAYLAND_DISPLAY "$leader")"
+xdgrt="$(env_from_pid XDG_RUNTIME_DIR "$leader")"
+dbus="$(env_from_pid DBUS_SESSION_BUS_ADDRESS "$leader")"
+xauth="$(env_from_pid XAUTHORITY "$leader")"
+if [[ -z "$display$wayland" ]]; then
+  # Display managers commonly keep DISPLAY/WAYLAND_DISPLAY out of the logind
+  # leader environment. Read only a child in the *same physical session*
+  # cgroup. A name-based pgrep can select a newer XRDP/X11 session belonging
+  # to the same account and would send signage to the wrong desktop.
+  physical_env_pid=""
+  for proc_path in /proc/[0-9]*; do
+    candidate_pid="${proc_path##*/}"
+    [[ "$(stat -c '%u' "$proc_path" 2>/dev/null || true)" == "$uid" ]] || continue
+    grep -Fq -- "/session-${session}.scope" "$proc_path/cgroup" 2>/dev/null || continue
+    candidate_display="$(env_from_pid DISPLAY "$candidate_pid")"
+    candidate_wayland="$(env_from_pid WAYLAND_DISPLAY "$candidate_pid")"
+    [[ -n "$candidate_display$candidate_wayland" ]] || continue
+    physical_env_pid="$candidate_pid"
+    break
+  done
+  if [[ -n "$physical_env_pid" ]]; then
+    display="$(env_from_pid DISPLAY "$physical_env_pid")"
+    wayland="$(env_from_pid WAYLAND_DISPLAY "$physical_env_pid")"
+    xdgrt="$(env_from_pid XDG_RUNTIME_DIR "$physical_env_pid")"
+    dbus="$(env_from_pid DBUS_SESSION_BUS_ADDRESS "$physical_env_pid")"
+    xauth="$(env_from_pid XAUTHORITY "$physical_env_pid")"
+  fi
+fi
+[[ -n "$xdgrt" ]] || xdgrt="/run/user/$uid"
+# Some minimal compositors do not export WAYLAND_DISPLAY to any session child.
+# Accept a socket fallback only when the canonical per-user runtime contains
+# exactly one real Wayland socket owned by that desktop account.
+if [[ -z "$wayland" && "$type" == wayland && "$xdgrt" == "/run/user/$uid" ]]; then
+  mapfile -t wayland_sockets < <(find "$xdgrt" -maxdepth 1 -type s -user "$user" -name 'wayland-[0-9]*' -printf '%f\n' 2>/dev/null | sort)
+  if (( ${#wayland_sockets[@]} == 1 )); then wayland="${wayland_sockets[0]}"; fi
+fi
+[[ -n "$display$wayland" ]] || { write_status "WAITING_FOR_PHYSICAL_SESSION" "PLAYER_GRAPHICAL_ENVIRONMENT_UNAVAILABLE"; exit 0; }
+home="$(getent passwd "$user" 2>/dev/null | cut -d: -f6)"; [[ -n "$home" ]] || home="/home/$user"
+[[ -n "$dbus" ]] || dbus="unix:path=$xdgrt/bus"
+[[ -n "$xauth" && -f "$xauth" ]] || xauth="$home/.Xauthority"
+
+# Verify the Ed25519 envelope and hash all referenced media before granting the
+# console user read access.  This does not fetch assets or read private Agent
+# state; it merely derives safe basenames from the already public envelope.
+mapfile -t verified < <("$PY" - "$ROOT" "$STATE" "$MANIFEST" "$MEDIA_ROOT" <<'PY'
+import json,re,sys
+from pathlib import Path
+root,state,manifest_path,media=sys.argv[1:5]
+sys.path.insert(0,root)
+from gideon_agent_player import PlayerManifestStore
+envelope=json.loads(Path(manifest_path).read_text(encoding="utf-8-sig"))
+payload=envelope.get("Payload") if isinstance(envelope.get("Payload"),dict) else envelope.get("payload")
+agent_id=str((payload or {}).get("AgentId") or (payload or {}).get("agent_id") or "")
+if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,159}",agent_id): raise SystemExit(2)
+store=PlayerManifestStore(agent_root=Path(state),agent_id=agent_id,public_key_path=Path(root)/"gideon_agent_signing_public.pem",media_root=Path(media),desktop_only=True)
+verified=store.load_desktop_manifest()
+if verified is None: raise SystemExit(3)
+store.verify_media_assets(verified)
+print(agent_id)
+for assignment in verified.assignments:
+    for asset in assignment.playlist: print(asset.file_name)
+PY
+) || { write_status "MANIFEST_REJECTED" "PLAYER_SIGNED_MANIFEST_OR_MEDIA_INVALID"; exit 0; }
+(( ${#verified[@]} >= 1 )) || { write_status "MANIFEST_REJECTED" "PLAYER_AGENT_ID_UNAVAILABLE"; exit 0; }
+agent_id="${verified[0]}"
+
+# The Python verifier re-checks ownership, permissions, regular-file type and
+# SHA-256 on an O_NOFOLLOW descriptor.  Repeat the cheap shell checks before
+# changing ACLs so a root-owned media cache never grants a user access to a
+# symlink, hard link, group-writable file, or a file outside the signed list.
+for file_name in "${verified[@]:1}"; do
+  require_safe_media_file "$MEDIA_ROOT/$file_name" || exit 0
+done
+
+# Revoke the previously configured account's narrowly scoped grant when the
+# physical account changes. The root-owned pilot config is authoritative; the
+# legacy state marker is only a migration fallback and is never trusted alone.
+old_user="$(config_user || true)"
+[[ -n "$old_user" ]] || old_user="$(cat "$USER_STATE" 2>/dev/null || true)"
+if [[ -n "$old_user" && "$old_user" != "$user" && "$old_user" =~ ^[A-Za-z0-9._-]{1,80}$ ]]; then
+  setfacl -x "u:$old_user" /opt/gideon /opt/gideon/Distribucion "$MEDIA_ROOT" "$PUBLIC_ROOT" "$MANIFEST" "$RUNTIME_DIR" >/dev/null 2>&1 || true
+  find -P "$MEDIA_ROOT" -maxdepth 1 -type f -name '*.mp4' -exec setfacl -x "u:$old_user" {} + >/dev/null 2>&1 || true
+fi
+# Never leave a default ACL on MediaRoot.  A default rule would grant a future
+# unverified upload to the graphical user before the root-owned launcher has
+# validated its signed manifest and SHA-256.  Existing grants are revoked and
+# only the verified manifest assets below receive read access.
+setfacl -k "$MEDIA_ROOT" >/dev/null 2>&1 || { write_status "ACL_REJECTED" "PLAYER_MEDIA_DEFAULT_ACL_REMOVE_FAILED"; exit 0; }
+find -P "$MEDIA_ROOT" -maxdepth 1 -type f -name '*.mp4' -exec setfacl -x "u:$user" {} + >/dev/null 2>&1 || true
+setfacl -m "u:$user:--x" /opt/gideon /opt/gideon/Distribucion
+setfacl -m "u:$user:--x" "$MEDIA_ROOT"
+setfacl -m "u:$user:r-x" "$PUBLIC_ROOT"
+setfacl -m "u:$user:r--" "$MANIFEST"
+setfacl -m "u:$user:rwx" "$RUNTIME_DIR"
+for file_name in "${verified[@]:1}"; do
+  # The verifier above allows only a flat safe MP4 filename and validates the
+  # SHA-256, therefore no user-controlled path reaches setfacl.
+  setfacl -m "u:$user:r--" "$MEDIA_ROOT/$file_name"
+done
+umask 077
+printf '%s\n' "$user" >"$USER_STATE.tmp.$$"; chmod 600 "$USER_STATE.tmp.$$"; mv -f "$USER_STATE.tmp.$$" "$USER_STATE"
+if [[ "$ENABLE_PILOT" -eq 1 || "$(config_user || true)" != "$user" ]]; then
+  write_pilot_config "$user" || { write_status "PILOT_CONFIG_REJECTED" "PLAYER_PILOT_CONFIG_WRITE_FAILED"; exit 0; }
+fi
+
+run_env=(
+  HOME="$home" USER="$user" LOGNAME="$user" DISPLAY="$display" WAYLAND_DISPLAY="$wayland"
+  XDG_RUNTIME_DIR="$xdgrt" DBUS_SESSION_BUS_ADDRESS="$dbus" XAUTHORITY="$xauth"
+  PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+  XDG_SESSION_ID="$session"
+)
+log "PLAYER_COMPANION_START_REQUESTED session=${session:-unknown} uid=$uid"
+write_status "START_REQUESTED" "PLAYER_LOCAL_COMPANION_REQUESTED"
+if command -v runuser >/dev/null 2>&1 && command -v systemd-run >/dev/null 2>&1 && [[ -S "$xdgrt/bus" ]]; then
+  if runuser -u "$user" -- env "${run_env[@]}" systemctl --user is-active --quiet gideon-agent-player >/dev/null 2>&1; then
+    if ! systemd_player_unit_is_gideon_owned; then
+      # The name is intentionally fixed, but a local user may independently
+      # create a user unit with that name.  Do not stop a unit unless its
+      # command is the exact root-owned GIDEON Player companion.
+      write_status "RESTART_DEFERRED" "PLAYER_LOCAL_COMPANION_UNIT_UNVERIFIED"
+      exit 0
+    fi
+    recorded_runtime_sha="$(read_recorded_runtime_sha)"
+    if [[ "$recorded_runtime_sha" == "$PLAYER_RUNTIME_SHA" ]]; then
+      write_status "STARTED" "PLAYER_LOCAL_COMPANION_ALREADY_RUNNING" "$PLAYER_RUNTIME_SHA"
+      exit 0
+    fi
+    # A signed Agent update replaces the Python source atomically, but an
+    # already-running interpreter retains the prior code in memory. Restart
+    # only GIDEON's own transient user unit when the root-owned launch record no
+    # longer matches the installed source. Never match/kill a generic VLC PID.
+    log "PLAYER_COMPANION_RUNTIME_CHANGED session=${session:-unknown} uid=$uid"
+    write_status "RESTART_REQUESTED" "PLAYER_LOCAL_COMPANION_RUNTIME_CHANGED"
+    if ! runuser -u "$user" -- env "${run_env[@]}" systemctl --user stop gideon-agent-player >/dev/null 2>&1; then
+      write_status "RESTART_DEFERRED" "PLAYER_LOCAL_COMPANION_STOP_FAILED"
+      exit 0
+    fi
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+      runuser -u "$user" -- env "${run_env[@]}" systemctl --user is-active --quiet gideon-agent-player >/dev/null 2>&1 || break
+      sleep 0.2
+    done
+    if runuser -u "$user" -- env "${run_env[@]}" systemctl --user is-active --quiet gideon-agent-player >/dev/null 2>&1; then
+      write_status "RESTART_DEFERRED" "PLAYER_LOCAL_COMPANION_STOP_TIMEOUT"
+      exit 0
+    fi
+  fi
+  if runuser -u "$user" -- env "${run_env[@]}" \
+    systemd-run --user --collect --quiet --unit=gideon-agent-player \
+      /usr/bin/env "${run_env[@]}" \
+      "$PY" "$ROOT/gideon_agent_player.py" --run --agent-root "$STATE" --agent-id "$agent_id" \
+      --public-key "$ROOT/gideon_agent_signing_public.pem" --media-root "$MEDIA_ROOT" >/dev/null 2>&1; then
+    # The user manager does not inherit arbitrary variables from the
+    # systemd-run client. Passing a fixed /usr/bin/env command ensures the
+    # transient unit receives the verified physical session and never an XRDP
+    # or service-manager environment. Confirm it survived initial activation
+    # before claiming STARTED.
+    if runuser -u "$user" -- env "${run_env[@]}" systemctl --user is-active --quiet gideon-agent-player >/dev/null 2>&1; then
+      log "PLAYER_COMPANION_STARTED session=${session:-unknown} uid=$uid"
+      write_status "STARTED" "PLAYER_LOCAL_COMPANION_STARTED" "$PLAYER_RUNTIME_SHA"
+      exit 0
+    fi
+    log "PLAYER_COMPANION_EXITED_DURING_START session=${session:-unknown} uid=$uid"
+    write_status "START_DEFERRED" "PLAYER_LOCAL_COMPANION_EXITED_DURING_START"
+    exit 0
+  fi
+fi
+command -v runuser >/dev/null 2>&1 || { write_status "START_DEFERRED" "PLAYER_RUNUSER_REQUIRED"; exit 0; }
+command -v start-stop-daemon >/dev/null 2>&1 || { write_status "START_DEFERRED" "PLAYER_FALLBACK_SUPERVISOR_REQUIRED"; exit 0; }
+command -v setsid >/dev/null 2>&1 || { write_status "START_DEFERRED" "PLAYER_FALLBACK_SESSION_ISOLATION_REQUIRED"; exit 0; }
+
+# A previous fallback may predate tracked launch records.  Stop only a process
+# whose live /proc command line is the exact root-owned GIDEON Player script with
+# this Agent and media root; manual VLC and every other application are out of
+# scope.  The Player handles SIGTERM gracefully and terminates only VLC it owns.
+recorded_fallback="$(read_fallback_record "$agent_id")"
+if [[ -n "$recorded_fallback" ]]; then
+  IFS=$'\t' read -r fallback_pid fallback_start fallback_sha <<<"$recorded_fallback"
+  current_record="$(player_process_record "$fallback_pid" "$uid" "$agent_id")"
+  if [[ "$current_record" == "$fallback_pid"$'\t'"$fallback_start" ]]; then
+    if [[ "$fallback_sha" == "$PLAYER_RUNTIME_SHA" ]]; then
+      write_status "STARTED" "PLAYER_LOCAL_COMPANION_FALLBACK_ALREADY_RUNNING" "$PLAYER_RUNTIME_SHA"
+      exit 0
+    fi
+    log "PLAYER_COMPANION_FALLBACK_RUNTIME_CHANGED session=${session:-unknown} uid=$uid"
+    write_status "RESTART_REQUESTED" "PLAYER_LOCAL_COMPANION_FALLBACK_RUNTIME_CHANGED"
+    if ! stop_verified_player_record "$fallback_pid" "$fallback_start" "$uid" "$agent_id"; then
+      write_status "RESTART_DEFERRED" "PLAYER_LOCAL_COMPANION_FALLBACK_STOP_TIMEOUT"
+      exit 0
+    fi
+  fi
+fi
+if ! clear_fallback_tracking; then
+  write_status "START_DEFERRED" "PLAYER_FALLBACK_TRACKING_UNSAFE"
+  exit 0
+fi
+
+mapfile -t legacy_players < <(find_verified_player_records "$uid" "$agent_id")
+for legacy_record in "${legacy_players[@]:-}"; do
+  [[ -n "$legacy_record" ]] || continue
+  IFS=$'\t' read -r legacy_pid legacy_start <<<"$legacy_record"
+  log "PLAYER_COMPANION_LEGACY_FALLBACK_RETIRE_REQUESTED session=${session:-unknown} uid=$uid"
+  if ! stop_verified_player_record "$legacy_pid" "$legacy_start" "$uid" "$agent_id"; then
+    write_status "RESTART_DEFERRED" "PLAYER_LOCAL_COMPANION_LEGACY_STOP_TIMEOUT"
+    exit 0
+  fi
+done
+
+if ! start-stop-daemon --start --background --make-pidfile --pidfile "$FALLBACK_PID_FILE" \
+  --chuid "$user" --startas /usr/bin/setsid -- \
+  /usr/bin/env "${run_env[@]}" "$PY" "$ROOT/gideon_agent_player.py" --run --agent-root "$STATE" --agent-id "$agent_id" \
+  --public-key "$ROOT/gideon_agent_signing_public.pem" --media-root "$MEDIA_ROOT" >/dev/null 2>&1; then
+  write_status "START_DEFERRED" "PLAYER_LOCAL_COMPANION_FALLBACK_START_FAILED"
+  exit 0
+fi
+fallback_pid="$(tr -cd '0-9' <"$FALLBACK_PID_FILE" 2>/dev/null || true)"
+if [[ ! "$fallback_pid" =~ ^[1-9][0-9]{0,8}$ ]]; then
+  clear_fallback_tracking || true
+  write_status "START_DEFERRED" "PLAYER_LOCAL_COMPANION_FALLBACK_PID_UNAVAILABLE"
+  exit 0
+fi
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  current_record="$(player_process_record "$fallback_pid" "$uid" "$agent_id")"
+  if [[ -n "$current_record" ]]; then
+    IFS=$'\t' read -r fallback_pid fallback_start <<<"$current_record"
+    if write_fallback_record "$fallback_pid" "$fallback_start" "$agent_id" "$PLAYER_RUNTIME_SHA"; then
+      log "PLAYER_COMPANION_FALLBACK_STARTED session=${session:-unknown} uid=$uid"
+      write_status "STARTED" "PLAYER_LOCAL_COMPANION_STARTED_FALLBACK" "$PLAYER_RUNTIME_SHA"
+      exit 0
+    fi
+    write_status "START_DEFERRED" "PLAYER_LOCAL_COMPANION_FALLBACK_TRACKING_WRITE_FAILED"
+    exit 0
+  fi
+  sleep 0.2
+done
+clear_fallback_tracking || true
+write_status "START_DEFERRED" "PLAYER_LOCAL_COMPANION_FALLBACK_EXITED_DURING_START"
+exit 0

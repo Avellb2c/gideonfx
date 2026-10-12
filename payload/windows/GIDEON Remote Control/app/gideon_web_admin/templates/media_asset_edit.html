@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block extra_styles %}<link rel="stylesheet" href="{{ static_url('media_campaigns.css') }}">{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Editar video</h1><p>Actualice cómo Marketing identifica y cuándo puede usar este contenido. El archivo, su integridad y su historial no se modifican.</p></div>
+  <div class="page-actions"><a class="btn" href="/media/library">Volver a biblioteca</a></div>
+</div>
+{% include "media_tabs.html" %}
+{% if error %}<div class="alert danger"><strong>No se pudo guardar</strong>{{ error }}</div>{% endif %}
+
+<section class="card card-pad" aria-labelledby="mediaAssetEditTitle">
+  <div class="card-head">
+    <div><h2 id="mediaAssetEditTitle">{{ asset.display_name }}</h2><p>Propiedad de Gideon Rx · {{ asset.container|default('MP4', true) }}{% if asset.resolution %} · {{ asset.resolution }}{% endif %}{% if asset.duration_seconds %} · {{ asset.duration_seconds }} s{% endif %}</p></div>
+    <span class="chip media-asset-state media-asset-status-{{ asset.status|lower }}">{{ 'Listo para usar' if asset.status=='READY' else asset.status|replace('_', ' ')|title }}</span>
+  </div>
+
+  {% if references.current_count %}
+  <div class="alert warning" role="status">
+    <strong>Este video ya está en {{ references.current_count }} campaña(s) actual(es).</strong>
+    {% if references.active_count %}Hay {{ references.active_count }} programada(s) o activa(s).{% endif %}
+    Cambiar las fechas sólo se permite si todavía cubren todas esas programaciones. Para eliminarlo de la biblioteca, reemplácelo o archive esas campañas primero.
+    <ul>
+      {% for reference in references.current %}<li>{{ reference.title }} · {{ reference.screen_name }} · {{ reference.state|replace('_', ' ')|title }}</li>{% endfor %}
+    </ul>
+  </div>
+  {% elif references.historical_assignment_count %}
+  <div class="alert info"><strong>Historial protegido.</strong> Este video aparece en {{ references.historical_revision_count }} revisión(es) histórica(s); editar estos datos no reescribe esas campañas.</div>
+  {% endif %}
+
+  <form method="post" action="{{ form_action }}" class="form-stack" novalidate>
+    <input type="hidden" name="csrf" value="{{ identity.csrf_token }}">
+    <input type="hidden" name="version_token" value="{{ asset.version_token|default('', true) }}">
+    <input type="hidden" name="expected_updated_at" value="{{ asset.updated_at|default('', true) }}">
+    <div class="form-grid">
+      <div class="field wide"><label for="assetDisplayName">Nombre para Marketing</label><input class="input" id="assetDisplayName" name="display_name" maxlength="180" required autocomplete="off" value="{{ asset.display_name }}"><small>Este nombre se verá al elegir contenido para una pantalla.</small></div>
+      <div class="field media-local-date-field"><label for="assetValidFrom">Vigente desde (opcional)</label><div class="media-local-date" data-localized-date-picker><input class="input" id="assetValidFrom" type="date" name="valid_from" value="{{ asset.valid_from }}" data-localized-date-value></div><small>Seleccione una fecha en el calendario localizado o déjelo vacío si puede usarse desde ahora.</small></div>
+      <div class="field media-local-date-field"><label for="assetValidUntil">Vigente hasta (opcional)</label><div class="media-local-date" data-localized-date-picker><input class="input" id="assetValidUntil" type="date" name="valid_until" value="{{ asset.valid_until }}" data-localized-date-value></div><small>Déjelo vacío si no tiene fecha de fin.</small></div>
+    </div>
+    <div class="page-actions"><button class="btn btn-primary" type="submit">Guardar cambios</button><a class="btn" href="/media/library">Cancelar</a></div>
+  </form>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ static_url('media_campaigns.js') }}"></script>{% endblock %}
+

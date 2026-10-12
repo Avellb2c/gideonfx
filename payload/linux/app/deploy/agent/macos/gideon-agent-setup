@@ -1,0 +1,666 @@
+#!/bin/zsh
+set -euo pipefail
+ROOT="${GIDEON_AGENT_ROOT:-/Library/Application Support/GIDEONAgent}"
+TARGET_VERSION="2.4.49"
+CONFIG="$ROOT/agent.json"; TEMPLATE="$ROOT/agent.template.json"; BOOTSTRAP="$ROOT/bootstrap.enrollment"
+STATE="/var/db/gideon-agent"; LOG="$STATE/install.log"
+PLIST="/Library/LaunchDaemons/pe.com.gideons.gideonagent.plist"; LABEL="pe.com.gideons.gideonagent"
+mkdir -p "$STATE"; touch "$LOG"; chmod 600 "$LOG" || true
+DIAG_DIR="$STATE/diagnostics"
+mkdir -p "$DIAG_DIR"
+log(){ print -r -- "[$(date '+%Y-%m-%d %H:%M:%S%z')] $*" | tee -a "$LOG"; }
+
+gideon_collect_diagnostics_macos(){
+  local reason="${1:-UNKNOWN_FAILURE}"
+  local command_text="${2:-}"
+  local stamp report
+  stamp="$(date +%Y%m%d_%H%M%S)"
+  report="$DIAG_DIR/install-error-$stamp.txt"
+  {
+    echo "============================================================"
+    echo "GIDEON REMOTE CONTROL AGENT - macOS INSTALLATION DIAGNOSTIC"
+    echo "============================================================"
+    echo "Timestamp: $(date)"
+    echo "Reason: $reason"
+    echo "Command/Stage: $command_text"
+    echo "Agent target version: $TARGET_VERSION"
+    echo "SiteCode: ${site_code:-UNKNOWN}"
+    echo "SiteName: ${site_name:-UNKNOWN}"
+    echo "AgentName: ${agent_name:-UNKNOWN}"
+    echo "Gateway: ${gateway:-UNKNOWN}"
+    echo
+    echo "=== OS / ARCH ==="
+    sw_vers 2>&1 || true
+    uname -a 2>&1 || true
+    echo
+    echo "=== CONFIG (SANITIZED FIELDS ONLY) ==="
+    if [[ -s "$CONFIG" && -n "${PY:-}" && -x "${PY:-}" ]]; then
+      "$PY" - "$CONFIG" <<'PY' 2>&1 || true
+import json,sys
+try:
+    c=json.load(open(sys.argv[1],encoding="utf-8-sig"))
+    cp=c.get("control_plane") if isinstance(c.get("control_plane"),dict) else {}
+    rt=c.get("reverse_tunnel") if isinstance(c.get("reverse_tunnel"),dict) else {}
+    print("site_code:",c.get("site_code"))
+    print("site_name:",c.get("site_name"))
+    print("agent_name:",c.get("agent_name"))
+    print("agent_version:",c.get("agent_version"))
+    print("gateway:",cp.get("base_url"))
+    print("reverse_tunnel.enabled:",rt.get("enabled"))
+except Exception as exc:
+    print("ConfigReadError:",type(exc).__name__,str(exc))
+PY
+    else
+      echo "agent.json: MISSING"
+    fi
+    echo
+    echo "=== LAUNCHD GIDEON AGENT ==="
+    launchctl print "system/$LABEL" 2>&1 || true
+    echo
+    echo "=== PORT 5900 ==="
+    /usr/sbin/lsof -nP -iTCP:5900 -sTCP:LISTEN 2>&1 || true
+    echo
+    echo "=== AGENT STDOUT (LAST 100) ==="
+    tail -n 100 "$STATE/agent.stdout.log" 2>&1 || true
+    echo
+    echo "=== AGENT STDERR (LAST 100) ==="
+    tail -n 100 "$STATE/agent.stderr.log" 2>&1 || true
+    echo
+    echo "=== INSTALL LOG (LAST 180) ==="
+    tail -n 180 "$LOG" 2>&1 || true
+    echo
+    echo "============================================================"
+    echo "END DIAGNOSTIC"
+    echo "============================================================"
+  } >"$report"
+  chmod 0644 "$report" 2>/dev/null || true
+  print -r -- "$report"
+}
+
+gideon_fail(){
+  local msg="$*"
+  log "ERROR: $msg"
+  local report
+  report="$(gideon_collect_diagnostics_macos "$msg" "explicit-failure")"
+  print -r -- "GIDEON_DIAGNOSTIC_FILE=$report"
+  print -r -- "GIDEON_ERROR_FULL=$msg"
+  exit 1
+}
+die(){ gideon_fail "$@"; }
+
+TRAPZERR(){
+  local rc=$?
+  trap - ZERR
+  log "UNHANDLED_ERROR rc=$rc"
+  local report
+  report="$(gideon_collect_diagnostics_macos "UNHANDLED_ERROR rc=$rc" "zsh-error-trap")"
+  print -r -- "GIDEON_DIAGNOSTIC_FILE=$report"
+  return "$rc"
+}
+if [[ "$(id -u)" -ne 0 ]]; then
+  if [[ "$#" -eq 0 && -x "$ROOT/gideon-agent-first-run-native" ]]; then
+    exec "$ROOT/gideon-agent-first-run-native"
+  fi
+  die "Ejecute gideon-agent-setup sin argumentos para la GUI nativa de macOS o use sudo gideon-agent-setup en modo consola."
+fi
+[[ -f "$TEMPLATE" ]] || die "No existe $TEMPLATE"
+PY="$ROOT/venv/bin/python"
+if [[ ! -x "$PY" ]]; then command -v python3 >/dev/null 2>&1 || die "python3 no instalado"; python3 -m venv "$ROOT/venv"; fi
+"$ROOT/venv/bin/pip" install --disable-pip-version-check -r "$ROOT/requirements-agent.txt"
+"$PY" -c "import sys;sys.path.insert(0,'$ROOT');import gideon_agent,gideon_reverse_tunnel,gideon_common;assert gideon_reverse_tunnel.TUNNEL_API_VERSION==gideon_agent.REVERSE_TUNNEL_API_REQUIRED;print('runtime',gideon_agent.VERSION,'rt-api',gideon_reverse_tunnel.TUNNEL_API_VERSION)"
+
+gideon_validate_installer_contract_macos(){
+  "$PY" - "$ROOT" "$TARGET_VERSION" <<'PY'
+import hashlib,json,os,sys
+root,expected=sys.argv[1:3]
+cp=os.path.join(root,"installer.contract.json")
+if not os.path.isfile(cp): raise SystemExit("INSTALLER_CONTRACT_FILE_MISSING")
+with open(cp,encoding="utf-8-sig") as f: c=json.load(f)
+if c.get("schema")!="gideon-agent-installer-contract/v2": raise SystemExit("INSTALLER_CONTRACT_SCHEMA_MISMATCH")
+if c.get("status")!="PASS": raise SystemExit("INSTALLER_CONTRACT_STATUS_NOT_PASS")
+if c.get("platform")!="darwin": raise SystemExit("INSTALLER_CONTRACT_PLATFORM_MISMATCH")
+if str(c.get("agent_version") or "")!=expected: raise SystemExit("INSTALLER_CONTRACT_VERSION_MISMATCH")
+for rel in c.get("required_files") or []:
+    if not os.path.isfile(os.path.join(root,str(rel))): raise SystemExit("INSTALLER_REQUIRED_FILE_MISSING:"+str(rel))
+for rel,want in (c.get("required_file_sha256") or {}).items():
+    p=os.path.join(root,rel);h=hashlib.sha256(open(p,"rb").read()).hexdigest()
+    if h.lower()!=str(want).lower(): raise SystemExit("INSTALLER_REQUIRED_FILE_HASH_MISMATCH:"+rel)
+t=json.load(open(os.path.join(root,"agent.template.json"),encoding="utf-8-sig"))
+r=json.load(open(os.path.join(root,"runtime.contract.json"),encoding="utf-8-sig"))
+if str(t.get("agent_version") or "")!=expected: raise SystemExit("INSTALLER_TEMPLATE_VERSION_MISMATCH")
+if str(r.get("agent_version") or "")!=expected: raise SystemExit("RUNTIME_CONTRACT_VERSION_MISMATCH")
+sys.path.insert(0,root);import gideon_agent
+if str(gideon_agent.VERSION)!=expected: raise SystemExit("INSTALLER_RUNTIME_VERSION_MISMATCH")
+print("INSTALLER_CONTRACT PASS platform=darwin version="+expected)
+PY
+}
+gideon_validate_installer_contract_macos
+log "INSTALLER_CONTRACT PASS: platform=darwin version=$TARGET_VERSION service=launchd"
+
+site_code=""; site_name=""; agent_name="$(scutil --get ComputerName 2>/dev/null || hostname)"; gateway=""; enroll=""; non_interactive=0
+
+ensure_gideon_remote_access_macos() {
+  log "REMOTE_ACCESS_STAGE macos-vnc: preparando Apple Remote Management/VNC."
+  KICKSTART="/System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart"
+  [[ -x "$KICKSTART" ]] || die "REMOTE_ACCESS_MACOS_KICKSTART_MISSING"
+
+  secret_file="$STATE/vnc.secret"
+  vnc_pw="${GIDEON_AGENT_VNC_PASSWORD:-}"
+  if [[ -z "$vnc_pw" && -s "$secret_file" ]]; then
+    vnc_pw="$(cat "$secret_file")"
+  fi
+  if [[ -z "$vnc_pw" ]]; then
+    vnc_pw="$("$PY" - <<'PY'
+import secrets,string
+alphabet="ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
+print("".join(secrets.choice(alphabet) for _ in range(8)))
+PY
+)"
+  fi
+  [[ "${#vnc_pw}" -ge 6 ]] || die "REMOTE_ACCESS_VNC_PASSWORD_TOO_SHORT"
+  # Classic VNC auth uses the first 8 characters. Store exactly that value.
+  vnc_pw="${vnc_pw:0:8}"
+  print -r -- "$vnc_pw" > "$secret_file"
+  chmod 600 "$secret_file"
+  chown root:wheel "$secret_file"
+
+  "$KICKSTART" \
+    -activate \
+    -configure -access -on \
+    -allowAccessFor -allUsers \
+    -privs -all \
+    -clientopts -setvnclegacy -vnclegacy yes \
+    -clientopts -setvncpw -vncpw "$vnc_pw" \
+    -restart -agent -menu >/dev/null
+
+  ready=0
+  for _ in {1..25}; do
+    if "$PY" - <<'PY'
+import socket,sys
+try:
+    s=socket.create_connection(("127.0.0.1",5900),0.8);s.close();sys.exit(0)
+except Exception: sys.exit(1)
+PY
+    then ready=1; break; fi
+    sleep 0.4
+  done
+  [[ "$ready" -eq 1 ]] || die "REMOTE_ACCESS_VNC_NOT_LISTENING: 127.0.0.1:5900 no responde."
+
+  log "REMOTE_ACCESS_READY macos-vnc 127.0.0.1:5900."
+  log "REMOTE_ACCESS_SECRET root-only: $secret_file (use sudo cat only when a VNC credential is required)."
+  log "SECURITY NOTE: GIDEON does not add inbound firewall allow rules. Existing macOS firewall/network policy remains authoritative."
+}
+
+
+
+gideon_import_legacy_macos_config(){
+  [[ -s "$CONFIG" ]] && return 0
+  local candidate
+  for candidate in \
+    "/Library/GIDEONAgent/agent.json" \
+    "/usr/local/gideon-agent/agent.json" \
+    "/Library/Application Support/GIDEON Remote Control Agent/agent.json" \
+    "$STATE/agent.json"; do
+    if [[ -s "$candidate" && "$candidate" != "$CONFIG" ]]; then
+      mkdir -p "$ROOT"
+      cp -pf "$candidate" "$CONFIG"
+      chmod 600 "$CONFIG" 2>/dev/null || true
+      log "ORPHAN_MIGRATION legacy config importado desde $candidate"
+      return 0
+    fi
+  done
+  return 0
+}
+
+gideon_rebuild_config_from_runtime_macos(){
+  [[ -s "$CONFIG" ]] && return 0
+  [[ -s "$STATE/agent.runtime.json" ]] || return 0
+  if "$PY" - "$TEMPLATE" "$STATE/agent.runtime.json" "$CONFIG" "${site_code:-}" "${site_name:-}" "${agent_name:-}" <<'PY'
+import copy,json,os,sys,tempfile
+template_path,runtime_path,out_path,requested_site,requested_name,requested_agent=sys.argv[1:7]
+t=json.load(open(template_path,encoding="utf-8-sig")); r=json.load(open(runtime_path,encoding="utf-8-sig"))
+rt_site=str(r.get("site_code") or "").strip(); template_site=str(t.get("site_code") or "").strip()
+target_site=str(requested_site or template_site or rt_site).strip()
+if not rt_site or not target_site or rt_site!=target_site: raise SystemExit(3)
+site_name=str(requested_name or t.get("site_name") or r.get("site_name") or "").strip()
+agent_name=str(requested_agent or t.get("agent_name") or r.get("agent_name") or "").strip()
+if not site_name: raise SystemExit(4)
+cfg=copy.deepcopy(t);cfg["site_code"]=target_site;cfg["site_name"]=site_name
+if agent_name: cfg["agent_name"]=agent_name
+for key in ("agent_id","agent_token"):
+    if r.get(key) not in (None,""): cfg[key]=r[key]
+fd,tmp=tempfile.mkstemp(prefix=".agent-runtime-rebuild.",suffix=".json",dir=os.path.dirname(out_path));os.close(fd)
+with open(tmp,"w",encoding="utf-8") as f: json.dump(cfg,f,ensure_ascii=False,indent=2)
+os.chmod(tmp,0o600);os.replace(tmp,out_path)
+PY
+  then
+    chmod 600 "$CONFIG" 2>/dev/null || true
+    log "ORPHAN_CONFIG_REBUILT_FROM_RUNTIME: agent.json ausente; identidad durable restaurada desde agent.runtime.json same-site."
+  else
+    log "ORPHAN_RUNTIME_RECOVERY_SKIPPED: runtime no coincide con la sede objetivo o no tiene identidad suficiente."
+  fi
+}
+
+gideon_orphan_assess_macos(){
+  local reasons=()
+  local cfg_version=""
+  if [[ -s "$CONFIG" ]]; then
+    cfg_version="$("$PY" - "$CONFIG" <<'PY' 2>/dev/null || true
+import json,sys
+try: print(str(json.load(open(sys.argv[1],encoding="utf-8-sig")).get("agent_version") or ""))
+except Exception: print("")
+PY
+)"
+    [[ "$cfg_version" == "$TARGET_VERSION" ]] || reasons+=("CONFIG_VERSION=${cfg_version:-UNKNOWN}")
+  else
+    reasons+=("CONFIG_MISSING")
+  fi
+  local required
+  for required in gideon_agent.py agent.template.json runtime.contract.json installer.contract.json gideon-agent-setup; do
+    [[ -f "$ROOT/$required" ]] || reasons+=("PAYLOAD_FILE_MISSING=$required")
+  done
+
+  launchctl print "system/$LABEL" >/dev/null 2>&1 || reasons+=("LAUNCHD_NOT_LOADED")
+  [[ -s "$STATE/agent.runtime.json" ]] || reasons+=("RUNTIME_IDENTITY_MISSING")
+  [[ -s "$STATE/agent.status.json" ]] || reasons+=("STATUS_MISSING")
+  if [[ -s "$STATE/agent.status.json" ]]; then
+    if ! "$PY" - "$STATE/agent.status.json" <<'PY' >/dev/null 2>&1
+import json,os,sys
+s=json.load(open(sys.argv[1],encoding="utf-8-sig"))
+pid=int(s.get("process_pid") or 0)
+if pid<=0: raise SystemExit(2)
+try: os.kill(pid,0)
+except Exception: raise SystemExit(3)
+PY
+    then reasons+=("STATUS_PROCESS_DEAD"); fi
+  fi
+  [[ ! -f "/Library/LaunchDaemons/com.gideon.agent.plist" ]] || reasons+=("LEGACY_LAUNCHD=com.gideon.agent")
+  [[ ! -f "/Library/LaunchDaemons/pe.com.gideons.gideon-agent.plist" ]] || reasons+=("LEGACY_LAUNCHD=pe.com.gideons.gideon-agent")
+  if ((${#reasons[@]})); then print -r -- "${reasons[*]}"; fi
+}
+
+gideon_backup_orphan_macos(){
+  local reason="$1"
+  local backup="$STATE/orphan-recovery-$(date +%Y%m%d_%H%M%S)"
+  mkdir -p "$backup"
+  cp -pf "$CONFIG" "$backup/agent.json" 2>/dev/null || true
+  cp -pf "$STATE/agent.runtime.json" "$backup/agent.runtime.json" 2>/dev/null || true
+  cp -pf "$STATE/agent.status.json" "$backup/agent.status.json" 2>/dev/null || true
+  cp -pf "$PLIST" "$backup/current.plist" 2>/dev/null || true
+  print -r -- "$reason" >"$backup/orphan-reasons.txt"
+  chmod 700 "$backup" 2>/dev/null || true
+  log "ORPHAN_BACKUP $backup reasons=$reason"
+  print -r -- "$backup"
+}
+
+gideon_stop_legacy_macos_hosts(){
+  launchctl bootout system "/Library/LaunchDaemons/com.gideon.agent.plist" >/dev/null 2>&1 || true
+  launchctl bootout system "/Library/LaunchDaemons/pe.com.gideons.gideon-agent.plist" >/dev/null 2>&1 || true
+  launchctl bootout system "$PLIST" >/dev/null 2>&1 || true
+  pkill -f '/GIDEONAgent/.+gideon_agent.py' >/dev/null 2>&1 || true
+  pkill -f '/GIDEONAgent/gideon_agent.py' >/dev/null 2>&1 || true
+}
+
+gideon_migrate_config_macos(){
+  [[ -s "$CONFIG" ]] || return 0
+  log "ORPHAN_CONFIG_MIGRATION: normalizando configuración existente contra plantilla $TARGET_VERSION."
+  "$PY" - "$CONFIG" "$TEMPLATE" "${gateway:-}" "$STATE/agent.runtime.json" "${site_code:-}" <<'PY'
+import copy,json,os,sys,tempfile
+cfg_path,template_path,explicit_gateway,runtime_path,requested_site=sys.argv[1:6]
+try:
+    old=json.load(open(cfg_path,encoding="utf-8-sig"))
+    if not isinstance(old,dict): old={}
+except Exception:
+    old={}
+try:
+    runtime=json.load(open(runtime_path,encoding="utf-8-sig")) if os.path.isfile(runtime_path) else {}
+    if not isinstance(runtime,dict): runtime={}
+except Exception:
+    runtime={}
+new=json.load(open(template_path,encoding="utf-8-sig"))
+def deep_defaults(dst,src):
+    if not isinstance(dst,dict) or not isinstance(src,dict): return dst
+    out=copy.deepcopy(dst)
+    for k,v in src.items():
+        if k not in out: out[k]=copy.deepcopy(v)
+        elif isinstance(out[k],dict) and isinstance(v,dict): out[k]=deep_defaults(out[k],v)
+    return out
+merged=deep_defaults(old,new)
+for key in ("agent_version","agent_protocol","schema_version","host_profile","reverse_tunnel","remote_access"):
+    if key in new: merged[key]=copy.deepcopy(new[key])
+if isinstance(new.get("control_plane"),dict):
+    cp=copy.deepcopy(new["control_plane"])
+    if explicit_gateway:
+        cp["base_url"]=explicit_gateway.rstrip("/")
+        rows=cp.get("endpoints") if isinstance(cp.get("endpoints"),list) else []
+        if rows and isinstance(rows[0],dict):
+            rows[0]["url"]=cp["base_url"];rows[0]["role"]="primary";rows[0]["priority"]=10
+        else:
+            rows=[{"url":cp["base_url"],"role":"primary","priority":10,"label":"Installer"}]
+        cp["endpoints"]=rows
+    merged["control_plane"]=cp
+old_site=str(old.get("site_code") or "").strip()
+rt_site=str(runtime.get("site_code") or "").strip()
+identity_runtime_allowed=(not requested_site or not rt_site or rt_site==requested_site) and (not old_site or not rt_site or old_site==rt_site)
+for key in ("site_code","site_name","agent_name","agent_id","agent_token"):
+    if old.get(key) not in (None,""):
+        merged[key]=old[key]
+    elif identity_runtime_allowed and runtime.get(key) not in (None,""):
+        merged[key]=runtime[key]
+fd,tmp=tempfile.mkstemp(prefix=".agent-heal.",suffix=".json",dir=os.path.dirname(cfg_path));os.close(fd)
+with open(tmp,"w",encoding="utf-8") as f: json.dump(merged,f,ensure_ascii=False,indent=2)
+os.chmod(tmp,0o600);os.replace(tmp,cfg_path)
+PY
+  chmod 600 "$CONFIG" 2>/dev/null || true
+  log "RUNTIME_IDENTITY_RECOVERY checked: config actual + agent.runtime.json same-site."
+}
+
+gideon_clear_stale_token_and_seed_enrollment_macos(){
+  local secret="$1"
+  local secret_path rc
+  [[ -n "$secret" ]] || return 1
+  secret_path="$(mktemp "$STATE/.gateway-enroll.XXXXXX")"
+  chmod 600 "$secret_path"
+  print -rn -- "$secret" >"$secret_path"
+  log "GATEWAY_MIGRATION_REENROLL: token anterior no utilizable; conserva AgentId y solicita token nuevo."
+  if "$PY" - "$CONFIG" "$STATE/agent.runtime.json" "$secret_path" <<'PY'
+import json,os,sys,tempfile
+cfg_path,runtime_path,secret_path=sys.argv[1:4]
+secret=open(secret_path,encoding="utf-8").read().strip()
+if not secret: raise SystemExit("GATEWAY_MIGRATION_REQUIRES_ENROLLMENT")
+cfg=json.load(open(cfg_path,encoding="utf-8-sig"))
+cfg.pop("agent_token",None)
+cfg["enrollment_secret"]=secret
+fd,tmp=tempfile.mkstemp(prefix=".agent-reenroll.",suffix=".json",dir=os.path.dirname(cfg_path));os.close(fd)
+with open(tmp,"w",encoding="utf-8") as f: json.dump(cfg,f,ensure_ascii=False,indent=2)
+os.chmod(tmp,0o600);os.replace(tmp,cfg_path)
+if os.path.isfile(runtime_path):
+    try:r=json.load(open(runtime_path,encoding="utf-8-sig"))
+    except Exception:r={}
+    for k in ("agent_token","enrolled_at","last_gateway_success_at","current_gateway_endpoint","last_known_good_endpoint"):
+        r.pop(k,None)
+    fd,tmp=tempfile.mkstemp(prefix=".runtime-reenroll.",suffix=".json",dir=os.path.dirname(runtime_path));os.close(fd)
+    with open(tmp,"w",encoding="utf-8") as f: json.dump(r,f,ensure_ascii=False,indent=2)
+    os.chmod(tmp,0o600);os.replace(tmp,runtime_path)
+PY
+  then rc=0; else rc=$?; fi
+  rm -f "$secret_path"
+  return "$rc"
+}
+
+gideon_final_acceptance_macos(){
+  log "FINAL_ACCEPTANCE_STAGE macOS: verificando instalación completa."
+  gideon_validate_installer_contract_macos
+  launchctl print "system/$LABEL" >/dev/null 2>&1 || die "FINAL_LAUNCHD_NOT_LOADED: $LABEL"
+
+  "$PY" - "$CONFIG" "$STATE" "${site_code:-}" "$TARGET_VERSION" "$ROOT" <<'PY'
+import json,os,sys,time,socket
+cfg_path,state,expected_site,expected_version,root=sys.argv[1:6]
+cfg=json.load(open(cfg_path,encoding="utf-8-sig"))
+if str(cfg.get("agent_version") or "")!=expected_version:
+    raise SystemExit("FINAL_CONFIG_VERSION_MISMATCH")
+sys.path.insert(0,root);import gideon_agent
+if str(gideon_agent.VERSION)!=expected_version:
+    raise SystemExit("FINAL_RUNTIME_VERSION_MISMATCH")
+if expected_site and str(cfg.get("site_code") or "").strip()!=expected_site.strip():
+    raise SystemExit("FINAL_IDENTITY_MISMATCH")
+data_dir=os.path.expandvars(str(cfg.get("data_dir") or state))
+runtime=os.path.join(data_dir,"agent.runtime.json")
+status=os.path.join(data_dir,"agent.status.json")
+deadline=time.time()+20
+while time.time()<deadline and not (os.path.isfile(runtime) and os.path.isfile(status)):
+    time.sleep(0.5)
+if not os.path.isfile(runtime):
+    raise SystemExit("FINAL_RUNTIME_FILE_MISSING:"+runtime)
+if not os.path.isfile(status):
+    raise SystemExit("FINAL_STATUS_FILE_MISSING:"+status)
+rt=json.load(open(runtime,encoding="utf-8-sig"))
+if not str(rt.get("agent_id") or "").strip(): raise SystemExit("FINAL_RUNTIME_AGENT_ID_MISSING")
+if not str(rt.get("agent_token") or "").strip(): raise SystemExit("FINAL_RUNTIME_AGENT_TOKEN_MISSING")
+if str(rt.get("site_code") or "").strip() and str(rt.get("site_code") or "").strip()!=str(cfg.get("site_code") or "").strip():
+    raise SystemExit("FINAL_RUNTIME_SITE_MISMATCH")
+s=json.load(open(status,encoding="utf-8-sig"))
+pid=int(s.get("process_pid") or 0)
+if pid<=0:
+    raise SystemExit("FINAL_AGENT_PID_MISSING")
+try: os.kill(pid,0)
+except Exception: raise SystemExit("FINAL_AGENT_PROCESS_NOT_ALIVE")
+try:
+    c=socket.create_connection(("127.0.0.1",5900),1.2);c.close()
+except Exception as exc:
+    raise SystemExit("FINAL_VNC_LISTENER_FAILED:"+str(exc))
+print("FINAL_ACCEPTANCE identity=PASS runtime=PASS status=PASS process=PASS launchd=PASS listener5900=PASS")
+PY
+
+  log "FINAL_ACCEPTANCE PASS: version=$TARGET_VERSION payload + identity + runtime + launchd + process + 127.0.0.1:5900."
+  cat >"$STATE/install-success-latest.txt" <<EOF
+GIDEON_AGENT_INSTALL_SUCCESS
+Version=$TARGET_VERSION
+Timestamp=$(date)
+SiteCode=${site_code:-}
+SiteName=${site_name:-}
+AgentName=${agent_name:-}
+Checks=runtime,identity,enrollment-heartbeat,launchd,process,vnc,listener5900
+Log=$LOG
+EOF
+  chmod 0644 "$STATE/install-success-latest.txt" 2>/dev/null || true
+}
+
+while [[ $# -gt 0 ]]; do
+ case "$1" in
+  --site-code) site_code="${2:-}"; shift 2;;
+  --site-name) site_name="${2:-}"; shift 2;;
+  --agent-name) agent_name="${2:-}"; shift 2;;
+  --gateway) gateway="${2:-}"; shift 2;;
+  --enrollment-secret) enroll="${2:-}"; shift 2;;
+  --enrollment-secret-file)
+    secret_file="${2:-}"; [[ -f "$secret_file" ]] || die "Archivo de secreto no existe."
+    [[ "$(wc -c < "$secret_file")" -le 8192 ]] || die "Archivo de secreto demasiado grande."
+    enroll="$(cat "$secret_file")"; rm -f "$secret_file"; shift 2;;
+  --non-interactive|--silent) non_interactive=1; shift;;
+  *) die "Argumento desconocido: $1";;
+ esac
+done
+# PACKAGE_GATEWAY_AUTHORITY: el Gateway HTTPS emitido por WebAdmin prevalece
+# sobre agent.json previo. --gateway continúa siendo una anulación explícita.
+package_gateway="$("$PY" - "$TEMPLATE" <<'PY'
+import json,sys
+cp=json.load(open(sys.argv[1],encoding="utf-8-sig")).get("control_plane") or {}
+print(str(cp.get("base_url") or "").strip().rstrip("/"))
+PY
+)"
+[[ "$package_gateway" == https://* ]] || die "PACKAGE_GATEWAY_INVALID: agent.template.json no contiene un Gateway HTTPS válido."
+if [[ -z "$gateway" ]]; then gateway="$package_gateway"; fi
+gateway_compare="$("$PY" - "$gateway" <<'PY'
+import sys
+print(sys.argv[1].strip().rstrip("/").lower())
+PY
+)"
+[[ "$gateway_compare" == https://* ]] || die "EXPLICIT_GATEWAY_INVALID: Gateway debe usar https://."
+gateway="$("$PY" - "$gateway" <<'PY'
+import sys
+print(sys.argv[1].strip().rstrip("/"))
+PY
+)"
+[[ -z "$enroll" && -n "${GIDEON_AGENT_ENROLL_SECRET:-}" ]] && enroll="${GIDEON_AGENT_ENROLL_SECRET}"
+[[ -z "$enroll" && -s "$BOOTSTRAP" ]] && enroll="$(cat "$BOOTSTRAP")"
+orphan_mode=0
+orphan_reasons=""
+orphan_backup=""
+gideon_import_legacy_macos_config
+gideon_rebuild_config_from_runtime_macos
+previous_gateway="$("$PY" - "$CONFIG" <<'PY'
+import json,os,sys
+try:
+    cfg=json.load(open(sys.argv[1],encoding="utf-8-sig")) if os.path.isfile(sys.argv[1]) else {}
+    cp=cfg.get("control_plane") if isinstance(cfg.get("control_plane"),dict) else {}
+    print(str(cp.get("base_url") or "").strip().rstrip("/").lower())
+except Exception: print("")
+PY
+)"
+gateway_changed=0
+if [[ -n "$previous_gateway" && "$previous_gateway" != "$gateway_compare" ]]; then gateway_changed=1; fi
+orphan_reasons="$(gideon_orphan_assess_macos || true)"
+if [[ -n "$orphan_reasons" ]]; then
+  orphan_mode=1
+  orphan_backup="$(gideon_backup_orphan_macos "$orphan_reasons")"
+  log "ORPHAN_DETECTED: $orphan_reasons"
+  gideon_stop_legacy_macos_hosts
+  gideon_migrate_config_macos || true
+fi
+
+existing_code=""
+if [[ -s "$CONFIG" ]]; then
+ existing_code="$("$PY" - "$CONFIG" <<'PY'
+import json,sys
+try:
+ c=json.load(open(sys.argv[1],encoding="utf-8-sig"))
+ print(str(c.get("site_code") or "").strip())
+except Exception:
+ print("")
+PY
+)"
+ if [[ -z "$site_code" && -n "$existing_code" ]]; then
+  site_code="$existing_code"
+  site_name="$("$PY" - "$CONFIG" <<'PY'
+import json,sys
+try: print(str(json.load(open(sys.argv[1],encoding="utf-8-sig")).get("site_name") or "").strip())
+except Exception: print("")
+PY
+)"
+ fi
+
+ if [[ -n "$existing_code" && -n "$site_code" && "$existing_code" == "$site_code" ]]; then
+  if [[ "$orphan_mode" -eq 1 ]]; then log "ORPHAN_REPAIR SAME_SITE: conserva AgentId cuando existe; migra config; sobrescribe runtime + launchd."; else log "MANUAL_REINSTALL SAME_SITE: conserva AgentId; conserva token solo si el Gateway no cambia; sobrescribe runtime + launchd."; fi
+ else
+  backup="$STATE/reinstall-backup-$(date +%Y%m%d_%H%M%S)"
+  mkdir -p "$backup"
+  cp -pf "$CONFIG" "$backup/agent.json" 2>/dev/null || true
+  cp -pf "$STATE/agent.runtime.json" "$backup/agent.runtime.json" 2>/dev/null || true
+  launchctl bootout system "$PLIST" >/dev/null 2>&1 || true
+  rm -f "$CONFIG" "$STATE/agent.runtime.json" "$STATE/agent.status.json"
+  log "MANUAL_REINSTALL REPLACE_IDENTITY: anterior=${existing_code:-invalid}; solicitado=${site_code:-pending}. Backup=$backup"
+ fi
+fi
+if [[ -s "$CONFIG" ]]; then gideon_migrate_config_macos; fi
+if [[ -s "$CONFIG" && "$gateway_changed" -eq 1 ]]; then
+  [[ -n "$enroll" ]] || die "GATEWAY_MIGRATION_REQUIRES_ENROLLMENT: el Gateway cambió; regenere el instalador desde WebAdmin."
+  log "PACKAGE_GATEWAY_AUTHORITY: migrando Gateway anterior=$previous_gateway nuevo=$gateway."
+  gideon_clear_stale_token_and_seed_enrollment_macos "$enroll"
+fi
+
+if [[ ! -s "$CONFIG" ]]; then
+ [[ -z "$site_code" && "$non_interactive" -eq 0 ]] && read "site_code?Código de sede: "
+ [[ -z "$site_name" && "$non_interactive" -eq 0 ]] && read "site_name?Nombre de sede: "
+ if [[ -z "$gateway" && "$non_interactive" -eq 0 ]]; then
+  default_gateway="$("$PY" - "$TEMPLATE" <<'PY'
+import json,sys
+print((json.load(open(sys.argv[1],encoding="utf-8")).get("control_plane") or {}).get("base_url") or "")
+PY
+)"
+  read "gateway?Gateway HTTPS [$default_gateway]: "; gateway="${gateway:-$default_gateway}"
+ fi
+ marker="$ROOT/bootstrap.required.json"
+ if [[ -f "$marker" ]]; then
+  required="$("$PY" - "$marker" <<'PY'
+import json,sys
+try: print("1" if bool(json.load(open(sys.argv[1],encoding="utf-8-sig")).get("required")) else "0")
+except Exception: print("ERR")
+PY
+)"
+  [[ "$required" != "ERR" ]] || die "BOOTSTRAP_CONTRACT_INVALID"
+  [[ "$required" != "1" || -n "$enroll" ]] || die "BOOTSTRAP_REQUIRED_MISSING: grant temporal no llegó al instalador."
+ fi
+ if [[ -z "$enroll" && "$non_interactive" -eq 0 ]]; then read -s "enroll?Credencial temporal de enrolamiento: "; print; fi
+ [[ -n "$site_code" && -n "$site_name" ]] || die "SiteCode y SiteName obligatorios."
+ [[ -n "$enroll" ]] || die "Falta credencial de enrolamiento/bootstrap."
+ args=(--template "$TEMPLATE" --out "$CONFIG" --site-code "$site_code" --site-name "$site_name" --agent-name "$agent_name")
+ [[ -n "$gateway" ]] && args+=(--gateway "$gateway")
+ configure_secret_file=""
+ if [[ -n "$enroll" ]]; then
+  configure_secret_file="$(mktemp "$STATE/.configure-enroll.XXXXXX")"
+  chmod 600 "$configure_secret_file"
+  print -rn -- "$enroll" >"$configure_secret_file"
+  args+=(--enrollment-secret-file "$configure_secret_file")
+ fi
+ "$PY" "$ROOT/configure-agent.py" "${args[@]}"
+ rm -f "$configure_secret_file" 2>/dev/null || true
+ unset enroll GIDEON_AGENT_ENROLL_SECRET || true
+ chmod 600 "$CONFIG" || true
+fi
+"$PY" - "$CONFIG" <<'PY'
+import json,sys,os,tempfile
+p=sys.argv[1]; cfg=json.load(open(p,encoding="utf-8-sig"))
+rt=cfg.get("reverse_tunnel") if isinstance(cfg.get("reverse_tunnel"),dict) else {}
+rt.update({"enabled":True,"transport":"websocket-tls","protocol_version":"1.1","outbound_only":True,"platform_independent":True})
+rt.setdefault("allowed_targets",["127.0.0.1:3389","127.0.0.1:5900"])
+cfg["reverse_tunnel"]=rt
+fd,tmp=tempfile.mkstemp(prefix=".agent.",suffix=".json",dir=os.path.dirname(p));os.close(fd)
+with open(tmp,"w",encoding="utf-8") as f: json.dump(cfg,f,ensure_ascii=False,indent=2)
+os.replace(tmp,p)
+PY
+# Prepare launchd before the connectivity transaction. Keep it unloaded while
+# the one-shot probe runs, but load it on failure so the installed Agent keeps
+# retrying instead of being left stopped.
+cat > "$PLIST" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>Label</key><string>$LABEL</string>
+<key>ProgramArguments</key><array><string>$PY</string><string>$ROOT/gideon_agent.py</string><string>--config</string><string>$CONFIG</string></array>
+<key>WorkingDirectory</key><string>$ROOT</string>
+<key>RunAtLoad</key><true/><key>KeepAlive</key><true/>
+<key>StandardOutPath</key><string>$STATE/agent.stdout.log</string>
+<key>StandardErrorPath</key><string>$STATE/agent.stderr.log</string>
+</dict></plist>
+EOF
+chmod 0644 "$PLIST"; chown root:wheel "$PLIST"
+launchctl bootout system "$PLIST" >/dev/null 2>&1 || true
+
+ensure_gideon_remote_access_macos
+log "Self-test DNS + TCP + TLS + enrolamiento + heartbeat + reverse tunnel + remote access"
+if out="$("$PY" "$ROOT/gideon_agent.py" --config "$CONFIG" --self-test 2>&1)"; then
+  rc=0
+else
+  rc=$?
+fi
+print -r -- "$out" | tee -a "$LOG"
+if [[ "$rc" -ne 0 && "$orphan_mode" -eq 1 ]]; then
+  recovery_secret=""
+  [[ -n "${GIDEON_AGENT_ENROLL_SECRET:-}" ]] && recovery_secret="${GIDEON_AGENT_ENROLL_SECRET}"
+  [[ -z "$recovery_secret" && -s "$BOOTSTRAP" ]] && recovery_secret="$(cat "$BOOTSTRAP")"
+  if [[ -n "$recovery_secret" ]]; then
+    log "ORPHAN_SELFTEST_RETRY: primer self-test falló rc=$rc; re-enrolando conservando AgentId."
+    gideon_clear_stale_token_and_seed_enrollment_macos "$recovery_secret"
+    if out2="$("$PY" "$ROOT/gideon_agent.py" --config "$CONFIG" --self-test 2>&1)"; then
+      rc2=0
+    else
+      rc2=$?
+    fi
+    print -r -- "$out2" | tee -a "$LOG"
+    if [[ "$rc2" -eq 0 ]]; then rc=0; out="$out2"; log "ORPHAN_RECOVERED: re-enrolamiento y heartbeat OK."; else rc="$rc2"; fi
+  fi
+fi
+
+if [[ "$rc" -ne 0 ]]; then
+  log "SELF_TEST_FAILED rc=$rc: el instalador conserva el Agent y lo deja activo para reintentos automáticos."
+  rm -f "$BOOTSTRAP" 2>/dev/null || true
+  launchctl bootstrap system "$PLIST" >/dev/null 2>&1 || true
+  launchctl kickstart -k "system/$LABEL" >/dev/null 2>&1 || true
+  if launchctl print "system/$LABEL" >/dev/null 2>&1; then
+    log "DEGRADED_CONNECTIVITY: LaunchDaemon ACTIVE; continuará reintentando Gateway."
+  else
+    log "DEGRADED_CONNECTIVITY: no se pudo dejar LaunchDaemon ACTIVE."
+  fi
+  report="$(gideon_collect_diagnostics_macos "SELF_TEST_FAILED_RC_$rc" "gideon_agent.py --self-test")"
+  echo "GIDEON_DIAGNOSTIC_FILE=$report"
+  echo "GIDEON_ERROR_FULL=Self-test Gateway falló rc=$rc; Agent instalado y LaunchDaemon dejado activo para reintento."
+  exit "$rc"
+fi
+
+rm -f "$BOOTSTRAP"
+launchctl bootstrap system "$PLIST"
+launchctl kickstart -k "system/$LABEL"
+sleep 2; launchctl print "system/$LABEL" >/dev/null 2>&1 || die "LaunchDaemon no quedó cargado"
+gideon_final_acceptance_macos
+log "PASS: GIDEONAgent macOS activo con Reverse Tunnel universal. FINAL_ACCEPTANCE=PASS"

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="error-experience" aria-labelledby="error-title">
+  <div class="card card-pad">
+    <div class="error-kicker">Operación controlada</div>
+    <div class="page-head">
+      <div>
+        <h1 id="error-title">{{ title }}</h1>
+        <p>La consola mantuvo tu sesión protegida y no completó esta operación.</p>
+      </div>
+    </div>
+    <div class="alert danger" role="alert">
+      <strong>No se pudo completar la solicitud</strong>
+      <span>Revise los datos, consulte Diagnóstico si el problema continúa y comparta el código de referencia con el equipo administrador.</span>
+    </div>
+    {% if error %}
+      <details class="error-details">
+        <summary>Ver referencia técnica</summary>
+        <code data-error-detail>{{ error }}</code>
+      </details>
+    {% endif %}
+    <div class="error-actions">
+      {% if request.method == 'GET' %}<button class="btn btn-primary" type="button" data-error-retry>Reintentar</button>{% endif %}
+      <a class="btn" href="/">Ir a Inicio</a>
+      {% if identity and identity.can('diagnostics.view') %}<a class="btn btn-ghost" href="/diagnostics">Abrir diagnóstico</a>{% endif %}
+      {% if error %}<button class="btn btn-ghost" type="button" data-copy-incident>Copiar referencia</button>{% endif %}
+    </div>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ static_url('error_page.js') }}"></script>{% endblock %}
+

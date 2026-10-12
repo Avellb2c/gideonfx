@@ -1,0 +1,7 @@
+[Unit]
+Description=GIDEON Remote Control application target
+Wants=gideon-agent-gateway.service gideon-web-admin.service gideon-backup.timer gideon-update.path gideon-diagnostics.service gideon-coordinator.service
+After=network-online.target
+
+[Install]
+WantedBy=multi-user.target

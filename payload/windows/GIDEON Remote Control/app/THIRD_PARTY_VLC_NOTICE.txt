@@ -1,0 +1,32 @@
+GIDEON PLAYER / GIDEON RX — AVISO DE TERCEROS: VLC MEDIA PLAYER
+================================================
+
+Gideon Rx no incluye, descarga, modifica ni instala VLC. El Gideon Rx Player
+solamente puede iniciar un ejecutable VLC instalado de forma independiente y
+autorizada por el administrador del equipo, dentro de una sesión gráfica
+interactiva. Si VLC no está instalado o no hay una sesión gráfica disponible,
+el Player informa el estado y no intenta reemplazarlo por otro componente.
+
+Componente opcional
+-------------------
+Nombre: VLC media player
+Proyecto y procedencia: VideoLAN, https://www.videolan.org/vlc/
+Código fuente: https://code.videolan.org/videolan/vlc
+Licencia: GNU General Public License, versión 2 o posterior (GPL-2.0-or-later)
+Texto de licencia: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+
+Versión y procedencia efectiva
+------------------------------
+La versión efectiva y la procedencia se detectan en cada Agent y se reportan al
+Control Plane. Esta distribución no fija ni promete una versión de VLC porque
+VLC no forma parte del paquete Gideon Rx. Instale únicamente la versión aprobada por
+su organización desde un repositorio del sistema operativo o una fuente
+corporativa autorizada; valide su procedencia conforme a la política interna.
+
+Límites de integración
+----------------------
+VLC se ejecuta como proceso externo sin código VLC incrustado. Gideon Rx no realiza
+transcodificación, no instala plugins, no descarga codecs y no reproduce URLs
+de red entregadas por una campaña. Las campañas firmadas sólo pueden referir
+archivos MP4 ya transferidos, verificados mediante SHA-256 y almacenados en la
+caché lógica de Gideon Rx.

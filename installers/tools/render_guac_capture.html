@@ -1,0 +1,46 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>GIDEON Guacamole diagnostic capture</title>
+<style>
+  html,body{margin:0;background:#111;color:#ddd;font:14px system-ui}#status{padding:8px}
+  canvas{display:block;margin:auto;background:#000;max-width:100vw;height:auto}
+</style>
+<div id="status">Rendering captured Guacamole operations…</div>
+<canvas id="screen" width="1440" height="900"></canvas>
+<script>
+(async()=>{
+  const status=document.querySelector('#status');
+  const output=document.querySelector('#screen');
+  const base=new URLSearchParams(location.search).get('capture')||'/output/diagnostics/rdp-capture-20260908-220737/';
+  const maxSeq=Number(new URLSearchParams(location.search).get('maxseq')||0);
+  const lines=(await (await fetch(base+'protocol.jsonl')).text()).trim().split(/\r?\n/).map(JSON.parse).filter(x=>!maxSeq||x.sequence<=maxSeq);
+  const layers=new Map(); const paths=new Map();
+  function layer(id,w=1440,h=900){
+    id=String(id); if(!layers.has(id)){const c=document.createElement('canvas');c.width=w;c.height=h;layers.set(id,c)}
+    return layers.get(id);
+  }
+  function mode(ctx,mask){
+    const m=Number(mask); ctx.globalCompositeOperation=m===2?'copy':'source-over';
+  }
+  for(const row of lines){
+    const p=row.parts||[], op=p[0];
+    if(op==='size') { const c=layer(p[1],+p[2],+p[3]); c.width=+p[2]; c.height=+p[3]; }
+    else if(op==='rect') paths.set(String(p[1]),{x:+p[2],y:+p[3],w:+p[4],h:+p[5]});
+    else if(op==='cfill') {
+      const c=layer(p[2]),ctx=c.getContext('2d'),r=paths.get(String(p[2])); if(!r)continue;
+      mode(ctx,p[1]); ctx.fillStyle=`rgba(${+p[3]},${+p[4]},${+p[5]},${(+p[6])/255})`;ctx.fillRect(r.x,r.y,r.w,r.h);
+    }
+    else if(op==='copy') {
+      const src=layer(p[1]),dst=layer(p[7]),ctx=dst.getContext('2d');mode(ctx,p[6]);
+      const temp=document.createElement('canvas');temp.width=+p[4];temp.height=+p[5];
+      temp.getContext('2d').drawImage(src,+p[2],+p[3],+p[4],+p[5],0,0,+p[4],+p[5]);ctx.drawImage(temp,+p[8],+p[9]);
+    }
+    else if(op==='image-data') {
+      const q=row.image_parts||[],img=new Image();img.src=base+p[1];await img.decode();
+      const dst=layer(q[3]),ctx=dst.getContext('2d');mode(ctx,q[2]);ctx.drawImage(img,+q[5],+q[6]);
+    }
+  }
+  output.width=layer('0').width;output.height=layer('0').height;output.getContext('2d').drawImage(layer('0'),0,0);
+  status.textContent=`Rendered ${lines.length} captured operations (${output.width}×${output.height}).`;
+})().catch(e=>{document.querySelector('#status').textContent='Render error: '+e.stack});
+</script>

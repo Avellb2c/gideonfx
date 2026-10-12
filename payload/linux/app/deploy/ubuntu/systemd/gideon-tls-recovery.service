@@ -1,0 +1,16 @@
+[Unit]
+Description=GIDEON TLS recovery after server reboot
+After=gideon-web-admin.service gideon-agent-gateway.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+RemainAfterExit=yes
+ExecStart=/opt/gideon/web/venv/bin/python -I -B /opt/gideon/web/app/deploy/ubuntu/gideon_tls_manager_entry.py --recover --boot
+TimeoutStartSec=1000
+MemoryMax=192M
+TasksMax=32
+
+[Install]
+WantedBy=multi-user.target

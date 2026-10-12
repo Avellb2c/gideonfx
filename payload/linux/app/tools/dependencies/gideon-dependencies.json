@@ -1,0 +1,35 @@
+{
+  "schema": "gideon-dependencies/v1",
+  "policy": {
+    "auto_install_from_web_service": false,
+    "docker_compose_generation": "v2",
+    "guacd_bind": "127.0.0.1:4822",
+    "agents_use_private_runtime": true
+  },
+  "python_webadmin_required": [
+    "fastapi", "uvicorn", "starlette", "Jinja2", "python-multipart",
+    "cryptography", "bcrypt", "pydantic", "anyio", "websockets"
+  ],
+  "python_optional": ["PySide6", "openpyxl"],
+  "windows_control_plane": [
+    "Windows PowerShell 5.1+", "OpenSSH Client", ".NET Framework csc.exe",
+    "Docker Desktop (Windows client when Guacamole containers are local)",
+    "Docker CLI", "Docker Compose v2", "WSL2 (RPM builds / Docker WSL backend)"
+  ],
+  "linux_control_plane": [
+    "Docker Engine/CLI", "Docker Compose v2", "OpenSSH Client", "curl",
+    "ca-certificates", "openssl", "iproute2", "procps", "tar", "gzip", "unzip", "systemd",
+    "FFmpeg (ffprobe; repositorio firmado del sistema)"
+  ],
+  "build_toolchains": {
+    "windows_exe": [".NET Framework csc.exe"],
+    "deb": ["Python native builder or dpkg-deb/dpkg-dev"],
+    "rpm": ["rpmbuild/rpm-build", "file", "binutils", "tar", "gzip", "WSL Linux distro when building RPM on Windows"],
+    "macos_pkg": ["macOS", "pkgbuild", "Xcode Command Line Tools"]
+  },
+  "endpoint_capabilities": {
+    "windows": ["SCM", "Microsoft RDP host when edition supports it"],
+    "linux_raspberry": ["systemd", "xrdp", "xorgxrdp", "iproute2"],
+    "macos": ["launchd"]
+  }
+}

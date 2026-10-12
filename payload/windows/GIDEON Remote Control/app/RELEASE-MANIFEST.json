@@ -1,0 +1,2059 @@
+{
+  "product": "GIDEON Remote Control",
+  "version": "6.3.4-rc30",
+  "release": "RELEASE-6.3.4-RC30-STABILIZATION",
+  "generated_at_utc": "2026-10-03T02:30:19.593453+00:00",
+  "version_contract": {
+    "source_of_truth": "gideon_version.py:PRODUCT_VERSION",
+    "source_pyproject_must_match_when_present": true,
+    "runtime_pyproject_required": false,
+    "downgrade_policy": "blocked_by_default_even_with_force",
+    "web_downgrade_enabled": false
+  },
+  "base_contract": {
+    "requires_previous_version": false,
+    "windows_installer": "INSTALL-GIDEON-WINDOWS.cmd",
+    "linux_installer": "INSTALL-GIDEON-UBUNTU-LINUX.sh",
+    "future_updates": "incremental ZIP via Web Admin or console from 6.3.4-rc30 onward"
+  },
+  "components": {
+    "application": "6.3.4-rc30",
+    "web_admin": "6.3.4-rc30",
+    "agent": "2.4.56",
+    "gateway": "2.4.3",
+    "agent_protocol": "2.0",
+    "fanout_protocol": "3.3"
+  },
+  "validation": {
+    "checkpoint": "P8AE-RC30-STABILIZATION",
+    "unittest_discovery_passed": 70,
+    "python_compileall": "OK",
+    "release_contract": "OK",
+    "windows_native_scm_runtime": "PENDING_WINDOWS_PILOT",
+    "linux_systemd_runtime": "PENDING_LINUX_PILOT"
+  },
+  "isolation": {
+    "defender_policy_modified": false,
+    "openssh_server_modified": false,
+    "global_firewall_modified_by_default": false,
+    "clamav_service_modified": false,
+    "clamav_auto_installed": false,
+    "aws_ssm_modified": false,
+    "nginx_apache_modified": false,
+    "third_party_services_modified": false,
+    "openssh_agent_modified": false,
+    "global_ssh_process_kill_supported": false,
+    "windows_service_allowlist": [
+      "GIDEONRemoteControl",
+      "GIDEONRemoteControlGateway",
+      "GIDEONRemoteControlWebAdmin",
+      "GIDEONRemoteControlBackup",
+      "GIDEONRemoteControlUpdater",
+      "GIDEONRemoteControlDiagnostics"
+    ]
+  },
+  "protected_update_state": [
+    "config",
+    "data",
+    "users/identities",
+    "pki",
+    "scripts",
+    "releases",
+    "backups",
+    "logs",
+    "uploads",
+    "quarantine"
+  ],
+  "files": [
+    {
+      "path": "agent/agent-config.template.json",
+      "size_bytes": 528,
+      "sha256": "c18b9425baceb200142f2e7b11316295bfe05145606613da7a670767686709ad"
+    },
+    {
+      "path": "agent/Install-GIDEONAgent.ps1",
+      "size_bytes": 6763,
+      "sha256": "b1052092e0dce5480493c1418aa29b29f3c9331d2c7638ad9956b6f2d305d4f2"
+    },
+    {
+      "path": "agent/remote-client/guacamole-common.min.js",
+      "size_bytes": 78778,
+      "sha256": "cc89f710ecc544477dbe6bfea453fab752dafa1b1ab9770f523676e7b744b44a"
+    },
+    {
+      "path": "agent/remote-client/metadata.json",
+      "size_bytes": 218,
+      "sha256": "5d2b9d81faf9543e84dd507c2a08d088dd7041841f3bc7b47e26c7e39f9b8221"
+    },
+    {
+      "path": "agent/Uninstall-GIDEONAgent.ps1",
+      "size_bytes": 751,
+      "sha256": "8f81fd45e2c214678c63f6619180b19c25a13c3042afcc7619d777223c6af3fd"
+    },
+    {
+      "path": "assets/gideon_agent_tray.ico",
+      "size_bytes": 6851,
+      "sha256": "be301acd4aa2845bf09a189d89cdb29884ec6477358bef3ed6927f07833ce937"
+    },
+    {
+      "path": "assets/gideon_agent_tray.png",
+      "size_bytes": 6829,
+      "sha256": "d31f733b72088d1eff6e6fa1d9b6894b1d3e8d70813d29fd56c3dcb4574d6249"
+    },
+    {
+      "path": "assets/icons/agents.svg",
+      "size_bytes": 272,
+      "sha256": "fe322bdd1847c522dfb5cbda8b97c52be2bd66babc49e45f41f5ea5a8b4e6922"
+    },
+    {
+      "path": "assets/icons/files.svg",
+      "size_bytes": 232,
+      "sha256": "9229597188bce0978500bb2370c9d1e9e9fa92f8fa6837e55b488588d16761f4"
+    },
+    {
+      "path": "assets/icons/home.svg",
+      "size_bytes": 258,
+      "sha256": "860ce9b139065e0ab920f373539f6f0a3f2f4e01107efd9219ff82fdd25323b3"
+    },
+    {
+      "path": "assets/icons/hosts.svg",
+      "size_bytes": 249,
+      "sha256": "71d98ec80cf563831b454ac2542e82864e4b28128b732ac2d606830a1d9cc3c0"
+    },
+    {
+      "path": "assets/icons/infrastructure.svg",
+      "size_bytes": 266,
+      "sha256": "ba592ce051e6f9df520d25a031b523c3cb81d895d6d26cea040187abad4e3a36"
+    },
+    {
+      "path": "assets/icons/jobs.svg",
+      "size_bytes": 236,
+      "sha256": "684fb0dbb4ebc29ab87aa21ff675b77d27525d7438284f8df8b2843eca88ff96"
+    },
+    {
+      "path": "assets/icons/play.svg",
+      "size_bytes": 211,
+      "sha256": "47f799006f36b736f2dd6f7dd1ab0dd99c86a8e50508f7e78d31390c9dcd98a9"
+    },
+    {
+      "path": "assets/icons/remote.svg",
+      "size_bytes": 226,
+      "sha256": "3711d4ec3a778cb897739a401beff8cd687d1c8465f3beb9541fe86560edeb3a"
+    },
+    {
+      "path": "assets/icons/scripts.svg",
+      "size_bytes": 235,
+      "sha256": "f7ae6de232b6c513ff13168e75a997588eb7422284975551d33ae8e4439a906c"
+    },
+    {
+      "path": "assets/icons/settings.svg",
+      "size_bytes": 337,
+      "sha256": "42a6e932678e9a4e2cf21fd5ebb926401286d5cc5a4fb384c2bb922db194d4b8"
+    },
+    {
+      "path": "configure_gateway.py",
+      "size_bytes": 1043,
+      "sha256": "3d894b0d4dc27d37734cc29cf50aadcf6ee59b60682a8300e96ca1cfb1c992e4"
+    },
+    {
+      "path": "core/gideon_instance_manager.py",
+      "size_bytes": 624,
+      "sha256": "34e8218cef3166d0c785b64d6f7ff92b7c6e80a2b939c6f1624d871abde91190"
+    },
+    {
+      "path": "deploy/agent/common/gideon-agent-first-run.py",
+      "size_bytes": 12494,
+      "sha256": "33c06141a8c64fd6b888b365e3be9e108245609e3b9813bafce1c743e34ca414"
+    },
+    {
+      "path": "deploy/agent/legacy-bundle/install-gideon-agent-linux.sh",
+      "size_bytes": 2221,
+      "sha256": "037ea62ee5ea167c03166870cc40357d87b4ec2eef64b082a363981ce4fbecc8"
+    },
+    {
+      "path": "deploy/agent/legacy-bundle/install-gideon-agent-macos.sh",
+      "size_bytes": 2583,
+      "sha256": "c5f070939323a21b08ef0e0cfeb02a53939389923a97e4724cdf4ff2c62b7a3b"
+    },
+    {
+      "path": "deploy/agent/legacy-bundle/Install-GIDEONAgent.ps1",
+      "size_bytes": 10767,
+      "sha256": "01554a24722c00b9d61d66dc978ffb2237bba846a9210cabd596716f16dccc4f"
+    },
+    {
+      "path": "deploy/agent/linux/build-deb.sh",
+      "size_bytes": 5644,
+      "sha256": "414bbdc2f3d22f606f715d3c00ea5cd8a4de56cc913c72b326e0957cf2bebdcf"
+    },
+    {
+      "path": "deploy/agent/linux/build-rpm.sh",
+      "size_bytes": 3766,
+      "sha256": "29fe59febd212d0a6c368fa44d44ac208d6bb5ca74531148efc441b951a3062e"
+    },
+    {
+      "path": "deploy/agent/linux/gideon-agent-first-run-launch",
+      "size_bytes": 4328,
+      "sha256": "6b9584be2f476ef22eea20e31cde9d8e5742dbff34d4082e15c53ec2ffef1832"
+    },
+    {
+      "path": "deploy/agent/linux/gideon-agent-first-run-native",
+      "size_bytes": 12307,
+      "sha256": "4488e98be0175617578e6cc032c5549344cfdc2d3d68a7b21c978335e2f399dc"
+    },
+    {
+      "path": "deploy/agent/linux/gideon-agent-player-launch",
+      "size_bytes": 40443,
+      "sha256": "f18005583551dafcf810a84354d9aa16cbbc008060b61ca7ecccdc157d746434"
+    },
+    {
+      "path": "deploy/agent/linux/gideon-agent-setup",
+      "size_bytes": 42465,
+      "sha256": "aa8053e9d315ae07e97ff6c644ac58229c9706d9340bfe06cd0ba928e007cb01"
+    },
+    {
+      "path": "deploy/agent/linux/packaging/configure-agent.py",
+      "size_bytes": 1939,
+      "sha256": "052df771e319b3713c154758577e0b858db31529890e60045ef404dd7118ab9a"
+    },
+    {
+      "path": "deploy/agent/linux/packaging/gideon-agent-configure",
+      "size_bytes": 241,
+      "sha256": "986946a99a48ad96e241069853f99733ec0135572c27c57fb96dcfa0763ef8ff"
+    },
+    {
+      "path": "deploy/agent/linux/packaging/gideon-agent-player-launch.service",
+      "size_bytes": 236,
+      "sha256": "72c72cdf251509bab518a4d765026931aa86402001322f611001b2b63f9907f8"
+    },
+    {
+      "path": "deploy/agent/linux/packaging/gideon-agent-player-launch.timer",
+      "size_bytes": 162,
+      "sha256": "946f96fb00ded4a3edc65c5c503b341a09bbcec0f2be47b7cb95ec671329325f"
+    },
+    {
+      "path": "deploy/agent/linux/packaging/gideon-agent.service",
+      "size_bytes": 507,
+      "sha256": "ff3a404dc01e45383d93d1d26ae59cbe4ea6121adc7927b1b1c6d8c4499e4fac"
+    },
+    {
+      "path": "deploy/agent/linux/packaging/gideon-agent.spec.template",
+      "size_bytes": 3760,
+      "sha256": "c2250da2af99eb9e5790a82ad4e2f3fe51c9a6f24077001b4820513fc03be17b"
+    },
+    {
+      "path": "deploy/agent/linux/packaging/postinst",
+      "size_bytes": 2017,
+      "sha256": "8a3f4380826c8fb98bb5056fca507b0d9c62cc6c560c09624a8e4de68da9e782"
+    },
+    {
+      "path": "deploy/agent/linux/packaging/postrm",
+      "size_bytes": 203,
+      "sha256": "86012bb8a323f8cf8674a1664bee314b89a02e19cbbe6d12b39b36a99cd9237b"
+    },
+    {
+      "path": "deploy/agent/linux/packaging/preinst",
+      "size_bytes": 81,
+      "sha256": "2d814141443a061b30c3b4cec6daf63a9dbee23dbb9186a414906321a367788f"
+    },
+    {
+      "path": "deploy/agent/linux/packaging/prerm",
+      "size_bytes": 148,
+      "sha256": "87acb9aca9570ec208a9b15770bcfcaa0eabd8a2ef06cf81fdd2f113266db8d6"
+    },
+    {
+      "path": "deploy/agent/macos/gideon-agent-first-run-native",
+      "size_bytes": 9194,
+      "sha256": "b4cda4bbcb2514e2b3c96b3e662f4b41c709a9bbf540e3a0f2f2ffdd5e92162f"
+    },
+    {
+      "path": "deploy/agent/macos/gideon-agent-setup",
+      "size_bytes": 29837,
+      "sha256": "0ed0e8b2aee0413510929aa4f54ad4d8141d7fa8b5d5315742bff0c02fe32f5a"
+    },
+    {
+      "path": "deploy/agent/windows/gideon-agent-player-map.ps1",
+      "size_bytes": 10054,
+      "sha256": "972405554d73a3683cab2143b5944b47efc063a72849cdc94410de7b9bf7196d"
+    },
+    {
+      "path": "deploy/agent/windows/gideon-agent-setup.ps1",
+      "size_bytes": 83794,
+      "sha256": "79d733da1f26b08f94199eaabc6ffee5bf9e1bb2337decea2e614fac81da936a"
+    },
+    {
+      "path": "deploy/agent/windows/gideon-agent-uninstall.ps1",
+      "size_bytes": 3108,
+      "sha256": "caaf4af8cd9eaab4495d170d67eeccf236af1c90249de347640aecf2648d1db8"
+    },
+    {
+      "path": "deploy/agent/windows/GIDEONAgentServiceHost.cs",
+      "size_bytes": 7948,
+      "sha256": "00f9814939fac6eb8fbe69b8f5e70c20d22c1510e5cf9c4941a76f73915a8fb9"
+    },
+    {
+      "path": "deploy/agent/windows/prebuilt/GIDEONAgentServiceHost.exe",
+      "size_bytes": 10240,
+      "sha256": "aa5851874ed7acb035d6717a63a9c8f794868b4bca777aac214e88d2ada42a71"
+    },
+    {
+      "path": "deploy/agent/windows/prebuilt/GIDEONAgentSfxStub.cs",
+      "size_bytes": 13668,
+      "sha256": "068038723ce9d25bd76fc495fd48d6808b4b20fbc1defe71333f40263cca1545"
+    },
+    {
+      "path": "deploy/agent/windows/prebuilt/GIDEONAgentSfxStub.exe",
+      "size_bytes": 13312,
+      "sha256": "9417900aef4d65323b0fc087584fbfa0d5c7fe4dd0d5d8ca6fa934070b6c889b"
+    },
+    {
+      "path": "deploy/agent/windows/prebuilt/GIDEONAgentSfxStub.manifest",
+      "size_bytes": 365,
+      "sha256": "5809146c609206c35a12e3c00854aca79eebf068a78ec0e0c4e93c5260957395"
+    },
+    {
+      "path": "deploy/agent/windows/prebuilt/manifest.json",
+      "size_bytes": 729,
+      "sha256": "203df0062b463ad9b7bbacf0fbb200d1ed448c32249293af17e802472f1cfed5"
+    },
+    {
+      "path": "deploy/aws/install_gideon_aws.sh",
+      "size_bytes": 44650,
+      "sha256": "74455274ca4f122dd05d0df08dba99ebd112b6b8aeea51893b29269baada8dfd"
+    },
+    {
+      "path": "deploy/aws/install_headless_stack.sh",
+      "size_bytes": 130,
+      "sha256": "b6c8886de04c2f275b8867a87bef716cc50bdf1b775f0ca4900f38072a7ab540"
+    },
+    {
+      "path": "deploy/aws/systemd/gideon-clamav-update.service",
+      "size_bytes": 1253,
+      "sha256": "ede9be857870fdb96776b060733dfab4113c0f304a1e62fa67f2b9ee8bb72d75"
+    },
+    {
+      "path": "deploy/aws/systemd/gideon-coordinator.service",
+      "size_bytes": 1122,
+      "sha256": "6a2de932d5ec86a64891db98c68730a851620bc4dc0104910ca3f941bc9ef491"
+    },
+    {
+      "path": "deploy/aws/systemd/gideon-diagnostics.service",
+      "size_bytes": 1297,
+      "sha256": "5183f0cd07a6907a9cc97ba625642c34c42e5ecd5aabab5c5c0e2f002f06fedc"
+    },
+    {
+      "path": "deploy/aws/systemd/gideon-remote-control.target",
+      "size_bytes": 258,
+      "sha256": "ba2b0716644f0ee78f4aa073f0f7aa3b04437e529dda1f46ba17155ef89f60e6"
+    },
+    {
+      "path": "deploy/aws/systemd/gideon-update.path",
+      "size_bytes": 220,
+      "sha256": "67b2b515d76369c485a6d367016688e840056313998daeeda9c93cc5b892c61f"
+    },
+    {
+      "path": "deploy/aws/systemd/gideon-update.service",
+      "size_bytes": 757,
+      "sha256": "970377871dc1f51e53b7d8b27236e6c4b3214dd98c155cf27c4c42d98276b375"
+    },
+    {
+      "path": "deploy/gateway/gateway-config.template.json",
+      "size_bytes": 614,
+      "sha256": "72c7e67fd7eff9a3f963a9dfcc23d7ab4476b251414f4af722ae1374816bf868"
+    },
+    {
+      "path": "deploy/gateway/linux/gideon-agent-gateway.service",
+      "size_bytes": 873,
+      "sha256": "a498b745d0803cf6376a4863dcb734860981cdc1f1447757b44068b8aaec3e94"
+    },
+    {
+      "path": "deploy/gateway/linux/install_gateway.sh",
+      "size_bytes": 1937,
+      "sha256": "8526513feb01483969772093a0672b95344549245d0c97a014c6444099d5fee5"
+    },
+    {
+      "path": "deploy/gateway/windows/Install-GIDEONGateway.ps1",
+      "size_bytes": 2183,
+      "sha256": "929e4dc7e28f2aeb1d0a15bf891b8852dc840f0bc3d73f20ccdbfea468798ac3"
+    },
+    {
+      "path": "deploy/guacamole/docker-compose.yml",
+      "size_bytes": 798,
+      "sha256": "feab2deb74d55c60c80d6c5c23b244f815ec99833a307d0641326abe64dc90b4"
+    },
+    {
+      "path": "deploy/linux/INSTALL-GIDEON-LINUX.sh",
+      "size_bytes": 390,
+      "sha256": "e32fba5753217c26002a330197334bcc5d16c4a3880c34124c05521e1ca60515"
+    },
+    {
+      "path": "deploy/ubuntu/gideon-clamd.apparmor",
+      "size_bytes": 198,
+      "sha256": "1547d49f8fc7c9c7bcc5d781d00067f117e93e51aa93cf38f92d23767883cd8f"
+    },
+    {
+      "path": "deploy/ubuntu/gideon-clamd.conf",
+      "size_bytes": 687,
+      "sha256": "ae880fed8f81491839c2438e0d457863b38ecaae851f2216b870658dbe816c9b"
+    },
+    {
+      "path": "deploy/ubuntu/gideon-clamd.service",
+      "size_bytes": 1154,
+      "sha256": "f884ed8583f27a0956e1ae28f193ea32a3acbca9d4722f42475919632ba88013"
+    },
+    {
+      "path": "deploy/ubuntu/gideon-freshclam.apparmor",
+      "size_bytes": 165,
+      "sha256": "432ee91458f3419c64b6c01e445647a66c256c06c841c5c20ca96b086f0accdb"
+    },
+    {
+      "path": "deploy/ubuntu/INSTALL-GIDEON-UBUNTU.sh",
+      "size_bytes": 392,
+      "sha256": "b50984e317590882bac799d7092573d8159302154b3bf7d452ccafb339560de6"
+    },
+    {
+      "path": "deploy/updates/Apply-GIDEONUpdate.ps1",
+      "size_bytes": 3913,
+      "sha256": "7dbe12cf3bbcd93de56972f16b2336ee2563d9f88aaa91c045e27f70b590f980"
+    },
+    {
+      "path": "deploy/updates/Apply-GIDEONUpdate.sh",
+      "size_bytes": 2838,
+      "sha256": "47369624d66bc5375dc221c45468c3abde2fc682afb8eb5600972a48eb6c5c42"
+    },
+    {
+      "path": "deploy/web/linux/gideon-web-admin.service",
+      "size_bytes": 954,
+      "sha256": "e6ffe0898c6f1c81f54735a939841ebf5da89463b7f99473cc649b06a5dd43ca"
+    },
+    {
+      "path": "deploy/web/linux/install_web_admin.sh",
+      "size_bytes": 2468,
+      "sha256": "da1a9d3177f834b4232a94607e2ad063bc8b11c830d503bd4396c6ae1d437aa3"
+    },
+    {
+      "path": "deploy/web/nginx/gideon-web-admin.conf.example",
+      "size_bytes": 1417,
+      "sha256": "b0acbe96849229af760573716037178635725c9ae5ab4e995ce16bd92c2ee036"
+    },
+    {
+      "path": "deploy/web/security/gideon-policy.yar",
+      "size_bytes": 661,
+      "sha256": "92419b86b4a57d85ef2602d00f11261460a34057914866bf83c01efbeab41a5f"
+    },
+    {
+      "path": "deploy/windows/Gideon-WindowsCompatibility.ps1",
+      "size_bytes": 4523,
+      "sha256": "5badb0f120b34af24734b2fac69e947b4e60327e78a323eb4e7eb4ed2871ee31"
+    },
+    {
+      "path": "deploy/windows/Gideon-WindowsRegistry.ps1",
+      "size_bytes": 4831,
+      "sha256": "aabd3ad9d5351be390f1e0e8f50b16079fc079f0520a141a6bb0bd1b57209e2d"
+    },
+    {
+      "path": "deploy/windows/Gideon-WindowsServiceIsolation.ps1",
+      "size_bytes": 14068,
+      "sha256": "640c4d192ccfe568ff55c85daeaabc01a29f3d0eb6b5a5cb973f23ee9ef32c0f"
+    },
+    {
+      "path": "deploy/windows/gideon_install_pki.py",
+      "size_bytes": 7506,
+      "sha256": "d167b2138e92cce26a46f070588a8581b998ca5a5a30a8c7c5fd10e949ab83e8"
+    },
+    {
+      "path": "deploy/windows/gideon_windows_background.py",
+      "size_bytes": 6139,
+      "sha256": "c1d2a8de4f4f81593ef4d9124e718aebc2ccc82bbf98c8884b4a19bf935811b8"
+    },
+    {
+      "path": "deploy/windows/gideon_windows_service.py",
+      "size_bytes": 16454,
+      "sha256": "054cb6ae2a0180b22b79ca04cdea81510a654be161bd457cdc2751f6a071aa43"
+    },
+    {
+      "path": "deploy/windows/GideonMasterGuardian.cs",
+      "size_bytes": 1164,
+      "sha256": "1e47c0daacc37f75e956a4a29f5ff5b351c2e4e9d813815a22c91aa316fbf9a1"
+    },
+    {
+      "path": "deploy/windows/GIDEONServiceHost.cs",
+      "size_bytes": 23421,
+      "sha256": "e5214a6816ce59b975f4788b3540cc9e6408a7c7cf8e8489084a55aad41c93c6"
+    },
+    {
+      "path": "deploy/windows/GideonServiceHostGuardian.cs",
+      "size_bytes": 1349,
+      "sha256": "fc71fa9a8a0ca9d2afbaadabd8dafdb0ab2637901908ea00e9a61202eeb766f7"
+    },
+    {
+      "path": "deploy/windows/GENERATE-GIDEON-SUPPORT-BUNDLE.cmd",
+      "size_bytes": 471,
+      "sha256": "073bf8ec046d43d60474b143a77c8b686bf0f3177651f4b9248e8fbec789b896"
+    },
+    {
+      "path": "deploy/windows/Generate-GideonWindowsSupportBundle.ps1",
+      "size_bytes": 848,
+      "sha256": "5e9c127fa3b9dc9a8fb6171e3773f0073e143dbbff4ee4a1df528e6bd1a3f709"
+    },
+    {
+      "path": "deploy/windows/INSTALL-GIDEON-WINDOWS-DESKTOP.cmd",
+      "size_bytes": 317,
+      "sha256": "18e7224c5a4345642e8ef27f1f68cbd76d6c635c00a70da5e557c14e13b14610"
+    },
+    {
+      "path": "deploy/windows/INSTALL-GIDEON-WINDOWS-SERVER.cmd",
+      "size_bytes": 317,
+      "sha256": "706a4061069a86e95c493af6718b0e11144fc924f4a72c8342c34a2d05fdcf7a"
+    },
+    {
+      "path": "deploy/windows/INSTALL-GIDEON-WINDOWS.cmd",
+      "size_bytes": 272,
+      "sha256": "fa0091f9c323ae01c7eb0f45fdd394b1b67d6302a9c4764a21245a0df7dbd7b6"
+    },
+    {
+      "path": "deploy/windows/Install-GIDEON-Windows.ps1",
+      "size_bytes": 57677,
+      "sha256": "bf1b3e4fca069654b546c9fb00664c476ed910e67aab9a8ff4aa45b233eab481"
+    },
+    {
+      "path": "deploy/windows/New-GideonWindowsSupportBundle.ps1",
+      "size_bytes": 13598,
+      "sha256": "bb480b9c6777677c06ae6e70725e7fb45564a79786eb71a00f948181e32bcc39"
+    },
+    {
+      "path": "deploy/windows/Test-GideonWindowsIsolation.ps1",
+      "size_bytes": 9858,
+      "sha256": "dd10689ded700eba58980718ae7fed63d9f99b2416c53dda7d665b017e8e3d0c"
+    },
+    {
+      "path": "deploy/windows/Uninstall-GIDEON-Windows.ps1",
+      "size_bytes": 1972,
+      "sha256": "9885bb8892afbcf6113cd468d3f7c1c203b4da82c70090a126668998b5e7cf40"
+    },
+    {
+      "path": "gideon_admin.py",
+      "size_bytes": 93775,
+      "sha256": "37493f86111498d9bfed99bf48b69bda426785b9377fda085bad370cf6356479"
+    },
+    {
+      "path": "gideon_agent.py",
+      "size_bytes": 142110,
+      "sha256": "ad47b5cb89bbc8bd5406619efb895797f2f81e2aa703efde8e1545e2ac301dea"
+    },
+    {
+      "path": "gideon_agent_archive.py",
+      "size_bytes": 5152,
+      "sha256": "ada4d1f4f59497f792dde6e413d14f32def8d657915f01a95f5170b40b42d969"
+    },
+    {
+      "path": "gideon_agent_bootstrap.py",
+      "size_bytes": 5315,
+      "sha256": "d57fa34ab60117cd7561bb8881b4aabfad865926f6c5942c94c1da4b53cbd528"
+    },
+    {
+      "path": "gideon_agent_builder.py",
+      "size_bytes": 22128,
+      "sha256": "f49237322577e46c29c4a37ffb3e014ebd8961ce7810190b845faa5fdcb71fc5"
+    },
+    {
+      "path": "gideon_agent_catalog.py",
+      "size_bytes": 116353,
+      "sha256": "415a90dc99fe4af1e9061484c63854276590e99c011332905ac1e470dae7cdc2"
+    },
+    {
+      "path": "gideon_agent_component.py",
+      "size_bytes": 48406,
+      "sha256": "182c03e6f0c4ea24570b2b22c4c78475ce597aa25db57f1fbb7a4ed928c54d69"
+    },
+    {
+      "path": "gideon_agent_config.py",
+      "size_bytes": 17784,
+      "sha256": "21e7d705b347fd748c8027d60456aae352a40b0d99944635358166ed294d580e"
+    },
+    {
+      "path": "gideon_agent_connectivity.py",
+      "size_bytes": 19692,
+      "sha256": "25b7b453d8631988bcc69ab8bea1e046948e28519f29d37ac3b53e7cc4ed9701"
+    },
+    {
+      "path": "gideon_agent_display_capability.py",
+      "size_bytes": 27158,
+      "sha256": "88d12395bc6554cf6749c4e890314d05592fd26b70adb2e8d062c7d32d735683"
+    },
+    {
+      "path": "gideon_agent_display_session.py",
+      "size_bytes": 5335,
+      "sha256": "7982b9ceaa8296395e312f40ac71982975bf4491d05fe6ca000ad2e262a5f674"
+    },
+    {
+      "path": "gideon_agent_gateway.py",
+      "size_bytes": 158394,
+      "sha256": "4414dd364c06f215f2bb14761520c8a008cd3305576078c532ebe6075139b723"
+    },
+    {
+      "path": "gideon_agent_http.py",
+      "size_bytes": 9478,
+      "sha256": "05c7477eee45f9c6c895dd94682d3041a2ba8934b7ec86805a5b8eb58c36fc60"
+    },
+    {
+      "path": "gideon_agent_installer_contract.py",
+      "size_bytes": 21161,
+      "sha256": "4289177733f6f1762e0f97a6d27c372e02cc8ab7469895c1f2b747701c237d79"
+    },
+    {
+      "path": "gideon_agent_job_contract.py",
+      "size_bytes": 8362,
+      "sha256": "3d557cd716dc9d3b793a80a301ac50fea64589b8333f2a52bad488c134a8c952"
+    },
+    {
+      "path": "gideon_agent_orchestrator.py",
+      "size_bytes": 39463,
+      "sha256": "25b2c304691988256ade53afedd3137b2a1df93eb364f857904864f03cd71ddb"
+    },
+    {
+      "path": "gideon_agent_payload.py",
+      "size_bytes": 8752,
+      "sha256": "bd469c752fe0306bca25d4e45df392f4f803b8846ec0496680191985b036e4bc"
+    },
+    {
+      "path": "gideon_agent_player.py",
+      "size_bytes": 108346,
+      "sha256": "2e1f5c230bcf7cd9ec8c4d269d0a731547e3461b35ddb5b2cde105faa2b1d026"
+    },
+    {
+      "path": "gideon_agent_rdp_capability.py",
+      "size_bytes": 14902,
+      "sha256": "69c68c976d5c5eb7089c26427148ca561c216b72e36a7ec22ca839ce106577b5"
+    },
+    {
+      "path": "gideon_agent_remote_restart.py",
+      "size_bytes": 2423,
+      "sha256": "5813156eca11acf0529ffcf526c546f1568d85118cac19ad5e9f708db178bef5"
+    },
+    {
+      "path": "gideon_agent_runtime.py",
+      "size_bytes": 2973,
+      "sha256": "8de22777ced1f03bfd639f038a1e70c21889537862df6d82a6669dc8c0a7e42c"
+    },
+    {
+      "path": "gideon_agent_security.py",
+      "size_bytes": 4970,
+      "sha256": "066a0bc72b9d42fafe0fdce6efb51b45114c915b9d4703e3529af870ead2982f"
+    },
+    {
+      "path": "gideon_agent_session_handoff.py",
+      "size_bytes": 12961,
+      "sha256": "ca3ca4817bb2527047ae447f00b5900e1b1e7db690490c0c6d72aba14c67252b"
+    },
+    {
+      "path": "gideon_agent_tray.py",
+      "size_bytes": 33098,
+      "sha256": "b573c9141faf1a572b8174553d9bb2fa768e329c212c680e8e47541f2a16c4f5"
+    },
+    {
+      "path": "gideon_agent_update.py",
+      "size_bytes": 26007,
+      "sha256": "377d062c87a6c1fb3a681e2b09b925cdb1caf4488651ed4b68cf6014e7da7b2c"
+    },
+    {
+      "path": "gideon_agent_update_builder.py",
+      "size_bytes": 14777,
+      "sha256": "24eea38c2fda14f174baf698b39c196759cdaf34902c1fe314fbe196170ec873"
+    },
+    {
+      "path": "gideon_agent_vlc_offline.py",
+      "size_bytes": 86693,
+      "sha256": "5beb55e944be466d99dc6c9a48213de8b2f473dd748ea4e3009afb54b587636a"
+    },
+    {
+      "path": "gideon_agent_vlc_offline_control.py",
+      "size_bytes": 13275,
+      "sha256": "e7457c90f994b846c17bf26cff37250daecf28aaa0d41b3c3a6cb030f63f7aec"
+    },
+    {
+      "path": "gideon_agent_vnc_bridge.py",
+      "size_bytes": 23945,
+      "sha256": "cbb983da7d170d4953104bde9fbcd0b046a225163d5a848b5d7358cd819e872d"
+    },
+    {
+      "path": "gideon_agent_windows_runtime.py",
+      "size_bytes": 16460,
+      "sha256": "92c644a02d31564cc18aa93f86ace8ccaee56f69e1d771d51a64703924901f92"
+    },
+    {
+      "path": "gideon_agent_worker.py",
+      "size_bytes": 21113,
+      "sha256": "2157f676b8b2cc5064a817b4edac3dad28db528aa3eb3748df51a733055693fc"
+    },
+    {
+      "path": "gideon_application/__init__.py",
+      "size_bytes": 523,
+      "sha256": "a654f47a502c476e20870de85991f0869f5e960d958fbc0aa5eea2d8d420b3c8"
+    },
+    {
+      "path": "gideon_application/artifacts.py",
+      "size_bytes": 1220,
+      "sha256": "72a7d9088d97ca969ff5fe0084d9f911769666fb91a9de3e96cf796907eaae03"
+    },
+    {
+      "path": "gideon_application/controller.py",
+      "size_bytes": 3207,
+      "sha256": "0928d3d1d29b51041867504d6a57ec842507d5430f1f712000689effccccdcff"
+    },
+    {
+      "path": "gideon_application/file_transfer.py",
+      "size_bytes": 14287,
+      "sha256": "039ec802417a49aa4f9d3e9d70b5b274766e8ba3f9707eaece581f456a2fdd81"
+    },
+    {
+      "path": "gideon_application/policies.py",
+      "size_bytes": 952,
+      "sha256": "c8131068982915cb7e6016bc43695b97a5b8a895a501bd3c45d7ab23561198a3"
+    },
+    {
+      "path": "gideon_application/ports.py",
+      "size_bytes": 3034,
+      "sha256": "b715e34c3c222339a8833d3961a06b0d54507178d8704ace6c9415a2c4893fe4"
+    },
+    {
+      "path": "gideon_application/script_registry.py",
+      "size_bytes": 4530,
+      "sha256": "ad3c7dc2f36428af404e326aa80ac75b588f64ff1aa9af2e58cf32fb96b8f01e"
+    },
+    {
+      "path": "gideon_backup.py",
+      "size_bytes": 7297,
+      "sha256": "490c730a74c428613e3f716ea37ea9cf2aa52365a03add79c4cd9f46480b8254"
+    },
+    {
+      "path": "gideon_batch.py",
+      "size_bytes": 2704,
+      "sha256": "85f2f8acde203982a61ce9c5ed2fdd2212e4ad69c4a0efb3ebfb672096205e07"
+    },
+    {
+      "path": "gideon_bootstrap.py",
+      "size_bytes": 5323,
+      "sha256": "b6580623ea8773066e2c8214609592220c0f131289a4bba7309ab7cc21dcd557"
+    },
+    {
+      "path": "gideon_branding.py",
+      "size_bytes": 9539,
+      "sha256": "88a9ebb461e065123384e8d6644db069a0e55208628d86605b4763dd88f4779c"
+    },
+    {
+      "path": "gideon_common/__init__.py",
+      "size_bytes": 387,
+      "sha256": "668ea9c67920f925c564f217263d36953a7e656f9970fab4862db26e00a25a85"
+    },
+    {
+      "path": "gideon_common/clock.py",
+      "size_bytes": 181,
+      "sha256": "56a44eced0d8bf37aefee2f26d7c6b84400761062f37a2e468d7e4c922ae6edb"
+    },
+    {
+      "path": "gideon_common/hashing.py",
+      "size_bytes": 356,
+      "sha256": "2ac4b4d81b671ae80bef7068f2b69c7691e1cea825f66aa5bd97045977e2444f"
+    },
+    {
+      "path": "gideon_common/observability.py",
+      "size_bytes": 946,
+      "sha256": "44c8a8af30c8fdd73a1e97a75a9cc1043ea75bedc5814677b2ee02229a3e418c"
+    },
+    {
+      "path": "gideon_common/process.py",
+      "size_bytes": 585,
+      "sha256": "a54f30a45d95ef8729dea478164c274db1bf12f7f4c165196ed74f8bada78861"
+    },
+    {
+      "path": "gideon_common/redaction.py",
+      "size_bytes": 3962,
+      "sha256": "678167c3c1c9c44b7f36a1a722369f60bf1136e7982dd9a36596ac806e114481"
+    },
+    {
+      "path": "gideon_common/tls.py",
+      "size_bytes": 1915,
+      "sha256": "59a6badb42eea9f4906556529070e755e8d6ca85d0ccc403749d58a6c523a524"
+    },
+    {
+      "path": "gideon_coordinator.py",
+      "size_bytes": 3118,
+      "sha256": "134365884ee0cdac9362b72fc6644cfe45f90c5e8b2f3df3117b223d695e57be"
+    },
+    {
+      "path": "gideon_core/__init__.py",
+      "size_bytes": 457,
+      "sha256": "b7b02d42ae41ac73c8bb8380e85e23effc30a732b405d7d0235af2492972b684"
+    },
+    {
+      "path": "gideon_core/config.py",
+      "size_bytes": 3653,
+      "sha256": "46b7fbf8a9f15c97a87e7a3e0ed95a13bcfcf7c6abc53cca5b060596ffa890d5"
+    },
+    {
+      "path": "gideon_core/connectivity.py",
+      "size_bytes": 9772,
+      "sha256": "67487e21f60ff0e0dcb9e5465bfc02608d7fc7baca9188580301ac52f2aa5f33"
+    },
+    {
+      "path": "gideon_core/contracts.py",
+      "size_bytes": 1151,
+      "sha256": "6353a0d7a3da344ec023678e29c2b746510b8d38abb10c34108d14f2215d652c"
+    },
+    {
+      "path": "gideon_core/events.py",
+      "size_bytes": 11089,
+      "sha256": "86f630700d295868ffe170784b612768d34694bfe6b88de246f3b56fe7099aa4"
+    },
+    {
+      "path": "gideon_core/health.py",
+      "size_bytes": 1254,
+      "sha256": "0e5f610180ba95bfb67bcba5e374526bf3721096f3a8cbdcd5efa67b0c91d69b"
+    },
+    {
+      "path": "gideon_core/launch.py",
+      "size_bytes": 17220,
+      "sha256": "7713a5ec5532ae9ffbea9304a2f561cc98c6aa3fc04ad3b5540cce36de35cecb"
+    },
+    {
+      "path": "gideon_core/models.py",
+      "size_bytes": 935,
+      "sha256": "5da5c3754b38fe3bc9b6c349c6a38928e5891ceaa2cfff90bb3905a468f70091"
+    },
+    {
+      "path": "gideon_core/protocol.py",
+      "size_bytes": 806,
+      "sha256": "7ea79543eb7c6b313bfd410d12ea9560beee4d9a118310c526bffd578655cb99"
+    },
+    {
+      "path": "gideon_core/runtime_diag.py",
+      "size_bytes": 6876,
+      "sha256": "823ed4ed3808d1bb52e6d06fba002a0ac06572f2fab93170e96eae928b099c27"
+    },
+    {
+      "path": "gideon_core/states.py",
+      "size_bytes": 2855,
+      "sha256": "5dbc4e80c1c14ebbe24afe22a31d2425533ccc54d40cfddc8961cfd138592790"
+    },
+    {
+      "path": "gideon_core/transport_profiles.py",
+      "size_bytes": 3583,
+      "sha256": "a3cc2922547df114107a9ade50ca101de3f6e5715853f17d5e388cc87ccad815"
+    },
+    {
+      "path": "gideon_dependency_manager.py",
+      "size_bytes": 30862,
+      "sha256": "3ea72c84fea3cac9093c9d07a58c4ccb6782985e66de97f37ba51b3eed2b5433"
+    },
+    {
+      "path": "gideon_diagnostics_service.py",
+      "size_bytes": 7910,
+      "sha256": "7378d94a4f1965faa26854f2db5019822df3feec48ba305820cadd8e492961d0"
+    },
+    {
+      "path": "gideon_disaster_recovery.py",
+      "size_bytes": 15318,
+      "sha256": "c5685eb0478b97fa25f0e5d1ffbdf5c1ab40d7c39329e6eee00897f515c90bfb"
+    },
+    {
+      "path": "gideon_domain/__init__.py",
+      "size_bytes": 1040,
+      "sha256": "522ab4bec0eea50651d1f6ac78cd58692d92e93147359e9fedb0b6b75153e2cb"
+    },
+    {
+      "path": "gideon_domain/enums.py",
+      "size_bytes": 2282,
+      "sha256": "49aaeb8199cae1dd1d0c77799929494c579f4de0ea3a0c193abde67a139e0ed3"
+    },
+    {
+      "path": "gideon_domain/errors.py",
+      "size_bytes": 776,
+      "sha256": "fa5f022472a2c77c042242d563edcf6bbf11d909b36df9028829edb3980b3e53"
+    },
+    {
+      "path": "gideon_domain/models.py",
+      "size_bytes": 2658,
+      "sha256": "1904813ae4afdcddd2f7fa83f72034b9c050e4b2b0e0e601deec17ef81d5e304"
+    },
+    {
+      "path": "gideon_domain/results.py",
+      "size_bytes": 572,
+      "sha256": "37ceb45843e9b2d520082efd774d55d1283c32127839520b4a339ea7d50a2a40"
+    },
+    {
+      "path": "gideon_evidence_security.py",
+      "size_bytes": 3701,
+      "sha256": "1c157380085c2e8cd3c1898c3b47d90a27095e43b734b255880f802229e0d1f7"
+    },
+    {
+      "path": "gideon_execution/__init__.py",
+      "size_bytes": 64,
+      "sha256": "8cdd9b9f19b573a0a45304afde58c90cbec2142f31cc6e9405ffad2da15c5dcd"
+    },
+    {
+      "path": "gideon_execution/connectivity_service.py",
+      "size_bytes": 20244,
+      "sha256": "5a18b1f979f9d6f1efeb047c16a9df7bd47507498098a7fbbd42050812e224a5"
+    },
+    {
+      "path": "gideon_execution/logging_utils.py",
+      "size_bytes": 393,
+      "sha256": "15a131d48245a30c517438d81468a996fd9b82d6d75d38c6d8dd78849b1312f3"
+    },
+    {
+      "path": "gideon_execution/manifest_service.py",
+      "size_bytes": 9676,
+      "sha256": "58aaf4b422cdd1c380488448d07243c13ea3c14e6cc0bcb536d47e77de87e0b3"
+    },
+    {
+      "path": "gideon_execution/package_service.py",
+      "size_bytes": 7215,
+      "sha256": "f599fc5ffef777fc28b6b8a618c9072808011e72d1a6107185069591f3d217f3"
+    },
+    {
+      "path": "gideon_execution/report_service.py",
+      "size_bytes": 11970,
+      "sha256": "e8a6e3546983b0aa4664c9ee7ef5a93aed82a23b791fb31736e549b12dce44c3"
+    },
+    {
+      "path": "gideon_execution/runtime_service.py",
+      "size_bytes": 15752,
+      "sha256": "230224dcf8a7f35f93e4e9c1b995d75726daeff4932215a23d8b1a256b1d20e2"
+    },
+    {
+      "path": "gideon_execution/shell_utils.py",
+      "size_bytes": 358,
+      "sha256": "48be02c1011204b99507d47f345b859a59d47bd8397d007168f254df3f44dd9e"
+    },
+    {
+      "path": "gideon_execution/transport_service.py",
+      "size_bytes": 20076,
+      "sha256": "a2bcd25be8d799e18a3a4ef1101d5b26e227059bcceaab894587489f138f2859"
+    },
+    {
+      "path": "gideon_fanout.py",
+      "size_bytes": 175849,
+      "sha256": "40c3a6d82f34686507b823222f64be5e38647eace95ed28bb21ce122a4868177"
+    },
+    {
+      "path": "gideon_gateway_bootstrap.py",
+      "size_bytes": 26665,
+      "sha256": "865c6957941378d33fc31af6cae60c1a47147b5c7ad7e072ffa05697c7d7ae4a"
+    },
+    {
+      "path": "gideon_gateway_schema.py",
+      "size_bytes": 22465,
+      "sha256": "845d92cd073ed753cc40224514b0ebb218fe2eb8195c8650942c465c8d4974b6"
+    },
+    {
+      "path": "gideon_gateway_service.py",
+      "size_bytes": 37822,
+      "sha256": "14eb59c2f1d72f393fab458dec8b03397912b44a635ce53c4f9131c105fac4ab"
+    },
+    {
+      "path": "gideon_gateway_tls.py",
+      "size_bytes": 22808,
+      "sha256": "eb01ceebefee3a372294f134915d265bb4b465726d79db84816b1b9ec1e96ea5"
+    },
+    {
+      "path": "gideon_host_profiles.py",
+      "size_bytes": 5250,
+      "sha256": "3c16fdcc232439d8c5b9ae387e6fc813662bb7d5b44e792d0926940b33e499a8"
+    },
+    {
+      "path": "gideon_infrastructure/__init__.py",
+      "size_bytes": 702,
+      "sha256": "bd2b66f27795139c7356c845800d821a85c278cd46bd50c7be39e619504f3124"
+    },
+    {
+      "path": "gideon_infrastructure/agent_file_transport.py",
+      "size_bytes": 20944,
+      "sha256": "12a560d3833cebf84d9eb8ca8f614996a8f951e10d7ae70c0fa12b8ce20f1a46"
+    },
+    {
+      "path": "gideon_infrastructure/file_transports.py",
+      "size_bytes": 22790,
+      "sha256": "8d28f886b2a9ab569d44c6e4658aef6c4a13499caf11a7a09d4ae9d63abbe53d"
+    },
+    {
+      "path": "gideon_infrastructure/job_repository.py",
+      "size_bytes": 5976,
+      "sha256": "741ce41e4a17ed45d4d73eac7e5e00b0dd79ffe10ca31531462443eb7a28deb0"
+    },
+    {
+      "path": "gideon_infrastructure/launch_adapter.py",
+      "size_bytes": 4957,
+      "sha256": "ebfcfeecd57196b00503cca4532b0959768fccc297c8ad2a883b050a9fbb4d4f"
+    },
+    {
+      "path": "gideon_infrastructure/powershell_analysis.py",
+      "size_bytes": 6603,
+      "sha256": "eb77a5359cc757cd83abff40948821af68ef159ae2b6c248703633861893dea6"
+    },
+    {
+      "path": "gideon_infrastructure/process_runner.py",
+      "size_bytes": 2827,
+      "sha256": "360193edb034d282b3ed83daf38904514f012d61236bd1cfbd6329f3da5de4c2"
+    },
+    {
+      "path": "gideon_infrastructure/sqlite_connections.py",
+      "size_bytes": 2906,
+      "sha256": "828e29a3c820fcb73822292212580776d94dda9eb460b6540fba1453e93ed7dd"
+    },
+    {
+      "path": "gideon_infrastructure/subprocess_utils.py",
+      "size_bytes": 1348,
+      "sha256": "9853812280b81edb05d454aec78eebaaad2f5efb35afabaabccb36e22df7f59e"
+    },
+    {
+      "path": "gideon_infrastructure/system.py",
+      "size_bytes": 794,
+      "sha256": "b972408a4517b926897a5fccf31e4d1a3845e425dcc1fe1a73d7973b73e3ae42"
+    },
+    {
+      "path": "gideon_io.py",
+      "size_bytes": 6938,
+      "sha256": "aff8a3f3f82721bd76b85f0d5f16069b1d624238857f5ba5e265460c67ea9174"
+    },
+    {
+      "path": "gideon_local_agent.py",
+      "size_bytes": 6702,
+      "sha256": "f1eda2dd67fe2e2784f227301afd443fc1195bdd2fcdd201a339a0db582f1311"
+    },
+    {
+      "path": "gideon_native_certification.py",
+      "size_bytes": 16052,
+      "sha256": "3f707f29e25824f95119bbdb5af02c815974156a4b0e260ce0b186935761d5f3"
+    },
+    {
+      "path": "gideon_packaging/__init__.py",
+      "size_bytes": 232,
+      "sha256": "0f188e9adca4d14a8eff3640d368cde2368366dc76b8061d50396bd2fb76b511"
+    },
+    {
+      "path": "gideon_packaging/runtime_profile.py",
+      "size_bytes": 4962,
+      "sha256": "649fbbaa54ce03632591cbac6fe07b0417b0162ffdec9fc00c75e9b6e7036d9a"
+    },
+    {
+      "path": "gideon_packaging/signing.py",
+      "size_bytes": 8156,
+      "sha256": "4c59a5851b0f71155ad2230dd9fd393c08813f03f684099b76e5a3eb3fff416d"
+    },
+    {
+      "path": "gideon_packaging/windows_exe.py",
+      "size_bytes": 63143,
+      "sha256": "61d479ce767535ad715b5c276123496b430634b1173b2f0956a6eea5ca42771c"
+    },
+    {
+      "path": "gideon_platform.py",
+      "size_bytes": 4941,
+      "sha256": "0176ad0d3dc5c9badda8836d6b80d463963576c808fe3caac4a7dd8eb9018028"
+    },
+    {
+      "path": "gideon_product_update.py",
+      "size_bytes": 45143,
+      "sha256": "22868b3ec509b499fef411de7da990c83724284fe8705f6f3b3ef240cbeecec8"
+    },
+    {
+      "path": "gideon_qt_gui.py",
+      "size_bytes": 33786,
+      "sha256": "e75849923340c664726b6d2ce42ae5c0e9da0b524ccf4eeab90235133d9fbb41"
+    },
+    {
+      "path": "gideon_remote_access.py",
+      "size_bytes": 40078,
+      "sha256": "189d82f1d30d7c9534c55272da2f72c29f70565a2574bb591b2fbf069e757ed4"
+    },
+    {
+      "path": "gideon_reverse_tunnel.py",
+      "size_bytes": 45640,
+      "sha256": "9fb6c1b9b124aa239465ff8213c3a3457a3286b19b09d079f90b1840d11ce564"
+    },
+    {
+      "path": "gideon_runtime_bootstrap.py",
+      "size_bytes": 6997,
+      "sha256": "ee59afa0d361724737a03f346378919d36d46e28ca7adaaeed986fd2ea01a523"
+    },
+    {
+      "path": "gideon_script_host.ps1",
+      "size_bytes": 7846,
+      "sha256": "689f7eaae1ddb7d77942c9d0c39f789cc305f8d2fff508798eba66bc6ae34aa9"
+    },
+    {
+      "path": "gideon_script_library.py",
+      "size_bytes": 5552,
+      "sha256": "2b5850499446025047691a9a224c03b535e6bb14aead8db4dc03039a35a97892"
+    },
+    {
+      "path": "gideon_selfcheck.py",
+      "size_bytes": 15879,
+      "sha256": "b25de30d1af86c8c7e3967ce47bd72a8554a9311375d6b642f99f7d4623ab77f"
+    },
+    {
+      "path": "gideon_service_health.py",
+      "size_bytes": 9532,
+      "sha256": "b5c828b8adaee28580198884ae35307607005f0d56cc65202635226e1bd9951e"
+    },
+    {
+      "path": "gideon_services/__init__.py",
+      "size_bytes": 163,
+      "sha256": "30765770ffcaeb8ad003106166f1a4005985ad4250a909a6fae36f8e56467eb3"
+    },
+    {
+      "path": "gideon_services/agent_admin.py",
+      "size_bytes": 14655,
+      "sha256": "9dc5988f305a37e4254501f0aa119180a0b5cec1023f902a6f26e72b4d2503c2"
+    },
+    {
+      "path": "gideon_site_groups.py",
+      "size_bytes": 8791,
+      "sha256": "aa9e051655727ae6ee714c03a94471a3b84433df775af252f93d27f6cff10e8d"
+    },
+    {
+      "path": "gideon_support_bundle.py",
+      "size_bytes": 14935,
+      "sha256": "46efdb008b670554e9282cdac6d05bae5b035ea3be25949d62a1fd010ba4502b"
+    },
+    {
+      "path": "gideon_transfer.py",
+      "size_bytes": 7191,
+      "sha256": "05bb51adfd485770c81e1027054d34d09f781e8bcdf198c502594359a577b4cf"
+    },
+    {
+      "path": "gideon_ui/__init__.py",
+      "size_bytes": 256,
+      "sha256": "cee11d43bd520409ecabbf96bbe468f1bbfc116694887f567dcaf6e79b0f6612"
+    },
+    {
+      "path": "gideon_ui/components/__init__.py",
+      "size_bytes": 190,
+      "sha256": "5844cf94160fb3a5ebee93140e4a306d40eac5adc723af0364919a3ae4a5e41e"
+    },
+    {
+      "path": "gideon_ui/components/destination_selector.py",
+      "size_bytes": 32233,
+      "sha256": "0a73db8620230a37a71f8aa3c66600e4580ab117da5ef801096fd3d781451861"
+    },
+    {
+      "path": "gideon_ui/contrast.py",
+      "size_bytes": 1109,
+      "sha256": "916d24042718e41670bd1d7af2481d5e4dcfbf88eecf3df152eedad4ea9887ec"
+    },
+    {
+      "path": "gideon_ui/models.py",
+      "size_bytes": 17904,
+      "sha256": "e0444cbffb83cd77752889532e6d7baa6aa3ff3e68addd14cf9face8021b082c"
+    },
+    {
+      "path": "gideon_ui/pages/agent_activity.py",
+      "size_bytes": 52769,
+      "sha256": "2a33b708ca7fbe534f15c7b4eae6a6b51ac538c7c2db4c75c91d9ffd4610c95e"
+    },
+    {
+      "path": "gideon_ui/pages/agent_center.py",
+      "size_bytes": 34993,
+      "sha256": "6dc89b3864a674737f388d1f651615aef0c598f839770e236eac9be03d207dd3"
+    },
+    {
+      "path": "gideon_ui/pages/agents.py",
+      "size_bytes": 27879,
+      "sha256": "17b2d97c5aeec68300bb07f8812becb25c3657f94c7f39d6be0b91aff77d9468"
+    },
+    {
+      "path": "gideon_ui/pages/base.py",
+      "size_bytes": 898,
+      "sha256": "262a82243f55ff0578c43a86529cc54f9cc1a22bd6ed1b3c2658c2c8c612a229"
+    },
+    {
+      "path": "gideon_ui/pages/dashboard.py",
+      "size_bytes": 9853,
+      "sha256": "eeff478c39c0443c50479e46cec2979cf30ccb43f6ca8456785807ff0173f6f5"
+    },
+    {
+      "path": "gideon_ui/pages/execution.py",
+      "size_bytes": 21723,
+      "sha256": "ac2f3c2d80a71f555952bc105e8699cd82aa0a5b4d9b9db9092927943c858cf7"
+    },
+    {
+      "path": "gideon_ui/pages/hosts.py",
+      "size_bytes": 12924,
+      "sha256": "c863077799536cba5176b057a526bf89bec1576d4756b1ef90e6e8b95f37ca0d"
+    },
+    {
+      "path": "gideon_ui/pages/jobs.py",
+      "size_bytes": 49502,
+      "sha256": "a6fa7b21c745540bfe89e6df3835d046f3f709cb98b320a22a3b77ee4914caf0"
+    },
+    {
+      "path": "gideon_ui/pages/remote_access.py",
+      "size_bytes": 32216,
+      "sha256": "05b42b44eb5969bc12fc748f017c5ee3ba3caf40ae3ca6c6e53b6851f325f7d2"
+    },
+    {
+      "path": "gideon_ui/pages/scripts.py",
+      "size_bytes": 7682,
+      "sha256": "acc82ee29e61042b480b0020725e22cb30edb954e98b5d347749e6e1e5e78317"
+    },
+    {
+      "path": "gideon_ui/pages/settings.py",
+      "size_bytes": 25353,
+      "sha256": "c074c643d046eabc95d17ca5adda51c7231f2afb66ced65e4fcfd10de431263d"
+    },
+    {
+      "path": "gideon_ui/pages/transfers.py",
+      "size_bytes": 17146,
+      "sha256": "05c4c3bcb66098844d9da60dbc03944ccf1c89f62b4636c219216bdfacf253da"
+    },
+    {
+      "path": "gideon_ui/refresh.py",
+      "size_bytes": 1984,
+      "sha256": "9a380b4a1f0041f24d1408aa850419356e2eb09006a96c694fbc284ae7a3f301"
+    },
+    {
+      "path": "gideon_ui/services.py",
+      "size_bytes": 20950,
+      "sha256": "450de401cd4878a67525ee0644addca8087ccba9a8e2db88577b14354611d2e3"
+    },
+    {
+      "path": "gideon_ui/state_presenter.py",
+      "size_bytes": 2090,
+      "sha256": "4f4d88d2920b8b2adc5693101e01dd8c2dd19b53f49babd140f267ec981e801f"
+    },
+    {
+      "path": "gideon_ui/theme.py",
+      "size_bytes": 11354,
+      "sha256": "898ef0c634ba4925174da85c51b4e6f6fdc2678d9571b3032343cae0a7e94574"
+    },
+    {
+      "path": "gideon_ui/tokens.py",
+      "size_bytes": 2473,
+      "sha256": "24d46298fc0acb33aef53b31ad9d7a0e507cf65bd5a01804f5b2103c5e746d47"
+    },
+    {
+      "path": "gideon_ui/widgets.py",
+      "size_bytes": 19091,
+      "sha256": "e4b28b6a4a1c29c095fcceae2099391040942c802553fd8434db973f54c44a1b"
+    },
+    {
+      "path": "gideon_update_lock.py",
+      "size_bytes": 2319,
+      "sha256": "052dbef55d4da96d198ae592d1665bd35d0ea88dd00c99817d4e37aeeae02dae"
+    },
+    {
+      "path": "gideon_update_security.py",
+      "size_bytes": 10039,
+      "sha256": "ed54d1590926f12caf8cd428a7f39c811a41648e3a9a695b17d3747134810357"
+    },
+    {
+      "path": "gideon_update_transaction.py",
+      "size_bytes": 6814,
+      "sha256": "853e5ca21657bf2702349f5ba68705e761b4fe35f7370dc28d729fcca567e701"
+    },
+    {
+      "path": "gideon_version.py",
+      "size_bytes": 468,
+      "sha256": "ed7206991b234510d08d93b464b34778ba48e1300623efe7bc034dcd25c9ed5f"
+    },
+    {
+      "path": "gideon_web_admin.py",
+      "size_bytes": 3529,
+      "sha256": "1a93fa8ea7f8315a37024b33f7e5cd2e7d2afe7f8f9bf6adf372f0879cdb95e2"
+    },
+    {
+      "path": "gideon_web_admin/__init__.py",
+      "size_bytes": 425,
+      "sha256": "ef50f1773d91c4b4706435ab3cc7562aa5875917e1dc399e6d8db11b75ac332f"
+    },
+    {
+      "path": "gideon_web_admin/agent_builder_profiles.py",
+      "size_bytes": 10977,
+      "sha256": "9d2eae12f79ee55f6ef5a3626f656258bb45c03b6adce31c8188967e3f5784c3"
+    },
+    {
+      "path": "gideon_web_admin/agent_installers.py",
+      "size_bytes": 79873,
+      "sha256": "1559d222ad1828010b911b2531c174c18fa1811a11e9cd6d43c23c8a311fcacf"
+    },
+    {
+      "path": "gideon_web_admin/app.py",
+      "size_bytes": 372269,
+      "sha256": "e5c339f8e2057e2fcab0bf7e94221f9b7fe50207a8c2cc7cd4e7b6325005cb64"
+    },
+    {
+      "path": "gideon_web_admin/auth.py",
+      "size_bytes": 39300,
+      "sha256": "a0cdeaf1f80c755c74848c13cb285f258eac726aad83262c937c889872f47c5d"
+    },
+    {
+      "path": "gideon_web_admin/dependency_inventory.py",
+      "size_bytes": 21871,
+      "sha256": "655e00eed2681f63c862875e2e85fb474d6562061576911f64b465d0937def88"
+    },
+    {
+      "path": "gideon_web_admin/diagnostics.py",
+      "size_bytes": 13043,
+      "sha256": "a5c62bbe35da677bc1c28a355a2f89bd9a84e1c6b00a9a8ebc3aa74b06727c5c"
+    },
+    {
+      "path": "gideon_web_admin/gateway.py",
+      "size_bytes": 31193,
+      "sha256": "1bab38b85b4cd4b92eb7a7c85b7ba7d43fc5344e016e0da677ef168c54f59fe3"
+    },
+    {
+      "path": "gideon_web_admin/gateway_endpoints.py",
+      "size_bytes": 26975,
+      "sha256": "7696b041c1bac54f956e2c72b36715e3cfa42a7108a05a632232a894f5356584"
+    },
+    {
+      "path": "gideon_web_admin/guacamole.py",
+      "size_bytes": 22603,
+      "sha256": "d7224c4fe051ec77c583510908855ae5ec3f63ad4abf9ea877bf272828ae8873"
+    },
+    {
+      "path": "gideon_web_admin/guacamole.py.rc14_1.bak",
+      "size_bytes": 18416,
+      "sha256": "e221f7d3ac8b2520912c4d2cfa903ac74e438e1936dde9bbc9859559fd68160d"
+    },
+    {
+      "path": "gideon_web_admin/guacamole.py.rc14_1_1.bak",
+      "size_bytes": 18416,
+      "sha256": "e221f7d3ac8b2520912c4d2cfa903ac74e438e1936dde9bbc9859559fd68160d"
+    },
+    {
+      "path": "gideon_web_admin/guacamole.py.rc14_1_2.bak",
+      "size_bytes": 18354,
+      "sha256": "fa659e5345c64b58ec2c04fdc64669efa4a01223f81f3432f3b482565e244e32"
+    },
+    {
+      "path": "gideon_web_admin/guacamole.py.rc14_2_1.bak",
+      "size_bytes": 18416,
+      "sha256": "e221f7d3ac8b2520912c4d2cfa903ac74e438e1936dde9bbc9859559fd68160d"
+    },
+    {
+      "path": "gideon_web_admin/guacamole.py.rc14_2_2.bak",
+      "size_bytes": 18371,
+      "sha256": "17788363938ecb6d7d49df6a1775f0f44131d70b829aeeaeec295d5aecfa2858"
+    },
+    {
+      "path": "gideon_web_admin/guacamole.py.rc14_2_backup",
+      "size_bytes": 18416,
+      "sha256": "e221f7d3ac8b2520912c4d2cfa903ac74e438e1936dde9bbc9859559fd68160d"
+    },
+    {
+      "path": "gideon_web_admin/guacamole.py.rc14_3.bak",
+      "size_bytes": 18794,
+      "sha256": "80dec88b2529a11efbf3d964c68ba22d1bd418f4dbaaf27bdc6434b6c4507ae8"
+    },
+    {
+      "path": "gideon_web_admin/guacamole.py.rc14_4.bak",
+      "size_bytes": 18794,
+      "sha256": "80dec88b2529a11efbf3d964c68ba22d1bd418f4dbaaf27bdc6434b6c4507ae8"
+    },
+    {
+      "path": "gideon_web_admin/guacamole.py.rc14_4_1.bak",
+      "size_bytes": 18794,
+      "sha256": "80dec88b2529a11efbf3d964c68ba22d1bd418f4dbaaf27bdc6434b6c4507ae8"
+    },
+    {
+      "path": "gideon_web_admin/guacamole.py.rc14_4_2.bak",
+      "size_bytes": 18794,
+      "sha256": "80dec88b2529a11efbf3d964c68ba22d1bd418f4dbaaf27bdc6434b6c4507ae8"
+    },
+    {
+      "path": "gideon_web_admin/guacamole.py.rc14_4_3.bak",
+      "size_bytes": 18911,
+      "sha256": "834586281396ca6fae95f0641890292c8e786c83cb991f39772d90d74ec31058"
+    },
+    {
+      "path": "gideon_web_admin/ingress_security.py",
+      "size_bytes": 1748,
+      "sha256": "e3c872024b0a17851c472d139dc32559ef0d00af028a7b4f68cfdef4fe568110"
+    },
+    {
+      "path": "gideon_web_admin/installer_history.py",
+      "size_bytes": 3409,
+      "sha256": "4ae72b484d036e9ff735dfd3711b26476d333444a56b0c7e793ee5dee6ca9ff9"
+    },
+    {
+      "path": "gideon_web_admin/installer_orchestration.py",
+      "size_bytes": 6730,
+      "sha256": "eadb4a6940cd1c284a9738cb301fbafb0eb457bfc9301187dbcc9cd8c48247cb"
+    },
+    {
+      "path": "gideon_web_admin/media_campaigns.py",
+      "size_bytes": 216952,
+      "sha256": "fb6bfbb34ea1e54c26e12c17c9ea2a7b383525079c3ad3e9403d87066a938003"
+    },
+    {
+      "path": "gideon_web_admin/media_manifest.py",
+      "size_bytes": 11015,
+      "sha256": "477a1ee8cf49b6a4c3c66f23b22eaa993dc77d6d8163e8075c080d60e362a426"
+    },
+    {
+      "path": "gideon_web_admin/media_validation.py",
+      "size_bytes": 10663,
+      "sha256": "680b070ecaf6a2213034cb9beaf532b34f7f2201c81d00effafe61a0386c69c2"
+    },
+    {
+      "path": "gideon_web_admin/operations.py",
+      "size_bytes": 172269,
+      "sha256": "817bce8b19688ec181d93e9af169470a86e2ebb9cd78d3c3193b9e8f449419a6"
+    },
+    {
+      "path": "gideon_web_admin/product_updates.py",
+      "size_bytes": 11450,
+      "sha256": "1cff35c60419c83d43d99a217ed7a350e7583413fa057bbc0e290cb824ed7a5b"
+    },
+    {
+      "path": "gideon_web_admin/RC14_5_INTERACTIVE_CREDENTIALS_ENABLED.flag",
+      "size_bytes": 105,
+      "sha256": "bb497ae340d7ccace0b6cd2100cd805b0614e82bb6897ed6dc6b1fe0f9ec43c8"
+    },
+    {
+      "path": "gideon_web_admin/RC14_6_1_INTERACTIVE_LOGIN_PATCH.flag",
+      "size_bytes": 127,
+      "sha256": "4c017bf5bd41501035d7b1bee3e50ec96d6d5ea2e3ecae1fe4f2c1aa5d9911e6"
+    },
+    {
+      "path": "gideon_web_admin/RC14_6_INTERACTIVE_LOGIN_READY.flag",
+      "size_bytes": 134,
+      "sha256": "9e0b77434d37998f513c9c6cb9cf2841b6df1df46a94deb537063c36e4fcbd68"
+    },
+    {
+      "path": "gideon_web_admin/rdp_capabilities.py",
+      "size_bytes": 12368,
+      "sha256": "4cf8d99011f99f80aa4b7828b1e3b48fc439d66e2bf03b281694cb577d0ac4cd"
+    },
+    {
+      "path": "gideon_web_admin/remote_credentials.py",
+      "size_bytes": 15787,
+      "sha256": "f9a6f7555a9635bb31bf35eaec0a5f05abca3a81268999af91fe330fd703f0c1"
+    },
+    {
+      "path": "gideon_web_admin/remote_credentials.py.rc13_3_1.bak",
+      "size_bytes": 9625,
+      "sha256": "9b22912eb838432911db1f58bec4eeb08af116686e162ebcca2fbdc37a200308"
+    },
+    {
+      "path": "gideon_web_admin/remote_credentials.py.rc13_4.bak",
+      "size_bytes": 9722,
+      "sha256": "a719ad750e08bd41bb89ea9f66fcff3ec9fbe0b79832256cec66121077482a46"
+    },
+    {
+      "path": "gideon_web_admin/remote_credentials.py.rc13_5.bak",
+      "size_bytes": 9717,
+      "sha256": "14ce1837c533f8489411c88f5378397e16d9fa0285ac027e9e00b918a5ba8e8b"
+    },
+    {
+      "path": "gideon_web_admin/remote_failsafe.py",
+      "size_bytes": 4525,
+      "sha256": "e7f77e2a299453a4454d2899859455269c64d623db167203c915d4a2e226c771"
+    },
+    {
+      "path": "gideon_web_admin/remote_sessions.py",
+      "size_bytes": 48252,
+      "sha256": "0cbd2d4c33cc442d97138cc5b6f25d87b7d80294912d674026685b56732f0cb0"
+    },
+    {
+      "path": "gideon_web_admin/request_security.py",
+      "size_bytes": 9730,
+      "sha256": "16df19cf0d4fd764a7633ea428e545b6bb17f06b70d0ded387635d3f01558548"
+    },
+    {
+      "path": "gideon_web_admin/resource_metrics.py",
+      "size_bytes": 18229,
+      "sha256": "d58d5b1386db47ab901b8b8c7cee0c93ad4c198b3b5c6b3af1a9f017463c1f10"
+    },
+    {
+      "path": "gideon_web_admin/security_assets.py",
+      "size_bytes": 21811,
+      "sha256": "07a194d0e073e28d16e4dd88dddca70312e197f71f36dc185dcdf1bca639892c"
+    },
+    {
+      "path": "gideon_web_admin/security_controls.py",
+      "size_bytes": 3438,
+      "sha256": "cda97368ca9dbf5d002dd0474ee3946c4f308adf2b05d6598b3ba1e6b997ba3e"
+    },
+    {
+      "path": "gideon_web_admin/services.py",
+      "size_bytes": 6709,
+      "sha256": "8e88a68fb2e40a8864c685da4adfe40a86eae33964b2a0833aec4b0883b16728"
+    },
+    {
+      "path": "gideon_web_admin/settings_store.py",
+      "size_bytes": 4735,
+      "sha256": "6e7afa62b423b00ce864cb1e6d1e36a7068d82579119e2e27a0411c86d19e7c6"
+    },
+    {
+      "path": "gideon_web_admin/ssh_probe.py",
+      "size_bytes": 10627,
+      "sha256": "65a96a3baf642ba180f8e18270bac545b86397fda89c23e014ea8ffd5aebd2a2"
+    },
+    {
+      "path": "gideon_web_admin/ssh_vault.py",
+      "size_bytes": 18158,
+      "sha256": "eb7b4490c9cc267669d565e8e6ef98ef22703bd8ffc8e73e1375d8f30e4fbdfd"
+    },
+    {
+      "path": "gideon_web_admin/static/app.css",
+      "size_bytes": 43544,
+      "sha256": "e85d620f063cc6b1ce5a33b8fa2e6f0585e0537d46fafb75b3653b49e773e88d"
+    },
+    {
+      "path": "gideon_web_admin/static/app.js",
+      "size_bytes": 38086,
+      "sha256": "903fca95716d58a657da01d1c1ff2b031d211f88daf99a5927fdd6df0414003f"
+    },
+    {
+      "path": "gideon_web_admin/static/dashboard.css",
+      "size_bytes": 11399,
+      "sha256": "1f24ba25fb2d54e3ec66b1f1833367483b5f90bc698450625d379f25c4522c79"
+    },
+    {
+      "path": "gideon_web_admin/static/dashboard.js",
+      "size_bytes": 6701,
+      "sha256": "1de301185f042cfe4e1a7cf0a777c89889014d5beacb96e0883fd7b04cf24ace"
+    },
+    {
+      "path": "gideon_web_admin/static/dashboard_ux.css",
+      "size_bytes": 2170,
+      "sha256": "cad38ed14425c44e3b9060086865bde61dc05079a3f7be7a8059d14e6b8698b3"
+    },
+    {
+      "path": "gideon_web_admin/static/gideon_live.js",
+      "size_bytes": 2727,
+      "sha256": "0bb9da1082df74ed919b3c49aa3d62d394821f5404f95341cb28a5926deaabc6"
+    },
+    {
+      "path": "gideon_web_admin/static/error_page.js",
+      "size_bytes": 915,
+      "sha256": "0388757df1261ae3666ebd8bb9424bbb429f18f6b81a2984ce0e0fafbf574693"
+    },
+    {
+      "path": "gideon_web_admin/static/execute_agentless.js",
+      "size_bytes": 1374,
+      "sha256": "cc9ad984c9835ed4feae3d7d85fceb7aa4430901d07fb2af3b9a59d19e610634"
+    },
+    {
+      "path": "gideon_web_admin/static/gideon-rx-logo.svg",
+      "size_bytes": 1493,
+      "sha256": "4c738dc749098fef1fa55c94f6f32ea0983a839b8dd8d0b0561a454856b9afa1"
+    },
+    {
+      "path": "gideon_web_admin/static/guacamole/guacamole-common.js",
+      "size_bytes": 328,
+      "sha256": "d626d59a25f07f0b3a1d222fec801ea53cea2963e6c70e153b8527b875d6442a"
+    },
+    {
+      "path": "gideon_web_admin/static/icons/agents.svg",
+      "size_bytes": 272,
+      "sha256": "fe322bdd1847c522dfb5cbda8b97c52be2bd66babc49e45f41f5ea5a8b4e6922"
+    },
+    {
+      "path": "gideon_web_admin/static/icons/dependencies.svg",
+      "size_bytes": 385,
+      "sha256": "818709ab6c3c9ea218c8ee17cc4d68b12af52719b96e2902d6d987f090690e89"
+    },
+    {
+      "path": "gideon_web_admin/static/icons/files.svg",
+      "size_bytes": 232,
+      "sha256": "9229597188bce0978500bb2370c9d1e9e9fa92f8fa6837e55b488588d16761f4"
+    },
+    {
+      "path": "gideon_web_admin/static/icons/home.svg",
+      "size_bytes": 258,
+      "sha256": "860ce9b139065e0ab920f373539f6f0a3f2f4e01107efd9219ff82fdd25323b3"
+    },
+    {
+      "path": "gideon_web_admin/static/icons/hosts.svg",
+      "size_bytes": 249,
+      "sha256": "71d98ec80cf563831b454ac2542e82864e4b28128b732ac2d606830a1d9cc3c0"
+    },
+    {
+      "path": "gideon_web_admin/static/icons/infrastructure.svg",
+      "size_bytes": 266,
+      "sha256": "ba592ce051e6f9df520d25a031b523c3cb81d895d6d26cea040187abad4e3a36"
+    },
+    {
+      "path": "gideon_web_admin/static/icons/jobs.svg",
+      "size_bytes": 236,
+      "sha256": "684fb0dbb4ebc29ab87aa21ff675b77d27525d7438284f8df8b2843eca88ff96"
+    },
+    {
+      "path": "gideon_web_admin/static/icons/play.svg",
+      "size_bytes": 211,
+      "sha256": "47f799006f36b736f2dd6f7dd1ab0dd99c86a8e50508f7e78d31390c9dcd98a9"
+    },
+    {
+      "path": "gideon_web_admin/static/icons/remote.svg",
+      "size_bytes": 226,
+      "sha256": "3711d4ec3a778cb897739a401beff8cd687d1c8465f3beb9541fe86560edeb3a"
+    },
+    {
+      "path": "gideon_web_admin/static/icons/scripts.svg",
+      "size_bytes": 235,
+      "sha256": "f7ae6de232b6c513ff13168e75a997588eb7422284975551d33ae8e4439a906c"
+    },
+    {
+      "path": "gideon_web_admin/static/icons/settings.svg",
+      "size_bytes": 337,
+      "sha256": "42a6e932678e9a4e2cf21fd5ebb926401286d5cc5a4fb384c2bb922db194d4b8"
+    },
+    {
+      "path": "gideon_web_admin/static/icons/sidebar-toggle.svg",
+      "size_bytes": 215,
+      "sha256": "f3263762dd447709ec575b97857689c2d785ed54298d7a435c01d23e07a380f6"
+    },
+    {
+      "path": "gideon_web_admin/static/job_live.js",
+      "size_bytes": 3959,
+      "sha256": "0c25fdecd5288c536185a74d8caa7c7f6fc718463f70083b7050fdf45ecc3017"
+    },
+    {
+      "path": "gideon_web_admin/static/logo.png",
+      "size_bytes": 6829,
+      "sha256": "d31f733b72088d1eff6e6fa1d9b6894b1d3e8d70813d29fd56c3dcb4574d6249"
+    },
+    {
+      "path": "gideon_web_admin/static/media_campaigns.css",
+      "size_bytes": 32359,
+      "sha256": "e09192f996a047c3eca5c106275b49bc63527036cc88b80d48a21bcb3960f420"
+    },
+    {
+      "path": "gideon_web_admin/static/media_campaigns.js",
+      "size_bytes": 90676,
+      "sha256": "4dbd42c982e521c63edf9ebf9e06057147870d951062dc5760cf6ba015a8b8be"
+    },
+    {
+      "path": "gideon_web_admin/static/media_schedule.js",
+      "size_bytes": 13414,
+      "sha256": "f7d81f2643cc85446e84d0559e0175eb4b4b7f70ce78373e643ff8da9db18583"
+    },
+    {
+      "path": "gideon_web_admin/static/remote_page.js",
+      "size_bytes": 46168,
+      "sha256": "faef445bd82ceeed25ab312e0a05d4c7bd73f3cee5bf2bcc625f0cc3fbb274a9"
+    },
+    {
+      "path": "gideon_web_admin/static/remote_page.js.rc9.bak",
+      "size_bytes": 2262,
+      "sha256": "d2253920dfa6382372c7f06d381cf4b545087cf80f538a7933d45ed9a885463b"
+    },
+    {
+      "path": "gideon_web_admin/static/remote_viewer.css",
+      "size_bytes": 11935,
+      "sha256": "b99bf07a63aa8cfd2cb04ace0ee82bc511c28b690928a3c208b163adafe64a60"
+    },
+    {
+      "path": "gideon_web_admin/static/remote_viewer.js",
+      "size_bytes": 66391,
+      "sha256": "0727d7332d9e3707c121dffde2c69b57cb093a61c7eacf644e510e9372e900cb"
+    },
+    {
+      "path": "gideon_web_admin/static/remote_viewer.js.rc9.bak",
+      "size_bytes": 2596,
+      "sha256": "920068cce5b69b797363e92f9de446ec4d2ff72fa66592b6c9522e462fd3ff69"
+    },
+    {
+      "path": "gideon_web_admin/static/sidebar_compact.js",
+      "size_bytes": 3706,
+      "sha256": "adb349233a9d451e4f546d40135c611d79c2005f58bd2e07f9a54aa343e0f1bd"
+    },
+    {
+      "path": "gideon_web_admin/static/step_up.js",
+      "size_bytes": 2794,
+      "sha256": "e2ad9e4d0ee953579665c43cb25f668dfcaa2668c074e4cbca2d05ccefc64d50"
+    },
+    {
+      "path": "gideon_web_admin/static/table_controls.css",
+      "size_bytes": 963,
+      "sha256": "25a19d65ce010c5e037232289f6a83ec9940e64b4061365bad577aad221ee5c9"
+    },
+    {
+      "path": "gideon_web_admin/static/table_controls.js",
+      "size_bytes": 2054,
+      "sha256": "16559e330c38fe7f9c090e0bcbf05dbc7c658df9d42a2c95b645d8145169fcb8"
+    },
+    {
+      "path": "gideon_web_admin/static/timezone_display.js",
+      "size_bytes": 3027,
+      "sha256": "235acb492d28f585e74e4d7a2549f6459517e2186421765296c1b163746969f2"
+    },
+    {
+      "path": "gideon_web_admin/static/tls-management.css",
+      "size_bytes": 244,
+      "sha256": "e214ab7ff50ad5ccc267a32e4f89559fc091c644b16d2a5718230d82172612ba"
+    },
+    {
+      "path": "gideon_web_admin/static/tls-management.js",
+      "size_bytes": 8437,
+      "sha256": "be47645f2f281ae5fc1f7511638aa36f17c0d4d9c58bc7e2b5fc9f359b6339a0"
+    },
+    {
+      "path": "gideon_web_admin/static/ui_hardening.css",
+      "size_bytes": 7805,
+      "sha256": "daeea8b74978d40a9337df9ee0d2e0917a0ff2922dd4ca0cd468aef682ddbf18"
+    },
+    {
+      "path": "gideon_web_admin/static/ui_state.js",
+      "size_bytes": 5035,
+      "sha256": "fcba2209ed2009ef0e5eb4375ba2ba63f267697d9e27e8ba5e9eaae3ffbc7a0a"
+    },
+    {
+      "path": "gideon_web_admin/static/workflow_forms.css",
+      "size_bytes": 7927,
+      "sha256": "1ed239d5b4db7bb4c4dd1e1c39c116b6f31addc864c8e00af940fd0860419fb9"
+    },
+    {
+      "path": "gideon_web_admin/static/workflow_simplify.js",
+      "size_bytes": 6346,
+      "sha256": "97368d4c268e7770a70221b3f6186b6f2571854175454059fd2eeff64b407eec"
+    },
+    {
+      "path": "gideon_web_admin/static_assets.py",
+      "size_bytes": 2747,
+      "sha256": "f4407d98bfebfb6e69d8d691fd24998d96704edaf3734936660c7a4a49dc1ca2"
+    },
+    {
+      "path": "gideon_web_admin/step_up_cache.py",
+      "size_bytes": 14239,
+      "sha256": "91a42af43d6bcc715611d3825df79047c25e5e89f0b76a8107218e8d734a7371"
+    },
+    {
+      "path": "gideon_web_admin/templates/agent_detail.html",
+      "size_bytes": 16658,
+      "sha256": "11787df59e6943c4a4dcf8836adf3fa372417f60a002b3bde73c7bf917ac760c"
+    },
+    {
+      "path": "gideon_web_admin/templates/agentless_job_detail.html",
+      "size_bytes": 9840,
+      "sha256": "791769b07a39142a9c93247e351eaa49257e670206cfb134fe31b5c85c474bc4"
+    },
+    {
+      "path": "gideon_web_admin/templates/agents.html",
+      "size_bytes": 5451,
+      "sha256": "f608ceaaf9c529266c066a711cd41c64c24508cce16bf68f567d4a38759e91b1"
+    },
+    {
+      "path": "gideon_web_admin/templates/audit.html",
+      "size_bytes": 883,
+      "sha256": "6d692da035047ddaad5a4631006f4f80ade859979be5fe37089d74b2819ea653"
+    },
+    {
+      "path": "gideon_web_admin/templates/auth_base.html",
+      "size_bytes": 1640,
+      "sha256": "fb8dde4d85ac803029acdb372128a16f0eaa86d961567e8e3b121afb0e0d0f68"
+    },
+    {
+      "path": "gideon_web_admin/templates/base.html",
+      "size_bytes": 13425,
+      "sha256": "52c17d1a649650cefc58e90e1593ae2e31ea78d0e40f0d822c81f26277d2a94b"
+    },
+    {
+      "path": "gideon_web_admin/templates/bootstrap.html",
+      "size_bytes": 1130,
+      "sha256": "b7e0ab70f2a2ba477a4cf2d1824ca7b2a52e22820f834e73cff508775f5dd894"
+    },
+    {
+      "path": "gideon_web_admin/templates/dashboard.html",
+      "size_bytes": 16192,
+      "sha256": "1027748d9a3f60e1de96da58d1a14729859eafeab12fd812df979521aafcc6e7"
+    },
+    {
+      "path": "gideon_web_admin/templates/dependencies.html",
+      "size_bytes": 3759,
+      "sha256": "a6a7fd97d2f2db5a7255e32cb8d25b5fd96c7d317b507e1dac4a65ba1e06447a"
+    },
+    {
+      "path": "gideon_web_admin/templates/diagnostics.html",
+      "size_bytes": 4269,
+      "sha256": "02378988a191c64e2b0a943cfda54c25da1c606cc7d9becedcfb8e1e704dbe9a"
+    },
+    {
+      "path": "gideon_web_admin/templates/error.html",
+      "size_bytes": 1458,
+      "sha256": "78860695b00a83b33c670c7e411a31208b57cc5c24e2e70e41cebfe89ad625eb"
+    },
+    {
+      "path": "gideon_web_admin/templates/execute.html",
+      "size_bytes": 7549,
+      "sha256": "26407759f8a095862547057ce4ad533f60e52e08f3d5cb571aaabd6481882465"
+    },
+    {
+      "path": "gideon_web_admin/templates/gateway.html",
+      "size_bytes": 3045,
+      "sha256": "eb7640bd866cac1a0dfe43fca1101e3d8e7969ede5fa448f010c6fa616325225"
+    },
+    {
+      "path": "gideon_web_admin/templates/groups.html",
+      "size_bytes": 2109,
+      "sha256": "5e7c3f47cd1c63b2eaf33eb40f50877cb46168c0f4a78bbaae007394568cfe72"
+    },
+    {
+      "path": "gideon_web_admin/templates/installers.html",
+      "size_bytes": 23631,
+      "sha256": "7b531f777ab52c61e9a89c3735daa71144a23dc02381d942af92868838df5caf"
+    },
+    {
+      "path": "gideon_web_admin/templates/job_analysis.html",
+      "size_bytes": 2945,
+      "sha256": "d17ef148149592b5a1396e5a38611c8d00864480ca767d45f4233d153c6d908e"
+    },
+    {
+      "path": "gideon_web_admin/templates/job_detail.html",
+      "size_bytes": 1609,
+      "sha256": "41fe8578836deb0bcce98209462e2d8da11095a12c5c899132e9c84dad51687c"
+    },
+    {
+      "path": "gideon_web_admin/templates/jobs.html",
+      "size_bytes": 3647,
+      "sha256": "c698d9cdd9f8eb9538dd4a41d6a16fc562a209d1c60c07f33b9453b17c48fe0a"
+    },
+    {
+      "path": "gideon_web_admin/templates/jobs_analysis.html",
+      "size_bytes": 2145,
+      "sha256": "6791696b59983a68fd023e6fa406a237be5824d14f82c3b84fad99c8c2e0a4e3"
+    },
+    {
+      "path": "gideon_web_admin/templates/login.html",
+      "size_bytes": 1761,
+      "sha256": "4436904cf174e7450cdb244eeed4452ae61b0938f2fd96143ec227c150c8184d"
+    },
+    {
+      "path": "gideon_web_admin/templates/media_asset_edit.html",
+      "size_bytes": 3870,
+      "sha256": "42f40615fcf0f26e4f758d7c918c1cc0589eba0a47224fdf3971f2181cf7ab5d"
+    },
+    {
+      "path": "gideon_web_admin/templates/media_campaign_detail.html",
+      "size_bytes": 9794,
+      "sha256": "46633de05434b412520dff7748e06f4bcf13bbf436c248e8590e894f23dfdbee"
+    },
+    {
+      "path": "gideon_web_admin/templates/media_campaign_wizard.html",
+      "size_bytes": 25753,
+      "sha256": "feec63fbfa0f859f1c6e7597b1acd2e0b2aa45609cb58f50884cfd2bffb671bc"
+    },
+    {
+      "path": "gideon_web_admin/templates/media_campaigns.html",
+      "size_bytes": 5813,
+      "sha256": "5070c961d8a866b0d3449ae77318423dbdc62fb97f08a26eb17ccc9e3f750354"
+    },
+    {
+      "path": "gideon_web_admin/templates/media_history.html",
+      "size_bytes": 1132,
+      "sha256": "3c8d4634dc46bbdaad23cea4158505b17d02d829f7cbd6020ead913aa60bf859"
+    },
+    {
+      "path": "gideon_web_admin/templates/media_library.html",
+      "size_bytes": 9550,
+      "sha256": "370bf64b4eb532ebb5f4e721083029c6cb38985b75de7968f8f8cdb25eb83c28"
+    },
+    {
+      "path": "gideon_web_admin/templates/media_schedule.html",
+      "size_bytes": 5329,
+      "sha256": "2f3d95b2e80c144ecf01b4423e9a7d5f1f9bd024ba1d1337ac70426fd89eebff"
+    },
+    {
+      "path": "gideon_web_admin/templates/media_screens.html",
+      "size_bytes": 14612,
+      "sha256": "92b7a2ef24a84472da22c3ee0ce407dc87c1dfae9292a99076f4458de40c9e54"
+    },
+    {
+      "path": "gideon_web_admin/templates/media_tabs.html",
+      "size_bytes": 706,
+      "sha256": "c6b2ff9d2c22474ba5e11007389dfc50692b6b925f25e44cc86a07a98826ad11"
+    },
+    {
+      "path": "gideon_web_admin/templates/mfa.html",
+      "size_bytes": 769,
+      "sha256": "083832c52052086a69f3c0bec24ec01ae77ecbdea13f6b4d2b90307299204cf4"
+    },
+    {
+      "path": "gideon_web_admin/templates/mfa_setup.html",
+      "size_bytes": 1207,
+      "sha256": "a4cd4d24316122c55f361b8c8f0a4eec94f7a8876321adfc302e1f4e91709490"
+    },
+    {
+      "path": "gideon_web_admin/templates/password.html",
+      "size_bytes": 1033,
+      "sha256": "0089304997d00cc5f4b34446d45b9ccdf4659e798fe00fd234f2f2bba8266106"
+    },
+    {
+      "path": "gideon_web_admin/templates/pki.html",
+      "size_bytes": 1788,
+      "sha256": "c439d1fb3dd1372f6a35bbfa6147ca3ab41ca4298da9ed50c5a2f32d42a7f5e6"
+    },
+    {
+      "path": "gideon_web_admin/templates/recovery.html",
+      "size_bytes": 1538,
+      "sha256": "280eef4524ebc71005525d92c64203689e30bf672c21c6b5c1047f2185ef4122"
+    },
+    {
+      "path": "gideon_web_admin/templates/releases.html",
+      "size_bytes": 9695,
+      "sha256": "71b5e7f3cf1cf4ac770d66ea5021c500d81bb94dfe34b40a822bdbad7f3fa611"
+    },
+    {
+      "path": "gideon_web_admin/templates/remote.html",
+      "size_bytes": 24525,
+      "sha256": "dd4fe93f64cb315011583a949c355a5da3e8b12d08ab721e163454f78836613a"
+    },
+    {
+      "path": "gideon_web_admin/templates/remote_viewer.html",
+      "size_bytes": 8040,
+      "sha256": "be94102b6c1431086715dfe9815a89c68e95012a5d5a1e00351f8a606f003da2"
+    },
+    {
+      "path": "gideon_web_admin/templates/remote_window.html",
+      "size_bytes": 2795,
+      "sha256": "20164e68e362bfa0556ce308834da4e66bf9f4db3f79441af89af9db8e8409b9"
+    },
+    {
+      "path": "gideon_web_admin/templates/scripts.html",
+      "size_bytes": 3716,
+      "sha256": "e25e058c4cf3db37c80269c4a1557d2bf1820f81b98c5e91a045e487c6e40c5b"
+    },
+    {
+      "path": "gideon_web_admin/templates/security_assets.html",
+      "size_bytes": 26280,
+      "sha256": "1ab776c300e7dac564ea2b62a89f596d236c2cd48d7aa07b43a46e1d99d3d433"
+    },
+    {
+      "path": "gideon_web_admin/templates/sessions.html",
+      "size_bytes": 1077,
+      "sha256": "0d7d1ffd2c557622f98b8134027cc210e4372c17a57655bb9655a5e295cc1883"
+    },
+    {
+      "path": "gideon_web_admin/templates/settings.html",
+      "size_bytes": 3937,
+      "sha256": "6a57b688ac8f18c459cedd39bdb9c67ead2f03f00c2dd1a3fa1c6265079e40a7"
+    },
+    {
+      "path": "gideon_web_admin/templates/sites.html",
+      "size_bytes": 3764,
+      "sha256": "249163ee34bf9b86ea3687df82732dbd5704eaeeee7c628ae6840d05745b1666"
+    },
+    {
+      "path": "gideon_web_admin/templates/system_updates.html",
+      "size_bytes": 2724,
+      "sha256": "062ff8de7248ec48b1f0be28dea76736a86d7aa0ee11bdfb95f3d7a49e7c8166"
+    },
+    {
+      "path": "gideon_web_admin/templates/tls_management.html",
+      "size_bytes": 10061,
+      "sha256": "0db4ad1e9d43e43c1841660e2edcd1e9c0f9fe4887551b797bc1c4bda8becf9c"
+    },
+    {
+      "path": "gideon_web_admin/templates/transfer_job_detail.html",
+      "size_bytes": 4245,
+      "sha256": "141dabb642743ac76649bfb0534214edfa22d1921f9f3a82b62e5dccb6ef928d"
+    },
+    {
+      "path": "gideon_web_admin/templates/transfers.html",
+      "size_bytes": 4875,
+      "sha256": "1c3030938fe7b9a643aa26a27ed696109cc1317a64eada769904957226e53340"
+    },
+    {
+      "path": "gideon_web_admin/templates/updates.html",
+      "size_bytes": 3344,
+      "sha256": "0387b35ae195488875181eab023ed22239aa6423511a760d9116b8231f890a93"
+    },
+    {
+      "path": "gideon_web_admin/templates/users.html",
+      "size_bytes": 3130,
+      "sha256": "f574ea7f491ea2c31ce2368d648c7f5ebcb686c6fc06d7e86793ce15efb2f71b"
+    },
+    {
+      "path": "gideon_web_admin/tls_management.py",
+      "size_bytes": 7210,
+      "sha256": "0a2e22ba2d22ee17dccad504e1b174066cbbd84e02752735e7262d68f9de7a47"
+    },
+    {
+      "path": "gideon_web_admin/vlc_offline_install.py",
+      "size_bytes": 6690,
+      "sha256": "a7f4e3663c31c78be54977ce18b65b79a85c6aa4b04f0d0eecbb99c878cef624"
+    },
+    {
+      "path": "INSTALL-GIDEON-AWS-UBUNTU.sh",
+      "size_bytes": 129,
+      "sha256": "219425a799d9fe56904c65077df94cb8862e8dbfc0106fd1dec4f86917e012eb"
+    },
+    {
+      "path": "INSTALL-GIDEON-LINUX.sh",
+      "size_bytes": 128,
+      "sha256": "ebd2055062a0a51b9123ec8810d4362a2935cfb7dcc84eb03ee66df248ce9bb4"
+    },
+    {
+      "path": "INSTALL-GIDEON-UBUNTU-LINUX.sh",
+      "size_bytes": 130,
+      "sha256": "96fcf0b2fee2791450635c3cb5dc6bf9e1c116b05c434e2de2c6567fcde4a5bd"
+    },
+    {
+      "path": "INSTALL-GIDEON-UBUNTU.sh",
+      "size_bytes": 130,
+      "sha256": "96fcf0b2fee2791450635c3cb5dc6bf9e1c116b05c434e2de2c6567fcde4a5bd"
+    },
+    {
+      "path": "INSTALL-GIDEON-WINDOWS-DESKTOP.cmd",
+      "size_bytes": 96,
+      "sha256": "cc44e94e28726f369897296997a780746ab36bc9adf253e09d3d44bd2958ddb3"
+    },
+    {
+      "path": "INSTALL-GIDEON-WINDOWS-SERVER.cmd",
+      "size_bytes": 95,
+      "sha256": "3bb2c4f122253f008c5d0e07c498460af5f7a374ebe0f2fac9a6c29bfa536e00"
+    },
+    {
+      "path": "INSTALL-GIDEON-WINDOWS.cmd",
+      "size_bytes": 88,
+      "sha256": "b93d09f835075ec926eeafe6dd4f59cc880e766ec7b0982391bc1887b9944a12"
+    },
+    {
+      "path": "INSTALL-INTEGRITY-MANIFEST.json",
+      "size_bytes": 70466,
+      "sha256": "2d4dd59dbf1cf2fc44a029c71fd8f34eda3921b942d14ea4d8e18b0209932ea9"
+    },
+    {
+      "path": "requirements-headless.txt",
+      "size_bytes": 24,
+      "sha256": "f2f38a873ad25b70657f3df962755c2a209d0551e78c50f3b562a0cda3b54f2f"
+    },
+    {
+      "path": "requirements-runtime.txt",
+      "size_bytes": 54,
+      "sha256": "2c0f81bff44addc14965821002ce98f20f321b0c9ad771351371d5f85f75876e"
+    },
+    {
+      "path": "requirements-ui.txt",
+      "size_bytes": 16,
+      "sha256": "c1f73e86a8ee5454b62dab6909045e72c45f35d0f9fe6f727700a498c5f9bec6"
+    },
+    {
+      "path": "requirements-web.txt",
+      "size_bytes": 509,
+      "sha256": "d743ca25a1861529b99b2cc3916ce0e347bca05d83275609407b09590490dd35"
+    },
+    {
+      "path": "requirements-windows.txt",
+      "size_bytes": 52,
+      "sha256": "969b68c2ffef8e38b75898ec21bb9443fcaf56011f6e52c809c80068c70888ce"
+    },
+    {
+      "path": "requirements.txt",
+      "size_bytes": 54,
+      "sha256": "7438025cb9fc82b371af9ff7d5f7197a6250c98bcde3e51bc310a61d006154db"
+    },
+    {
+      "path": "THIRD_PARTY_VLC_NOTICE.txt",
+      "size_bytes": 1702,
+      "sha256": "c3df98b1bbf6e22b37c78e1264b0339b5748abc89df57d1f40e1f17d5db21a67"
+    },
+    {
+      "path": "VLC-SOURCE-BASELINE.json",
+      "size_bytes": 341,
+      "sha256": "e91cbffe8747cac9eaebb2d248ae8f378adcf255bdab992f80e9cb21afd20509"
+    }
+  ]
+}

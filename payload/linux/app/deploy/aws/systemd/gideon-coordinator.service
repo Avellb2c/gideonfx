@@ -1,0 +1,45 @@
+[Unit]
+Description=GIDEON Remote Control application coordinator
+PartOf=gideon-remote-control.target
+After=gideon-diagnostics.service
+Wants=gideon-diagnostics.service
+
+[Service]
+Type=simple
+User=gideonmonitor
+Group=gideonmonitor
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUNBUFFERED=1
+Environment=GIDEON_DATA_ROOT=/var/lib/gideon
+ExecStart=/opt/gideon/web/venv/bin/python /opt/gideon/web/app/gideon_coordinator.py --daemon --data-root /var/lib/gideon
+WorkingDirectory=/opt/gideon/web/app
+Restart=on-failure
+RestartSec=5
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectHostname=true
+ProtectClock=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectKernelLogs=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX
+ReadOnlyPaths=/var/lib/gideon/diagnostics
+ReadWritePaths=/var/lib/gideon/coordinator
+NoExecPaths=/var/lib/gideon /tmp /var/tmp /dev/shm
+MemoryMax=128M
+TasksMax=16
+LimitNOFILE=512
+
+[Install]
+WantedBy=gideon-remote-control.target

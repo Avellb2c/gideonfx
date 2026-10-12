@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block extra_styles %}<link rel="stylesheet" href="{{ static_url('media_campaigns.css') }}">{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Pantallas</h1><p>Inventario comercial independiente de las sedes. Cada sede puede tener tantas pantallas como necesite.</p></div></div>
+{% include "media_tabs.html" %}
+{% if message %}<div class="alert success"><strong>Listo</strong>{{ message }}</div>{% endif %}
+{% if error %}<div class="alert danger"><strong>No se pudo guardar la pantalla</strong>{{ error }}</div>{% endif %}
+{% if gateway_error %}<div class="alert warning"><strong>Inventario parcial</strong>Puede seguir consultando y administrando las pantallas registradas. {{ gateway_error }}</div>{% endif %}
+
+{% if identity.can('screens.manage') %}
+<section class="card card-pad media-screen-form-card">
+  <div class="card-head"><div><h2>{{ 'Editar pantalla' if screen_edit else 'Registrar pantalla' }}</h2><p>Asocie la pantalla a una sede, un equipo y el destino visible que reporta el Agent.</p></div></div>
+  <form method="post" action="{{ '/media/screens/' ~ screen_edit.screen_id ~ '/edit' if screen_edit else '/media/screens/create' }}" class="form-grid" data-screen-form>
+    <input type="hidden" name="csrf" value="{{ identity.csrf_token }}">
+    {% if screen_edit %}<input type="hidden" name="version_token" value="{{ screen_edit.version_token|default('', true) }}"><input type="hidden" name="expected_updated_at" value="{{ screen_edit.updated_at|default('', true) }}">{% endif %}
+    <div class="field"><label for="screenSite">Sede</label><select class="input" id="screenSite" name="site_code" required {{ 'disabled' if screen_edit else '' }}><option value="">Seleccione una sede</option>{% for site in sites %}{% set current_site = screen_form.get('site_code') if screen_form else screen_edit.site_code if screen_edit else '' %}<option value="{{ site.site_code }}" {{ 'selected' if current_site==site.site_code else '' }}>{{ site.site_code }} · {{ site.site_name }}</option>{% endfor %}</select>{% if screen_edit %}<input type="hidden" name="site_code" value="{{ screen_edit.site_code }}">{% endif %}</div>
+    {% set current_site = screen_form.get('site_code') if screen_form else screen_edit.site_code if screen_edit else '' %}{% set current_agent = screen_form.get('agent_id') if screen_form else screen_edit.agent_id if screen_edit else '' %}{% set current_output = screen_form.get('output_key','') if screen_form else screen_edit.output_key if screen_edit else '' %}{% set current_name = screen_form.get('commercial_name','') if screen_form else screen_edit.commercial_name if screen_edit else '' %}{% set current_resolution = screen_form.get('resolution','') if screen_form else screen_edit.resolution if screen_edit else '' %}
+    <div class="field"><label for="screenName">Nombre comercial</label><input class="input" id="screenName" name="commercial_name" maxlength="120" required value="{{ current_name }}" data-screen-name-input data-auto-name="{{ 'true' if not current_name else 'false' }}" placeholder="Se completa con el nombre del equipo"></div>
+    <div class="field"><label for="screenLocation">Ubicación física</label><input class="input" id="screenLocation" name="physical_location" maxlength="300" value="{{ screen_form.get('physical_location','') if screen_form else screen_edit.physical_location if screen_edit else '' }}" placeholder="Ej. Caja 1, mostrador"></div>
+    <div class="field"><label for="screenAgent">Equipo asociado</label><select class="input" id="screenAgent" name="agent_id" required data-agent-select><option value="">Seleccione primero una sede</option>{% for agent in agents %}<option value="{{ agent.agent_id }}" data-site-code="{{ agent.site_code }}" data-device-name="{{ agent.device_name|default(agent.label, true) }}" data-registered-outputs='{{ agent.registered_outputs|default([], true)|tojson }}' data-outputs='{{ agent.outputs|tojson }}' data-session-summary="{{ agent.session_summary|default('', true) }}" {{ 'selected' if current_agent==agent.agent_id else '' }}>{{ agent.label }}{% if not agent.has_display_report %} · última salida registrada{% endif %}</option>{% endfor %}</select><small data-agent-session-hint>Seleccione una sede para ver sólo sus equipos.</small></div>
+    {% set current_output_identity = screen_form.get('output_identity','') if screen_form else screen_edit.output_identity if screen_edit else '' %}{% set current_target_kind = screen_form.get('target_kind','PHYSICAL_CONNECTOR') if screen_form else screen_edit.target_kind|default('PHYSICAL_CONNECTOR', true) if screen_edit else 'PHYSICAL_CONNECTOR' %}<div class="field"><label for="screenOutput">Destino de reproducción</label><select class="input" id="screenOutput" name="output_key" required data-output-select data-selected-output="{{ current_output }}"><option value="">Seleccione primero un equipo</option></select><input type="hidden" name="output_identity" value="{{ current_output_identity }}" data-output-identity data-selected-output-identity="{{ current_output_identity }}"><input type="hidden" name="target_kind" value="{{ current_target_kind }}" data-target-kind data-selected-target-kind="{{ current_target_kind }}"><small>Las salidas ya registradas no se ofrecen otra vez. La resolución se toma automáticamente del destino cuando el Agent la reporta.</small></div>
+    <div class="field"><label for="screenOutputLabel">Nombre visible de salida</label><input class="input" id="screenOutputLabel" name="output_label" maxlength="160" value="{{ screen_form.get('output_label','') if screen_form else screen_edit.output_label if screen_edit else '' }}" placeholder="Ej. Monitor junto a caja"></div>
+    <div class="field"><label for="screenOrientation">Orientación</label>{% set current_orientation = screen_form.get('orientation') if screen_form else screen_edit.orientation if screen_edit else 'LANDSCAPE' %}<select class="input" id="screenOrientation" name="orientation"><option value="LANDSCAPE" {{ 'selected' if current_orientation=='LANDSCAPE' else '' }}>Horizontal</option><option value="PORTRAIT" {{ 'selected' if current_orientation=='PORTRAIT' else '' }}>Vertical</option></select></div>
+    <div class="field"><label for="screenResolution">Resolución</label><input class="input" id="screenResolution" name="resolution" maxlength="16" value="{{ current_resolution }}" data-screen-resolution data-auto-resolution="{{ 'true' if not current_resolution else 'false' }}" placeholder="Se completa desde la salida seleccionada"><small data-resolution-hint>Se usará la resolución reportada por el destino físico o la sesión gráfica Wayland local.</small></div>
+    {% set current_state = screen_form.get('state') if screen_form else screen_edit.state if screen_edit else 'READY' %}<div class="field"><label for="screenState">Estado</label><select class="input" id="screenState" name="state"><option value="READY" {{ 'selected' if current_state=='READY' else '' }}>Lista</option><option value="OFFLINE" {{ 'selected' if current_state=='OFFLINE' else '' }}>Sin conexión</option><option value="NEEDS_REVIEW" {{ 'selected' if current_state=='NEEDS_REVIEW' else '' }}>Revisar</option><option value="DISABLED" {{ 'selected' if current_state=='DISABLED' else '' }}>Deshabilitada</option></select></div>
+    {% set current_playback_policy = screen_form.get('playback_policy') if screen_form else screen_edit.playback_policy|default('DEDICATED', true) if screen_edit else 'DEDICATED' %}
+    <fieldset class="field wide media-playback-policy-field"><legend>Cómo debe comportarse esta pantalla</legend><p class="muted">Esta elección se aplica al destino visible registrado; no depende de una sesión remota administrativa ni de la cuenta que haya iniciado sesión.</p><div class="media-playback-policy-options"><label class="media-playback-policy-choice"><input type="radio" name="playback_policy" value="DEDICATED" {{ 'checked' if current_playback_policy=='DEDICATED' else '' }}><span><strong>Pantalla dedicada a contenido</strong><small>Reproduce la campaña configurada siempre que su destino local esté disponible.</small></span></label><label class="media-playback-policy-choice"><input type="radio" name="playback_policy" value="SHARED_PAUSE_ON_HUMAN_ACTIVITY" {{ 'checked' if current_playback_policy=='SHARED_PAUSE_ON_HUMAN_ACTIVITY' else '' }}><span><strong>Pantalla compartida con una persona</strong><small>Pausa el contenido mientras detecta uso humano y lo retoma cuando la pantalla vuelve a estar disponible.</small></span></label></div><small>Las sesiones remotas administrativas no cambian esta elección.</small></fieldset>
+    <div class="wide media-submit-row"><span class="muted">{{ 'Actualizar la pantalla no inicia reproducción ni modifica el equipo.' if screen_edit else 'Registrar una pantalla no inicia reproducción ni modifica el equipo.' }}</span><button class="btn btn-primary" type="submit">{{ 'Guardar cambios' if screen_edit else 'Registrar pantalla' }}</button>{% if screen_edit %}<a class="btn" href="/media/screens">Cancelar edición</a>{% endif %}</div>
+  </form>
+</section>
+{% endif %}
+
+<section class="card card-pad media-filter-card">
+  <form method="get" action="/media/screens" class="media-filter-grid"><div class="field"><label>Sede</label><select class="input" name="site"><option value="">Todas las sedes</option>{% for site in sites %}<option value="{{ site.site_code }}" {{ 'selected' if filters.site==site.site_code else '' }}>{{ site.site_code }} · {{ site.site_name }}</option>{% endfor %}</select></div><div class="field"><label>Grupo</label><select class="input" name="group"><option value="">Todos los grupos</option>{% for group in groups %}<option value="{{ group.id }}" {{ 'selected' if filters.group==group.id|string else '' }}>{{ group.name }}</option>{% endfor %}</select></div><div class="field"><label>Sistema operativo</label><select class="input" name="os"><option value="">Todos los sistemas</option><option value="windows" {{ 'selected' if filters.os=='windows' else '' }}>Windows</option><option value="linux" {{ 'selected' if filters.os=='linux' else '' }}>Linux</option><option value="darwin" {{ 'selected' if filters.os=='darwin' else '' }}>macOS</option></select></div><div class="field"><label>Estado</label><select class="input" name="state"><option value="">Cualquier estado</option>{% for state in screen_states %}<option value="{{ state }}" {{ 'selected' if filters.state==state else '' }}>{{ state|replace('_',' ')|title }}</option>{% endfor %}</select></div><div class="field media-filter-action"><label>&nbsp;</label><button class="btn" type="submit">Aplicar filtros</button></div></form>
+</section>
+
+<section class="card">
+  <div class="card-head card-pad">
+    <div>
+      <h2>Inventario de pantallas</h2>
+      <p>{{ screens|length }} pantalla(s) registrada(s). Archivar retira una pantalla de nuevas campañas, pero conserva su historial y auditoría.</p>
+    </div>
+  </div>
+  <div class="table-wrap media-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Pantalla</th><th>Sede</th><th>Ubicación</th><th>Formato</th><th>Uso</th><th>Estado</th><th>Última sincronización</th>
+          {% if identity.can('screens.manage') %}<th>Acciones</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for screen in screens %}
+        <tr>
+          <td><strong>{{ screen.commercial_name }}</strong>{% if screen.output_label %}<small class="muted block">{{ screen.output_label }}</small>{% endif %}</td>
+          <td>{{ screen.site_code }}</td>
+          <td>{{ screen.physical_location or '—' }}</td>
+          <td>{{ 'Vertical' if screen.orientation=='PORTRAIT' else 'Horizontal' }}{% if screen.resolution %}<small class="muted block">{{ screen.resolution }}</small>{% endif %}<small class="muted block">{{ screen.target_kind_label|default('HDMI físico', true) }}</small></td>
+          <td>{% if screen.playback_policy|default('DEDICATED', true)=='SHARED_PAUSE_ON_HUMAN_ACTIVITY' %}<span class="chip info">Compartida</span><small class="muted block">Pausa durante uso humano</small>{% else %}<span class="chip success">Dedicada</span><small class="muted block">Reproduce de forma continua</small>{% endif %}</td>
+          <td><span class="chip {{ 'success' if screen.state=='READY' else 'info' }}">{{ screen.state|replace('_',' ')|title }}</span><small class="muted block">{{ screen.availability_label|default('Pendiente de detección', true) }}</small></td>
+          <td>{{ screen.last_sync_at or 'Pendiente de reporte' }}</td>
+          {% if identity.can('screens.manage') %}
+          <td>
+            <div class="media-action-row">
+              {% if screen.archived %}
+              <form method="post" action="/media/screens/{{ screen.screen_id }}/restore">
+                <input type="hidden" name="csrf" value="{{ identity.csrf_token }}">
+                <button class="btn btn-small" type="submit">Restaurar para corregir</button>
+              </form>
+              {% else %}
+              <a class="btn btn-small" href="/media/screens?edit={{ screen.screen_id }}">Editar</a>
+              <form method="post" action="/media/screens/{{ screen.screen_id }}/archive">
+                <input type="hidden" name="csrf" value="{{ identity.csrf_token }}">
+                <button class="btn btn-small btn-danger" type="submit" title="Retira la pantalla de campañas sin borrar su historial">Eliminar lógico</button>
+              </form>
+              {% endif %}
+            </div>
+            {% if screen.archived %}<small class="muted block">Al restaurarla queda en “Revisar”; no reanuda contenido por sí sola.</small>{% endif %}
+          </td>
+          {% endif %}
+        </tr>
+        {% if identity.can('audit.view') %}
+        <tr class="media-tech-row"><td colspan="{{ 8 if identity.can('screens.manage') else 7 }}"><details><summary>Ver detalle técnico</summary><div class="mono muted">Equipo asociado: {{ screen.agent_id }} · Destino: {{ screen.target_kind|default('PHYSICAL_CONNECTOR', true) }} / {{ screen.output_key }}{% if screen.source %} · Fuente de detección: {{ screen.source }}{% endif %}</div></details></td></tr>
+        {% endif %}
+        {% else %}
+        <tr><td colspan="{{ 8 if identity.can('screens.manage') else 7 }}" class="empty"><strong>Sin pantallas registradas</strong>Registre la primera pantalla de una sede para usarla en campañas.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ static_url('media_campaigns.js') }}"></script>{% endblock %}
+

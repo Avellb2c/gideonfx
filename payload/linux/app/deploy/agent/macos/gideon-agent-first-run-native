@@ -1,0 +1,301 @@
+#!/bin/zsh
+set -euo pipefail
+
+ROOT="${GIDEON_AGENT_ROOT:-/Library/Application Support/GIDEONAgent}"
+CONFIG="$ROOT/agent.json"
+TEMPLATE="$ROOT/agent.template.json"
+BOOTSTRAP="$ROOT/bootstrap.enrollment"
+SITES="$ROOT/site-catalog.csv"
+STATE="/var/db/gideon-agent"
+PACKAGE_UI_STATE="$STATE/package-ui.state"
+AUTO=0
+PACKAGE_RESULT=0
+case "${1:-}" in
+  --auto) AUTO=1 ;;
+  --package-result) PACKAGE_RESULT=1 ;;
+esac
+
+if [[ "$PACKAGE_RESULT" -eq 0 && -s "$CONFIG" ]]; then exit 0; fi
+[[ -f "$TEMPLATE" ]] || exit 3
+
+PY="$ROOT/venv/bin/python"
+[[ -x "$PY" ]] || PY="$(command -v python3 || true)"
+[[ -n "$PY" ]] || {
+  /usr/bin/osascript -e 'display alert "GIDEON Remote Control Agent" message "No se encontró Python 3 para completar la configuración." as critical' >/dev/null 2>&1 || true
+  exit 4
+}
+
+ask_text(){
+  local title="$1" prompt="$2" value="${3:-}"
+  /usr/bin/osascript - "$title" "$prompt" "$value" <<'APPLESCRIPT'
+on run argv
+  set t to item 1 of argv
+  set p to item 2 of argv
+  set d to item 3 of argv
+  try
+    set r to display dialog p with title t default answer d buttons {"Cancelar", "Continuar"} default button "Continuar" cancel button "Cancelar" with icon note
+    return text returned of r
+  on error number -128
+    return "__GIDEON_CANCEL__"
+  end try
+end run
+APPLESCRIPT
+}
+
+ask_secret(){
+  /usr/bin/osascript <<'APPLESCRIPT'
+try
+  set r to display dialog "Credencial temporal de enrolamiento:" with title "GIDEON Remote Control Agent" default answer "" buttons {"Cancelar", "Continuar"} default button "Continuar" cancel button "Cancelar" with hidden answer with icon note
+  return text returned of r
+on error number -128
+  return "__GIDEON_CANCEL__"
+end try
+APPLESCRIPT
+}
+
+show_error(){
+  /usr/bin/osascript - "$1" <<'APPLESCRIPT'
+on run argv
+  display alert "GIDEON Remote Control Agent" message (item 1 of argv) as critical buttons {"Aceptar"} default button "Aceptar"
+end run
+APPLESCRIPT
+}
+
+show_info(){
+  /usr/bin/osascript - "$1" <<'APPLESCRIPT'
+on run argv
+  display alert "GIDEON Remote Control Agent" message (item 1 of argv) as informational buttons {"Aceptar"} default button "Aceptar"
+end run
+APPLESCRIPT
+}
+
+if [[ "$PACKAGE_RESULT" -eq 1 ]]; then
+  state="$(cat "$PACKAGE_UI_STATE" 2>/dev/null || true)"
+  kind="${state%%|*}"
+  msg="${state#*|}"
+  if [[ "$kind" == "SUCCESS" ]]; then
+    show_info "$msg"
+    exit 0
+  fi
+  if [[ "$kind" == "ERROR" ]]; then
+    show_error "$msg"
+    exit 1
+  fi
+  show_info "GIDEON Remote Control Agent terminó la operación del paquete. Revise el estado en WebAdmin."
+  exit 0
+fi
+
+confirm_summary(){
+  /usr/bin/osascript - "$1" <<'APPLESCRIPT'
+on run argv
+  try
+    display dialog (item 1 of argv) with title "GIDEON Remote Control Agent" buttons {"Cancelar", "Configurar y enrolar"} default button "Configurar y enrolar" cancel button "Cancelar" with icon note
+    return "YES"
+  on error number -128
+    return "NO"
+  end try
+end run
+APPLESCRIPT
+}
+
+json_get(){
+  "$PY" - "$TEMPLATE" "$1" <<'PY'
+import json,sys,socket
+p,key=sys.argv[1],sys.argv[2]
+try:d=json.load(open(p,encoding="utf-8-sig"))
+except Exception:d={}
+if key=="agent_name": print(str(d.get("agent_name") or socket.gethostname()))
+elif key=="site_code": print(str(d.get("site_code") or ""))
+elif key=="site_name": print(str(d.get("site_name") or ""))
+elif key=="gateway":
+    cp=d.get("control_plane") if isinstance(d.get("control_plane"),dict) else {}
+    print(str(cp.get("base_url") or ""))
+PY
+}
+
+site_rows(){
+  "$PY" - "$SITES" <<'PY'
+import csv,sys
+from pathlib import Path
+p=Path(sys.argv[1])
+if not p.is_file(): raise SystemExit(0)
+text=p.read_text(encoding="utf-8-sig",errors="replace")
+if not text.strip(): raise SystemExit(0)
+try:dialect=csv.Sniffer().sniff(text[:4096],delimiters=",;|\t")
+except Exception:dialect=csv.excel
+seen=set()
+for r in csv.reader(text.splitlines(),dialect=dialect):
+    if len(r)<2: continue
+    code,name=str(r[0]).strip(),str(r[1]).strip()
+    if not code or not name or code.casefold() in {"sitecode","site_code","codigo","código","code"}: continue
+    k=(code.casefold(),name.casefold())
+    if k in seen: continue
+    seen.add(k)
+    print(f"{code}|{name}")
+PY
+}
+
+agent_name="$(ask_text "GIDEON Remote Control Agent" "Nombre con el que este equipo aparecerá en WebAdmin:" "$(json_get agent_name)")"
+[[ "$agent_name" != "__GIDEON_CANCEL__" ]] || exit 0
+[[ -n "${agent_name// /}" ]] || { show_error "El nombre del Agent es obligatorio."; exit 10; }
+
+typeset -a site_labels
+typeset -a site_codes
+typeset -a site_names
+while IFS='|' read -r c n; do
+  [[ -n "$c" && -n "$n" ]] || continue
+  site_codes+=("$c")
+  site_names+=("$n")
+  site_labels+=("$c · $n")
+done < <(site_rows)
+
+site_code=""
+site_name=""
+if (( ${#site_labels[@]} > 0 )); then
+  selected="$(/usr/bin/osascript - "${site_labels[@]}" <<'APPLESCRIPT'
+on run argv
+  try
+    set r to choose from list argv with title "GIDEON Remote Control Agent · Sede" with prompt "Seleccione la sede que identificará este equipo:" OK button name "Continuar" cancel button name "Cancelar"
+    if r is false then return "__GIDEON_CANCEL__"
+    return item 1 of r
+  on error number -128
+    return "__GIDEON_CANCEL__"
+  end try
+end run
+APPLESCRIPT
+)"
+  [[ "$selected" != "__GIDEON_CANCEL__" ]] || exit 0
+  for ((i=1;i<=${#site_labels[@]};i++)); do
+    if [[ "${site_labels[$i]}" == "$selected" ]]; then
+      site_code="${site_codes[$i]}"
+      site_name="${site_names[$i]}"
+      break
+    fi
+  done
+fi
+
+if [[ -z "$site_code" || -z "$site_name" ]]; then
+  site_code="$(ask_text "GIDEON Remote Control Agent" "Código de sede:" "$(json_get site_code)")"
+  [[ "$site_code" != "__GIDEON_CANCEL__" ]] || exit 0
+  site_name="$(ask_text "GIDEON Remote Control Agent" "Nombre de sede:" "$(json_get site_name)")"
+  [[ "$site_name" != "__GIDEON_CANCEL__" ]] || exit 0
+fi
+
+gateway="$(ask_text "GIDEON Remote Control Agent" "Gateway HTTPS:" "$(json_get gateway)")"
+[[ "$gateway" != "__GIDEON_CANCEL__" ]] || exit 0
+case "$gateway" in
+  https://*) ;;
+  *) show_error "El Gateway debe comenzar por https://"; exit 11;;
+esac
+
+secret=""
+if [[ ! -s "$BOOTSTRAP" ]]; then
+  secret="$(ask_secret)"
+  [[ "$secret" != "__GIDEON_CANCEL__" ]] || exit 0
+  [[ -n "$secret" ]] || { show_error "Se requiere una credencial temporal de enrolamiento."; exit 12; }
+fi
+
+summary="Nombre del Agent: $agent_name
+Sede: $site_code · $site_name
+Gateway: $gateway
+
+macOS solicitará permisos administrativos únicamente para aplicar la configuración, enrolar el Agent y preparar Apple Remote Management/VNC."
+
+[[ "$(confirm_summary "$summary")" == "YES" ]] || exit 0
+
+tmp_secret=""
+if [[ -n "$secret" ]]; then
+  old_umask="$(umask)"
+  umask 077
+  tmp_secret="$(mktemp -t gideon-agent-enroll)"
+  print -rn -- "$secret" >"$tmp_secret"
+  umask "$old_umask"
+fi
+
+cleanup(){ [[ -n "$tmp_secret" ]] && rm -f "$tmp_secret" 2>/dev/null || true; }
+trap cleanup EXIT
+
+typeset -a cmd
+cmd=(/usr/local/bin/gideon-agent-setup
+  --site-code "$site_code"
+  --site-name "$site_name"
+  --agent-name "$agent_name"
+  --gateway "$gateway"
+  --non-interactive
+)
+[[ -n "$tmp_secret" ]] && cmd+=(--enrollment-secret-file "$tmp_secret")
+
+# Build a safely shell-quoted command without putting the secret itself on argv.
+quoted=""
+for a in "${cmd[@]}"; do
+  quoted+=" ${(q)a}"
+done
+
+set +e
+out="$(/usr/bin/osascript - "$quoted" <<'APPLESCRIPT'
+on run argv
+  try
+    return do shell script (item 1 of argv) with administrator privileges
+  on error errMsg number errNum
+    return "__GIDEON_ERROR__" & errNum & ":" & errMsg
+  end try
+end run
+APPLESCRIPT
+)"
+rc=$?
+set -e
+
+if [[ "$rc" -eq 0 && "$out" != __GIDEON_ERROR__* && -s "$CONFIG" && "$out" == *"FINAL_ACCEPTANCE PASS"* ]]; then
+  show_info "GIDEON Remote Control Agent quedó configurado, enrolado y validado correctamente.
+
+$site_code · $site_name
+$agent_name
+
+Validación final:
+✓ Runtime
+✓ Identidad
+✓ Enrolamiento / heartbeat
+✓ launchd
+✓ proceso Agent
+✓ Apple Remote Management/VNC
+✓ 127.0.0.1:5900
+
+Si macOS solicita Screen Recording/Accessibility durante la primera sesión remota, autorícelo en Ajustes del Sistema."
+  exit 0
+fi
+
+diag_source="$(print -r -- "$out" | sed -n 's/^GIDEON_DIAGNOSTIC_FILE=//p' | tail -n1)"
+report="$HOME/GIDEON-Agent-ERROR-$(date +%Y%m%d_%H%M%S).txt"
+{
+  echo "============================================================"
+  echo "GIDEON AGENT - ERROR DE INSTALACIÓN / ENROLAMIENTO macOS"
+  echo "============================================================"
+  echo "Fecha: $(date)"
+  echo "Equipo: $(scutil --get ComputerName 2>/dev/null || hostname)"
+  echo "Sede: $site_code · $site_name"
+  echo "Agent: $agent_name"
+  echo "Gateway: $gateway"
+  echo
+  echo "=== SALIDA COMPLETA DEL INSTALADOR ==="
+  print -r -- "$out"
+  if [[ -n "$diag_source" && -r "$diag_source" ]]; then
+    echo
+    echo "=== DIAGNÓSTICO AUTOMÁTICO COMPLETO ==="
+    cat "$diag_source"
+  fi
+  echo
+  echo "COPIE TODO ESTE ARCHIVO Y ENVÍELO PARA DIAGNÓSTICO."
+  echo "Archivo: $report"
+} >"$report"
+chmod 0600 "$report" 2>/dev/null || true
+
+/usr/bin/open -a TextEdit "$report" >/dev/null 2>&1 || /usr/bin/open "$report" >/dev/null 2>&1 || true
+show_error "La instalación no terminó correctamente.
+
+Se abrió un diagnóstico COMPLETO en TextEdit para poder copiarlo.
+
+Archivo:
+$report
+
+Envíe el contenido completo para revisar el fallo."
+exit 20

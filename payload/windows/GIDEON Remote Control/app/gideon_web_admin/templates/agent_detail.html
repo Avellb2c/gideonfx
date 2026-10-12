@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <a class="link" href="/agents" data-gideon-back data-back-fallback="/agents">← Agentes</a>
+    <h1>{{ agent.agent_name or agent.hostname or agent.agent_id }}</h1>
+    <p>{{ agent.site_code }} · {{ agent.site_name or '-' }} · <span class="mono">{{ agent.agent_id }}</span></p>
+  </div>
+  <div class="page-actions">
+    {% if identity.can('remote.control') %}<a class="btn btn-primary" href="/remote?agent_id={{ agent.agent_id }}">Control remoto</a>{% endif %}
+    {% if identity.can('jobs.execute') %}<a class="btn" href="/execute?agent={{ agent.agent_id }}">Ejecutar script</a>{% endif %}
+  </div>
+</div>
+
+<div class="grid-even">
+  <section class="card card-pad">
+    <h2 class="section-title">Identidad y conexión</h2>
+    <dl class="kv">
+      <dt>Agent ID</dt><dd class="mono">{{ agent.agent_id }}</dd>
+      <dt>Hostname</dt><dd>{{ agent.hostname or '-' }}</dd>
+      <dt>Plataforma</dt><dd>{{ agent.platform or '-' }} / {{ agent.architecture or '-' }}</dd>
+      <dt>Perfil</dt><dd>{{ agent.host_profile or '-' }}</dd>
+      <dt>Ruta real</dt><dd><span class="chip info">Agent → HTTPS/PULL → Gateway</span></dd>
+      <dt>IP observada</dt><dd>{{ agent.last_remote_ip or '-' }} <span class="muted">(telemetría)</span></dd>
+    </dl>
+  </section>
+
+  <section class="card card-pad">
+    <h2 class="section-title">Estado</h2>
+    <div class="diagnostic-state-row">
+      <span class="chip {{ agent_state.css }}">{{ agent_state.code }}</span>
+      <span class="muted">{{ agent_state.description }}</span>
+    </div>
+    <dl class="kv">
+      <dt>Estado técnico</dt><dd class="mono">{{ agent_state.technical }}</dd>
+      <dt>Versión Agent</dt><dd>{{ agent.agent_version or '-' }}</dd>
+      <dt>Release stable</dt><dd>{{ agent._stable or '-' }}</dd>
+      <dt>Actualización</dt><dd><span class="chip {{ agent._update_css }}">{{ agent._update_label }}</span>{% if agent._update_target %} → {{ agent._update_target }}{% endif %}{% if agent._update_checked_at %}<div class="muted">{{ agent._update_checked_at }}</div>{% endif %}</dd>
+      <dt>Protocolo</dt><dd>{{ agent.protocol_version or '-' }}</dd>
+      <dt>Último heartbeat</dt><dd>{{ agent.last_seen or '-' }}</dd>
+      <dt>Enrolado</dt><dd>{{ agent.enrolled_at or '-' }}</dd>
+      <dt>Config deseada</dt><dd>v{{ agent.DesiredConfigVersion or 0 }}</dd>
+      <dt>Config reportada</dt><dd>
+        {% set cst = agent.ConfigStatus or {} %}
+        v{{ cst.applied_version or 0 }} · <span class="chip {{ 'success' if cst.status=='APPLIED' else 'danger' if cst.status in ['REJECTED','ROLLED_BACK'] else 'info' }}">{{ cst.status or 'UNKNOWN' }}</span>
+      </dd>
+    </dl>
+    {% if identity.can('agents.operate') %}
+      <div class="divider"></div>
+      {% if agent._stable %}<form method="post" action="/agents/{{ agent.agent_id }}/update" data-confirm="¿{{ 'Comprobar nuevamente' if agent._current else 'Forzar la actualización' }} a {{ agent._stable }}? La orden quedará persistida y auditada.">
+        <input type="hidden" name="csrf" value="{{ identity.csrf_token }}">
+        <input type="hidden" name="target_version" value="{{ agent._stable }}">
+        <button class="btn btn-primary">{{ 'Comprobar actualización' if agent._current else 'Forzar actualización' }}</button>
+      </form>{% else %}<a class="btn" href="/releases">Crear/publicar release estable</a>{% endif %}
+      <form method="post" action="/agents/{{ agent.agent_id }}/restart" data-confirm="¿Reiniciar remotamente este equipo? El reinicio se programará en 60 segundos y quedará auditado.">
+        <input type="hidden" name="csrf" value="{{ identity.csrf_token }}">
+        <button class="btn" style="margin-top:8px">Reiniciar equipo</button>
+      </form>
+      <form style="margin-top:8px" method="post" action="/agents/{{ agent.agent_id }}/uninstall" data-confirm="¿Desinstalar remotamente este Agent? El equipo dejará de recibir Jobs.">
+        <input type="hidden" name="csrf" value="{{ identity.csrf_token }}">
+        <button class="btn btn-danger">Desinstalar remotamente</button>
+      </form>
+    {% endif %}
+    {% if identity.can('agents.purge') %}
+      <form style="margin-top:8px" method="post" action="/agents/{{ agent.agent_id }}/purge" data-confirm="¿Eliminar el registro del Gateway? Use esto solo después de desinstalar o retirar el equipo.">
+        <input type="hidden" name="csrf" value="{{ identity.csrf_token }}">
+        <button class="btn">Eliminar registro</button>
+      </form>
+    {% endif %}
+  </section>
+</div>
+
+{% set capabilities = agent.Capabilities if agent.Capabilities is mapping else {} %}
+{% set player = capabilities.Player if capabilities.Player is mapping else {} %}
+{% set offline_vlc = player.OfflineVlc if player.OfflineVlc is mapping else {} %}
+{% set offline_request = agent.OfflineVlcInstallRequest if agent.OfflineVlcInstallRequest is mapping else {} %}
+<div class="spacer"></div>
+<section class="card card-pad">
+  <div class="card-head">
+    <div>
+      <h2>VLC offline para Gideon Rx Player</h2>
+      <p>Instalación local sin descargas desde el equipo remoto. Sólo se habilita con un catálogo específico firmado, validado por hash y una aprobación explícita registrada.</p>
+    </div>
+    <span class="chip {{ 'success' if offline_vlc.State=='READY_FOR_EXPLICIT_INSTALL' else 'warning' }}">{{ offline_vlc.State or 'NO DISPONIBLE' }}</span>
+  </div>
+  {% if offline_request %}
+  <div class="installer-safety">
+    <strong>Solicitud actual:</strong>&nbsp;<span class="chip {{ 'success' if offline_request.Status=='INSTALLED' else 'danger' if offline_request.Status in ['FAILED','EXPIRED'] else 'info' }}">{{ offline_request.Status or '-' }}</span>
+    <span class="muted">{{ offline_request.Detail or 'Sin detalle adicional.' }}{% if offline_request.RequestedAt %} · {{ offline_request.RequestedAt }}{% endif %}</span>
+  </div>
+  {% endif %}
+  {% if offline_vlc.State == 'READY_FOR_EXPLICIT_INSTALL' %}
+    <p class="muted">VLC se distribuye bajo GPL v2 o posterior. La acción instala únicamente el kit offline revisado para este sistema y se pospone si hay un Job, una sesión remota o reproducción activa.</p>
+    {% if identity.can('agents.operate') and offline_request.Status not in ['REQUESTED','DELIVERED','DEFERRED','RUNNING'] %}
+    <form method="post" action="/agents/{{ agent.agent_id }}/vlc-offline/install" data-confirm="¿Autorizar la instalación offline de VLC para este Agent? No habrá descarga desde Internet y la aprobación vencerá en 15 minutos.">
+      <input type="hidden" name="csrf" value="{{ identity.csrf_token }}">
+      <label class="check-row"><input type="checkbox" name="accept_vlc_gpl" required> Confirmo que la organización acepta la licencia GPL v2 o posterior de VLC y la documentación de terceros incluida.</label>
+      <div style="margin-top:10px"><button class="btn btn-primary">Autorizar instalación offline de VLC</button></div>
+    </form>
+    {% endif %}
+  {% else %}
+    <div class="alert info-compact">Aún no hay un kit VLC offline válido para esta combinación de sistema y arquitectura. El Agent no descargará VLC ni ejecutará una instalación parcial.</div>
+  {% endif %}
+</section>
+
+<div class="spacer"></div>
+<section class="card card-pad">
+  <div class="card-head">
+    <div>
+      <h2>Diagnóstico de conectividad</h2>
+      <p>Estado operativo reportado por el Agent y validado por el último heartbeat del Gateway. IP e interfaz son telemetría; no forman parte de la identidad.</p>
+    </div>
+    <div class="flex wrap">
+      <button class="btn btn-small" type="button" data-copy="#agentDiagnosticText">Copiar diagnóstico completo</button>
+      <a class="btn btn-small" href="/agents/{{ agent.agent_id }}/diagnostics.txt">Descargar diagnóstico</a>
+      <a class="btn btn-small" href="/agents/{{ agent.agent_id }}/diagnostics.json">JSON</a>
+    </div>
+  </div>
+
+  <div class="diagnostic-summary-grid">
+    <div class="diagnostic-summary"><span class="muted">Estado</span><strong class="mono">{{ diagnostic.State.Code }}</strong><small>{{ diagnostic.State.Description }}</small></div>
+    <div class="diagnostic-summary"><span class="muted">Gateway actual</span><strong class="mono">{{ diagnostic.Gateway.CurrentEndpoint or '-' }}</strong><small>Last Known Good: {{ diagnostic.Gateway.LastKnownGoodEndpoint or '-' }}</small></div>
+    <div class="diagnostic-summary"><span class="muted">Red actual</span><strong>{{ diagnostic.Network.Interfaces|join(', ') if diagnostic.Network.Interfaces else '-' }}</strong><small>IP local: {{ diagnostic.Network.LocalIPs|join(', ') if diagnostic.Network.LocalIPs else '-' }}</small></div>
+    <div class="diagnostic-summary"><span class="muted">IP observada</span><strong class="mono">{{ diagnostic.Network.ObservedRemoteIP or '-' }}</strong><small>Vista por el Gateway en el último heartbeat</small></div>
+  </div>
+
+  <div class="table-wrap table-flat" style="margin-top:14px">
+    <table>
+      <thead><tr><th>Prueba</th><th>Estado</th><th>Detalle</th></tr></thead>
+      <tbody>
+      {% for name, check in diagnostic.Checks.items() %}
+        <tr>
+          <td><strong>{{ name }}</strong></td>
+          <td><span class="chip {{ 'success' if check.status=='OK' else 'danger' if check.status=='ERROR' else 'warning' }}">{{ check.status }}</span></td>
+          <td class="mono">{{ check.detail or '-' }}{% if check.elapsed_ms is defined and check.elapsed_ms is not none %} · {{ check.elapsed_ms }} ms{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="grid-even" style="margin-top:14px">
+    <div>
+      <h3 class="section-title">Red y Gateway</h3>
+      <dl class="kv">
+        <dt>IPs locales</dt><dd class="mono">{{ diagnostic.Network.LocalIPs|join(', ') if diagnostic.Network.LocalIPs else '-' }}</dd>
+        <dt>IP origen</dt><dd class="mono">{{ diagnostic.Network.SourceIP or '-' }}</dd>
+        <dt>Gateway de red</dt><dd class="mono">{{ diagnostic.Network.DefaultGateway or '-' }}</dd>
+        <dt>DNS</dt><dd class="mono">{{ diagnostic.Network.DNSServers|join(', ') if diagnostic.Network.DNSServers else '-' }}</dd>
+        <dt>Modo</dt><dd>{{ diagnostic.Gateway.ConnectivityMode or '-' }}</dd>
+        <dt>Puerto</dt><dd class="mono">{{ diagnostic.Gateway.Port if diagnostic.Gateway.Port is not none else '-' }}</dd>
+        <dt>Latencia heartbeat</dt><dd class="mono">{{ (diagnostic.Gateway.LatencyMs|string + ' ms') if diagnostic.Gateway.LatencyMs is not none else '-' }}</dd>
+        <dt>Configurado</dt><dd class="mono">{{ diagnostic.Gateway.ConfiguredEndpoint or '-' }}</dd>
+        <dt>Utilizado</dt><dd class="mono">{{ diagnostic.Gateway.CurrentEndpoint or '-' }}</dd>
+      </dl>
+    </div>
+    <div>
+      <h3 class="section-title">Configuración y tiempos</h3>
+      <dl class="kv">
+        <dt>Config local</dt><dd>v{{ diagnostic.Configuration.LocalVersion }}</dd>
+        <dt>Config Gateway</dt><dd>v{{ diagnostic.Configuration.DesiredVersion }}</dd>
+        <dt>Estado config</dt><dd><span class="chip {{ 'success' if diagnostic.Configuration.State=='APPLIED' else 'danger' if diagnostic.Configuration.State in ['REJECTED','ROLLED_BACK','CONFIG_ERROR'] else 'info' }}">{{ diagnostic.Configuration.State }}</span></dd>
+        <dt>Estado update</dt><dd><span class="chip {{ 'danger' if diagnostic.Update.State=='UPDATE_ERROR' else 'warning' if diagnostic.Update.State=='UPDATE_PENDING' else 'info' }}">{{ diagnostic.Update.State }}</span>{% if diagnostic.Update.TargetVersion %} → {{ diagnostic.Update.TargetVersion }}{% endif %}</dd>
+        <dt>Último heartbeat</dt><dd>{{ diagnostic.State.LastHeartbeat or '-' }}</dd>
+        <dt>Último cambio de red</dt><dd>{{ diagnostic.Timestamps.LastNetworkChange or '-' }}</dd>
+        <dt>Último intento</dt><dd>{{ diagnostic.Timestamps.LastGatewayAttempt or '-' }}</dd>
+        <dt>Último éxito</dt><dd>{{ diagnostic.Timestamps.LastGatewaySuccess or '-' }}</dd>
+      </dl>
+    </div>
+  </div>
+
+  {% if diagnostic.LastError %}
+  <div class="alert danger diagnostic-error" style="margin-top:14px">
+    <strong>Último error reportado</strong>
+    <span class="mono">{{ diagnostic.LastError }}</span>
+    <details style="margin-top:8px">
+      <summary>Detalle técnico completo</summary>
+      <pre class="codebox diagnostic-codebox" data-error-text>Timestamp: {{ diagnostic.ErrorRecord.Timestamp or '-' }}
+Component: {{ diagnostic.ErrorRecord.Component or '-' }}
+Operation: {{ diagnostic.ErrorRecord.Operation or '-' }}
+Error: {{ diagnostic.ErrorRecord.Error or '-' }}
+Traceback: {{ diagnostic.ErrorRecord.Traceback or '-' }}
+AgentId: {{ diagnostic.ErrorRecord.AgentId or '-' }}
+Gateway: {{ diagnostic.ErrorRecord.Gateway or '-' }}
+Version: {{ diagnostic.ErrorRecord.Version or '-' }}</pre>
+    </details>
+  </div>
+  {% endif %}
+
+  <details class="advanced-block" style="margin-top:14px">
+    <summary><strong>Texto completo para soporte</strong></summary>
+    <pre id="agentDiagnosticText" class="codebox copyable diagnostic-codebox">{{ diagnostic_text }}</pre>
+  </details>
+</section>
+
+<div class="spacer"></div>
+<section class="card card-pad">
+  <div class="card-head">
+    <div>
+      <h2>Configuración central</h2>
+      <p>El Gateway publica una versión; el Agent la valida, conserva <span class="mono">config.previous</span> y hace rollback automático si la nueva ruta rompe la conectividad.</p>
+    </div>
+    {% set desired = config_info.Configuration if config_info and config_info.Configuration else {} %}
+    <span class="chip info">Deseada v{{ desired.version or 0 }}</span>
+  </div>
+
+  {% set cfgstatus = config_info.Status if config_info and config_info.Status else {} %}
+  <div class="installer-safety">
+    <span class="chip {{ 'success' if cfgstatus.status=='APPLIED' else 'danger' if cfgstatus.status in ['REJECTED','ROLLED_BACK'] else 'info' }}">{{ cfgstatus.status or 'UNKNOWN' }}</span>
+    <span class="muted">Aplicada: v{{ cfgstatus.applied_version or 0 }}{% if cfgstatus.reported_at %} · {{ cfgstatus.reported_at }}{% endif %}</span>
+  </div>
+  {% if cfgstatus.detail %}<div class="alert info-compact"><strong>Último reporte</strong>{{ cfgstatus.detail }}</div>{% endif %}
+
+  {% if identity.can('agents.operate') %}
+  <form method="post" action="/agents/{{ agent.agent_id }}/configuration" class="form-grid">
+    <input type="hidden" name="csrf" value="{{ identity.csrf_token }}">
+    <div class="field wide">
+      <label>Settings JSON</label>
+      <textarea class="input mono" name="settings_json" rows="16" spellcheck="false">{{ config_settings_json }}</textarea>
+      <div class="muted">Permitido: control_plane (rutas/timeouts), poll_seconds, status_seconds y update. Identidad, token, CA, TLS verification y secretos no pueden cambiarse desde aquí.</div>
+    </div>
+    <div class="field wide">
+      <label>Nota de cambio</label>
+      <input class="input" name="note" maxlength="500" placeholder="Ej.: cambio de Gateway principal por migración de red">
+    </div>
+    <div class="wide"><button class="btn btn-primary">Publicar nueva versión</button></div>
+  </form>
+  {% endif %}
+
+  {% if config_history %}
+  <details class="advanced-block" style="margin-top:14px">
+    <summary><strong>Historial de configuración</strong></summary>
+    <div class="table-wrap table-flat">
+      <table>
+        <thead><tr><th>Versión</th><th>Fecha</th><th>Actor</th><th>Nota</th></tr></thead>
+        <tbody>
+        {% for h in config_history %}
+          <tr><td>v{{ h.Version }}</td><td>{{ h.CreatedAt }}</td><td>{{ h.CreatedBy or '-' }}</td><td>{{ h.Note or '-' }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+  {% endif %}
+</section>
+
+<div class="spacer"></div>
+<section class="card">
+  <div class="card-head"><div><h2>Actividad del equipo</h2><p>Últimos Jobs direccionados a este AgentId.</p></div></div>
+  <div class="table-wrap" style="border:0">
+    <table>
+      <thead><tr><th>Job</th><th>Estado</th><th>Creado</th><th>Resultado</th></tr></thead>
+      <tbody>
+      {% for j in jobs %}
+        <tr>
+          <td><a class="link mono" href="/jobs/{{ j.job_id }}">{{ j.job_id }}</a></td>
+          <td><span class="chip {{ 'danger' if j.status in ['FAILED','CANCELLED'] else 'success' if j.status=='RESULT_READY' else 'info' }}">{{ j.status }}</span></td>
+          <td>{{ j.created_at }}</td>
+          <td>{{ 'Disponible' if j.ResultReady else 'Pendiente' }}</td>
+        </tr>
+      {% else %}<tr><td colspan="4" class="empty">Sin Jobs registrados.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
+

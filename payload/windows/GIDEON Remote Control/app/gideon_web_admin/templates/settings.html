@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Configuración</h1>
+    <p>Parámetros operativos seguros. Los secretos y claves privadas no se muestran ni se almacenan desde esta pantalla.</p>
+  </div>
+</div>
+<div class="grid-even">
+  <div class="card">
+    <div class="card-head"><div><h2>Backups</h2><p>Destino externo opcional. El backup local Gideon Rx continúa aislado.</p></div></div>
+    <div class="card-pad">
+      {% if identity and identity.role == 'SUPERADMIN' %}
+      <form method="post" action="/settings/runtime">
+        <input type="hidden" name="csrf" value="{{ identity.csrf_token }}">
+        <div class="form-grid">
+          <label class="check-row wide"><input type="checkbox" name="backup_enabled" {% if runtime.backup_enabled %}checked{% endif %}><span class="check-main"><strong>Backup automático habilitado</strong><small>Ejecutado por un timer systemd de bajo consumo.</small></span></label>
+          <div class="field"><label>Tipo de destino</label><select class="select" name="backup_destination_type"><option value="local" {% if runtime.backup_destination_type=='local' %}selected{% endif %}>Solo local</option><option value="filesystem" {% if runtime.backup_destination_type=='filesystem' %}selected{% endif %}>Ruta de filesystem/NAS montado</option><option value="s3" {% if runtime.backup_destination_type=='s3' %}selected{% endif %}>Amazon S3 mediante IAM Role</option></select></div>
+          <div class="field"><label>Retención local (días)</label><input class="input" type="number" min="1" max="365" name="backup_retention_days" value="{{ runtime.backup_retention_days }}"></div>
+          <div class="field wide"><label>Destino externo</label><input class="input" name="backup_destination" value="{{ runtime.backup_destination }}" placeholder="/var/lib/gideon/backups/external/mi-destino o s3://mi-bucket/gideon/"><small>Se puede dejar vacío y configurarlo luego. Para filesystem, monte NAS/EBS/EFS dentro de /var/lib/gideon/backups/external. Para S3 use IAM Role; no guarde Access Keys aquí.</small></div>
+        </div>
+        <div class="divider"></div>
+        <div class="card-head" style="padding-left:0;padding-right:0"><div><h3>SMTP</h3><p>Queda deshabilitado hasta que lo configures. La contraseña SMTP debe ir en un secreto/variable de entorno.</p></div></div>
+        <div class="form-grid">
+          <label class="check-row wide"><input type="checkbox" name="smtp_enabled" {% if runtime.smtp_enabled %}checked{% endif %}><span class="check-main"><strong>SMTP habilitado</strong><small>No se enviará nada mientras permanezca desactivado.</small></span></label>
+          <div class="field"><label>Servidor SMTP</label><input class="input" name="smtp_host" value="{{ runtime.smtp_host }}"></div>
+          <div class="field"><label>Puerto</label><input class="input" type="number" min="1" max="65535" name="smtp_port" value="{{ runtime.smtp_port }}"></div>
+          <div class="field"><label>Usuario</label><input class="input" name="smtp_username" value="{{ runtime.smtp_username }}"></div>
+          <div class="field"><label>Remitente</label><input class="input" name="smtp_from" value="{{ runtime.smtp_from }}"></div>
+        </div>
+        <div class="spacer"></div><button class="btn btn-primary" type="submit">Guardar configuración operativa</button>
+      </form>
+      {% else %}
+      <div class="alert">Solo un <strong>SUPERADMIN</strong> puede modificar estos parámetros.</div>
+      {% endif %}
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head"><div><h2>Configuración efectiva</h2><p>Vista no secreta del proceso Web Admin.</p></div></div>
+    <div class="table-wrap"><table><thead><tr><th>Parámetro</th><th>Valor</th></tr></thead><tbody>{% for key,value in settings %}<tr><td class="mono">{{ key }}</td><td class="mono">{{ value }}</td></tr>{% endfor %}</tbody></table></div>
+  </div>
+</div>
+{% endblock %}
+

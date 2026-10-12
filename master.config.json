@@ -1,0 +1,100 @@
+{
+    "schema_version":  1,
+    "product":  "GIDEON Remote Control",
+    "environment":  "PRODUCTION",
+    "windows":  {
+                    "install_root":  "C:\\Program Files\\GIDEON Remote Control",
+                    "data_root":  "C:\\ProgramData\\GIDEON Remote Control",
+                    "block_windows_home":  false,
+                     "guacd_backend":  "auto",
+                     "resource_profile":  "auto",
+                    "preserve_private_python_runtime":  true,
+                    "cleanup_gideon_orphan_processes":  true,
+                    "cleanup_obsolete_gideon_services":  false,
+                    "webadmin_internal_port":  28443,
+                    "gateway_internal_port":  29443,
+                    "admin_external_port":  9443,
+                    "agent_external_port":  443,
+                    "external_access_profile":  "PRIVATE_ADMIN_PUBLIC_AGENTS",
+                    "hyperv":  {
+                                   "enabled":  true,
+                                   "switch_name":  "GIDEON-GUACD-Internal",
+                                   "nat_name":  "GIDEON-GUACD-NAT",
+                                   "candidate_subnets":  [
+                                                             "172.29.250.0/28",
+                                                             "172.29.251.0/28",
+                                                             "172.29.252.0/28",
+                                                             "172.29.253.0/28",
+                                                             "172.30.250.0/28"
+                                                         ],
+                                   "vm_name":  "GIDEON-GUACD",
+                                    "vm_memory_mb":  1536,
+                                    "dynamic_memory_enabled":  true,
+                                    "vm_memory_min_mb":  1024,
+                                    "vm_memory_max_mb":  2048,
+                                    "vm_memory_buffer_percent":  20,
+                                    "vm_cpu_count":  1,
+                                    "guacd_container_memory":  "1024m",
+                                    "guacd_container_cpus":  "1.0",
+                                   "auto_validate_candidate":  true,
+                                   "cleanup_validation_resources":  true,
+                                   "appliance_dependency_id":  "ubuntu-guacd-appliance-vhdx",
+                                   "docker_static_dependency_id":  "linux-docker-static-amd64",
+                                   "vm_vhdx_relative_path":  "offline-cache/hyperv/GIDEON-GUACD-UBUNTU.vhdx"
+                               },
+                    "docker_desktop":  {
+                                            "startup_timeout_seconds":  180,
+                                            "guacd_bind_host":  "127.0.0.1",
+                                             "guacd_host_port":  4822,
+                                             "guacd_memory":  "1024m",
+                                             "guacd_cpus":  "1.0",
+                                            "require_linux_engine":  true,
+                                            "install_missing_automatically":  false,
+                                            "missing_action":  "Install Docker Desktop with WSL 2 backend and rerun the same OneClick. The installer will continue automatically."
+                                        }
+                },
+    "linux":  {
+                  "install_root":  "/opt/gideon-remote-control",
+                  "data_root":  "/var/lib/gideon-remote-control",
+                  "config_root":  "/etc/gideon-remote-control",
+                  "log_root":  "/var/log/gideon-remote-control",
+                  "guacd_bind_host":  "127.0.0.1",
+                  "guacd_host_port":  4822,
+                  "docker_network_name":  "gideon-guacd-net",
+                  "docker_network_candidates":  [
+                                                    "172.29.250.0/28",
+                                                    "172.29.251.0/28",
+                                                    "172.29.252.0/28",
+                                                    "172.29.253.0/28"
+                                                ]
+              },
+    "webadmin_bootstrap_users":  [
+                                     {
+                                         "username":  "dchaskypp",
+                                         "display_name":  "Administrador GIDEON",
+                                         "role":  "SUPERADMIN"
+                                     },
+                                     {
+                                         "username":  "damautapp",
+                                         "display_name":  "DAMAUTAPP",
+                                         "role":  "ADMIN"
+                                     }
+                                 ],
+    "security":  {
+                     "require_mfa":  true,
+                     "require_yara":  true,
+                     "yara_dependency_id":  "windows-yara-cli",
+                     "yara_auto_install":  true,
+                     "yara_network_fetch_if_cache_missing":  true,
+                     "windows_defender_scan":  true,
+                     "linux_clamav_scan":  true,
+                     "require_time_sync":  true,
+                     "fail_closed_on_integrity_error":  true,
+                     "never_disable_selinux_apparmor":  true,
+                     "never_reset_firewall":  true,
+                     "never_prune_docker":  true,
+                     "never_modify_docker_daemon_json":  true,
+                     "reset_agent_state_on_new_machine":  true,
+                     "rotate_bootstrap_passwords_on_new_machine":  true
+                 }
+}

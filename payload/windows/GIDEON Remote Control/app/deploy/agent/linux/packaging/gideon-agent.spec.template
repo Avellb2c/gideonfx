@@ -1,0 +1,90 @@
+%global debug_package %{nil}
+%global _enable_debug_packages 0
+Name:           gideon-agent
+Version:        %{_gideon_version}
+Release:        1%{?dist}
+Summary:        Gideon Rx Agent
+License:        Proprietary
+BuildArch:      noarch
+Requires:       python3 >= 3.9
+Requires:       python3-pip
+Requires:       systemd
+Requires:       xdg-utils
+Requires:       acl
+
+%description
+Agente multiplataforma que se conecta de salida (outbound HTTPS) hacia el
+Gateway del Gideon Rx para recibir Jobs, ejecutar scripts firmados
+y reportar resultados. Instala como servicio systemd (gideon-agent).
+
+%install
+mkdir -p %{buildroot}/usr/lib/gideon-agent
+mkdir -p %{buildroot}/usr/bin
+mkdir -p %{buildroot}/lib/systemd/system
+cp -a %{_gideon_stage}/usr/lib/gideon-agent/. %{buildroot}/usr/lib/gideon-agent/
+cp -a %{_gideon_stage}/usr/bin/. %{buildroot}/usr/bin/
+cp -a %{_gideon_stage}/lib/systemd/system/. %{buildroot}/lib/systemd/system/
+
+%files
+/usr/lib/gideon-agent
+/usr/bin/gideon-agent-configure
+/usr/bin/gideon-agent-player-launch
+/lib/systemd/system/gideon-agent.service
+/lib/systemd/system/gideon-agent-player-launch.service
+/lib/systemd/system/gideon-agent-player-launch.timer
+
+%pre
+case "%{_gideon_arch}" in
+  arm64|aarch64) case "$(uname -m)" in aarch64|arm64) ;; *) echo "GIDEON Agent requiere ARM64/aarch64" >&2; exit 1;; esac ;;
+  x86_64|amd64) case "$(uname -m)" in x86_64|amd64) ;; *) echo "GIDEON Agent requiere x86_64" >&2; exit 1;; esac ;;
+esac
+getent passwd gideonagent >/dev/null || useradd --system --home /var/lib/gideon-agent --shell /sbin/nologin gideonagent
+systemctl stop gideon-agent.service >/dev/null 2>&1 || true
+
+%post
+APP=/usr/lib/gideon-agent
+STATE=/var/lib/gideon-agent
+CFG=/etc/gideon-agent
+install -d -o root -g root -m 0750 "$STATE" "$CFG"
+[ -d "$APP" ] && [ ! -L "$APP" ] || { echo 'GIDEON_PACKAGE_SECURITY_ERROR: app root inválido.' >&2; exit 1; }
+[ ! -e "$APP/venv" ] || [ ! -L "$APP/venv" ] || { echo 'GIDEON_PACKAGE_SECURITY_ERROR: venv symlink rechazado.' >&2; exit 1; }
+[ -d "$APP/vendor" ] || { echo 'GIDEON_DEPENDENCY_ERROR: faltan dependencias offline.' >&2; exit 1; }
+chown -R root:root "$APP" "$STATE" "$CFG"
+find "$APP" -xdev -type d -exec chmod 0755 {} +
+find "$APP" -xdev -type f -exec chmod 0644 {} +
+for executable in "$APP/gideon-agent-setup" "$APP/gideon-agent-first-run-launch" "$APP/gideon-agent-first-run-native" "$APP/gideon-agent-player-launch"; do [ ! -e "$executable" ] || chmod 0755 "$executable"; done
+python3 -m venv --clear "$APP/venv"
+"$APP/venv/bin/pip" install --no-index --find-links="$APP/vendor" -r "$APP/requirements-agent.txt"
+chown -R root:root "$APP"
+find "$APP/venv/bin" -xdev -type f -exec chmod 0755 {} +
+/usr/lib/gideon-agent/venv/bin/python -c "import sys;sys.path.insert(0,'/usr/lib/gideon-agent');import gideon_agent,gideon_agent_http,gideon_agent_security,gideon_agent_worker,gideon_common;print(gideon_agent.VERSION)"
+systemctl daemon-reload >/dev/null 2>&1 || true
+systemctl enable --now gideon-agent-player-launch.timer >/dev/null 2>&1 || true
+if [ -f /etc/gideon-agent/agent.json ]; then
+    systemctl enable --now gideon-agent.service || true
+else
+    cat <<'MSG'
+
+GIDEON Agent instalado. Falta un único paso local (no requiere red):
+
+    sudo gideon-agent-configure --site-code <CODIGO> --site-name "<NOMBRE>" \
+        --gateway https://agent.midominio.com --enrollment-secret <SECRETO>
+    sudo systemctl enable --now gideon-agent
+
+MSG
+fi
+
+%preun
+if [ "$1" = "0" ]; then systemctl disable --now gideon-agent.service gideon-agent-player-launch.timer >/dev/null 2>&1 || true; fi
+
+%postun
+systemctl daemon-reload >/dev/null 2>&1 || true
+if [ "$1" = "0" ]; then
+    rm -rf /var/lib/gideon-agent /etc/gideon-agent
+    getent passwd gideonagent >/dev/null && userdel gideonagent || true
+fi
+
+%changelog
+* %{_gideon_changelog_date} GIDEON Infraestructura <infraestructura@gideon.example.invalid> - %{_gideon_version}-1
+- Build automático de gideon-agent
+

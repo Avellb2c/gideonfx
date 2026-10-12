@@ -1,0 +1,24 @@
+{
+  "data_dir": "/var/lib/gideon-agent-gateway",
+  "listen_host": "127.0.0.1",
+  "listen_port": 8443,
+  "admin_api_key_env": "GIDEON_AGENT_ADMIN_TOKEN",
+  "enrollment_secret_env": "GIDEON_AGENT_ENROLL_SECRET",
+  "tls_certfile": "",
+  "tls_keyfile": "",
+  "client_ca_file": null,
+  "client_ca_key_file": null,
+  "require_agent_mtls": false,
+  "security": {
+    "minimum_tls": "TLSv1.2",
+    "prefer_tls13": true,
+    "package_signing": "Ed25519",
+    "digest": "SHA-256"
+  },
+  "public_host": "",
+  "public_url": "",
+  "ca_file": "",
+  "listen_address": "127.0.0.1",
+  "internal_endpoint": "",
+  "advertised_endpoint": ""
+}

@@ -1,0 +1,172 @@
+{% extends "base.html" %}{% block content %}
+<div class="page-head"><div><h1>Claves y secretos</h1><p>Uso normal: identidades SSH globales y credenciales remotas. Las opciones criptográficas avanzadas permanecen disponibles sin saturar la pantalla.</p></div><div class="page-actions"><button type="button" class="btn" data-security-advanced-toggle aria-pressed="false">Mostrar opciones avanzadas</button></div></div>
+{% if message %}<div class="alert success"><strong>Operación completada</strong>{{ message }}</div>{% endif %}
+{% if error %}<div class="alert danger"><strong>No se pudo completar</strong>{{ error }}</div>{% endif %}
+
+<div class="grid-even">
+<section class="card card-pad" data-gideon-advanced-section="security" hidden>
+  <div class="flex-between wrap"><div><h2 class="section-title">Firma Ed25519 de ejecuciones</h2><p class="muted">Firma Jobs, scripts y transferencias antes de enviarlos al Gateway.</p></div>
+  {% if asset_status.signing.usable %}<span class="chip success">OPERATIVA</span>{% else %}<span class="chip danger">NO CONFIGURADA</span>{% endif %}</div>
+  <dl class="kv">
+    <dt>Modo</dt><dd>{{ asset_status.signing.mode or 'none' }}</dd>
+    <dt>Key ID</dt><dd class="mono">{{ asset_status.signing.key_id or '-' }}</dd>
+    <dt>Fingerprint</dt><dd class="mono">{{ asset_status.signing.fingerprint or '-' }}</dd>
+    <dt>Origen</dt><dd>{{ asset_status.signing.source or '-' }}</dd>
+    <dt>Último cambio</dt><dd>{{ asset_status.signing.updated_at or '-' }}</dd>
+  </dl>
+  {% if asset_status.signing.error %}<div class="alert danger"><strong>Estado</strong>{{ asset_status.signing.error }}</div>{% endif %}
+  <div class="alert"><strong>Clave privada protegida</strong>En modo administrado, la privada se cifra en el DataRoot Gideon Rx con la KEK Fernet de Web Admin + ACL del sistema operativo. Nunca se guarda dentro del ZIP, repositorio ni código actualizable.</div>
+  {% if asset_status.signing.public_key_available %}<a class="btn" href="/security/assets/signing/public.pem">Descargar clave pública</a>{% endif %}
+</section>
+
+<section class="card card-pad" data-gideon-advanced-section="security" hidden>
+  <h2 class="section-title">Acciones de firma</h2>
+  <details class="settings-section" open data-gideon-disclosure-key="security.signing.generate"><summary>Generar nueva clave administrada</summary>
+    <p class="muted">Recomendado para esta instalación. La rotación cambia el fingerprint; Agents existentes deberán recibir la nueva clave pública antes de usarla.</p>
+    <form method="post" action="/security/assets/signing/generate" class="form-grid"><input type="hidden" name="csrf" value="{{ identity.csrf_token }}">
+      <div class="field"><label>Contraseña actual</label><input class="input" type="password" name="current_password" autocomplete="current-password" required></div>
+      <div class="field"><label>Código MFA</label><input class="input" name="mfa_code" inputmode="numeric" maxlength="8" autocomplete="one-time-code" required></div>
+      <div class="wide"><button class="btn btn-primary">Generar y activar</button></div>
+    </form>
+  </details>
+  <details class="settings-section" data-gideon-disclosure-key="security.signing.import"><summary>Importar clave privada Ed25519</summary>
+    <form method="post" action="/security/assets/signing/import" enctype="multipart/form-data" class="form-grid"><input type="hidden" name="csrf" value="{{ identity.csrf_token }}">
+      <div class="field wide"><label>Archivo PEM/OpenSSH privado</label><input class="input" type="file" name="file" accept=".pem,.key" required></div>
+      <div class="field"><label>Passphrase de origen (si tiene)</label><input class="input" type="password" name="key_passphrase" autocomplete="off"></div>
+      <div class="field"><label>Contraseña actual</label><input class="input" type="password" name="current_password" autocomplete="current-password" required></div>
+      <div class="field"><label>Código MFA</label><input class="input" name="mfa_code" inputmode="numeric" maxlength="8" required></div>
+      <div class="wide"><button class="btn btn-primary">Importar y proteger</button></div>
+    </form>
+  </details>
+  <details class="settings-section" data-gideon-disclosure-key="security.signing.external"><summary>Usar clave externa de solo lectura</summary>
+    <p class="muted">La Web guarda solo la ruta. La privada permanece en un volumen/gestor externo montado por el administrador.</p>
+    <form method="post" action="/security/assets/signing/external" class="form-grid"><input type="hidden" name="csrf" value="{{ identity.csrf_token }}">
+      <div class="field wide"><label>Ruta absoluta del servidor</label><input class="input mono" name="external_path" placeholder="C:\GIDEON-Secrets\execution-ed25519.pem  /  /run/secrets/gideon-execution.pem" required></div>
+      <div class="field"><label>Contraseña actual</label><input class="input" type="password" name="current_password" required></div><div class="field"><label>Código MFA</label><input class="input" name="mfa_code" required></div>
+      <div class="wide"><button class="btn">Validar y activar</button></div>
+    </form>
+  </details>
+  {% if asset_status.signing.configured %}<details class="settings-section" data-gideon-disclosure-key="security.signing.test-remove"><summary>Probar o desactivar</summary><div class="grid-even">
+    <form method="post" action="/security/assets/signing/test" class="stack"><input type="hidden" name="csrf" value="{{ identity.csrf_token }}"><input class="input" type="password" name="current_password" placeholder="Contraseña actual" required><input class="input" name="mfa_code" placeholder="MFA" required><button class="btn">Probar firma/verificación</button></form>
+    <form method="post" action="/security/assets/signing/remove" class="stack"><input type="hidden" name="csrf" value="{{ identity.csrf_token }}"><input class="input" type="password" name="current_password" placeholder="Contraseña actual" required><input class="input" name="mfa_code" placeholder="MFA" required><button class="btn btn-danger">Desactivar firma</button></form>
+  </div></details>{% endif %}
+</section>
+</div>
+
+<div class="spacer"></div>
+<div class="grid-even">
+<section class="card card-pad" data-gideon-advanced-section="security" hidden>
+  <h2 class="section-title">CA de confianza para Gateway</h2>
+  <p class="muted">Carga únicamente certificados CA públicos. No se reciben claves TLS privadas en esta pantalla.</p>
+  {% if asset_status.gateway_ca.active %}<div class="alert success"><strong>Override CA activo</strong><span class="mono">SHA-256 {{ asset_status.gateway_ca.sha256[:24] }}…</span>{% for subject in asset_status.gateway_ca.subjects %}<div class="muted">{{ subject }}</div>{% endfor %}</div>{% endif %}
+  <form method="post" action="/security/assets/ca/upload" enctype="multipart/form-data" class="form-grid"><input type="hidden" name="csrf" value="{{ identity.csrf_token }}"><div class="field wide"><label>Bundle PEM CA</label><input class="input" type="file" name="file" accept=".pem,.crt,.cer" required></div><div class="field"><label>Contraseña actual</label><input class="input" type="password" name="current_password" required></div><div class="field"><label>MFA</label><input class="input" name="mfa_code" required></div><div class="wide"><button class="btn btn-primary">Cargar y activar</button></div></form>
+  {% if asset_status.gateway_ca.active %}<form method="post" action="/security/assets/ca/disable" class="flex wrap"><input type="hidden" name="csrf" value="{{ identity.csrf_token }}"><input class="input" type="password" name="current_password" placeholder="Contraseña actual" required><input class="input" name="mfa_code" placeholder="MFA" required><button class="btn">Volver a CA de instalación</button></form>{% endif %}
+</section>
+
+<section class="card card-pad" data-gideon-advanced-section="security" hidden>
+  <h2 class="section-title">Política YARA GIDEON</h2>
+  <p class="muted">Las reglas quedan dentro del DataRoot Gideon Rx. No se instala, inicia ni reconfigura ningún servicio global YARA/ClamAV/Defender.</p>
+  {% if asset_status.yara.active %}<div class="alert success"><strong>Reglas activas</strong><span class="mono">SHA-256 {{ asset_status.yara.sha256[:24] }}…</span></div>{% endif %}
+  <form method="post" action="/security/assets/yara/upload" enctype="multipart/form-data" class="form-grid"><input type="hidden" name="csrf" value="{{ identity.csrf_token }}"><div class="field wide"><label>Archivo .yar / .yara</label><input class="input" type="file" name="file" accept=".yar,.yara" required></div><div class="field"><label>Contraseña actual</label><input class="input" type="password" name="current_password" required></div><div class="field"><label>MFA</label><input class="input" name="mfa_code" required></div><div class="wide"><button class="btn btn-primary">Cargar reglas</button></div></form>
+  {% if asset_status.yara.active %}<form method="post" action="/security/assets/yara/disable" class="flex wrap"><input type="hidden" name="csrf" value="{{ identity.csrf_token }}"><input class="input" type="password" name="current_password" placeholder="Contraseña actual" required><input class="input" name="mfa_code" placeholder="MFA" required><button class="btn">Desactivar reglas Web</button></form>{% endif %}
+</section>
+</div>
+
+<div class="spacer"></div>
+<div class="grid-even">
+<section class="card card-pad" id="ssh-identities">
+  <div class="flex-between wrap"><div><h2 class="section-title">Identidades SSH privadas GIDEON</h2><p class="muted">Vault propio de Gideon Rx para credenciales de administración. La privada queda cifrada y nunca se carga en <span class="mono">ssh-agent</span>, ni modifica <span class="mono">sshd</span> o <span class="mono">authorized_keys</span>.</p></div><span class="chip {{ 'success' if ssh_identities else 'warning' }}">{{ ssh_identities|length }} IDENTIDAD(ES)</span></div>
+  <details class="settings-section" data-gideon-disclosure-key="security.ssh.import" {% if not ssh_identities %}open{% endif %}><summary>Importar nueva identidad SSH</summary>
+  <div class="alert"><strong>Formatos admitidos</strong>OpenSSH y PEM, incluyendo nombres estándar sin extensión como <span class="mono">id_ed25519</span>, <span class="mono">id_rsa</span> e <span class="mono">id_ecdsa</span>. La validación es por contenido, no por extensión. Los archivos <span class="mono">.pub</span>, <span class="mono">known_hosts</span> y <span class="mono">config</span> se ignoran al importar una carpeta. PuTTY PPK se detecta y se informa para conversión a OpenSSH/PEM.</div>
+  <h3 style="margin:14px 0 6px">Archivo individual</h3>
+  <form method="post" action="/security/assets/ssh-identity/upload" enctype="multipart/form-data" class="form-grid"><input type="hidden" name="csrf" value="{{ identity.csrf_token }}">
+    <div class="field"><label>Etiqueta</label><input class="input" name="label" value="Administración GIDEON" maxlength="120"></div>
+    <div class="field"><label>Clave privada SSH</label><input class="input" type="file" name="file" required><small class="muted">No se aplica filtro por extensión para permitir claves OpenSSH como id_ed25519/id_rsa.</small></div>
+    <div class="field"><label>Passphrase de origen (si tiene)</label><input class="input" type="password" name="key_passphrase" autocomplete="off"></div>
+    <div class="field"><label>Contraseña actual</label><input class="input" type="password" name="current_password" required></div>
+    <div class="field"><label>MFA</label><input class="input" name="mfa_code" required></div>
+    <div class="wide"><button class="btn btn-primary">Cargar clave al vault GIDEON</button></div>
+  </form>
+  <div class="divider"></div>
+  <h3 style="margin:8px 0 6px">Carpeta de identidades SSH</h3>
+  <p class="muted">Seleccione, por ejemplo, su carpeta <span class="mono">.ssh</span>. El navegador envía los archivos seleccionados; Gideon Rx no obtiene ni conserva la ruta local de su PC. Se inspeccionan en memoria y solo las claves privadas válidas se cifran en el vault.</p>
+  <form method="post" action="/security/assets/ssh-identity/folder-upload" enctype="multipart/form-data" class="form-grid"><input type="hidden" name="csrf" value="{{ identity.csrf_token }}">
+    <div class="field"><label>Etiqueta base</label><input class="input" name="label" value="Administración GIDEON" maxlength="90"></div>
+    <div class="field"><label>Seleccionar carpeta</label><input class="input" type="file" name="files" webkitdirectory directory multiple required><small class="muted">Máximo 64 archivos / 2 MiB por selección. Los no relevantes se omiten.</small></div>
+    <div class="field"><label>Passphrase común (si aplica)</label><input class="input" type="password" name="key_passphrase" autocomplete="off"><small class="muted">Si las claves usan passphrases distintas, importe esas claves individualmente.</small></div>
+    <div class="field"><label>Contraseña actual</label><input class="input" type="password" name="current_password" required></div>
+    <div class="field"><label>MFA</label><input class="input" name="mfa_code" required></div>
+    <div class="wide"><button class="btn btn-primary">Analizar carpeta e importar claves</button></div>
+  </form>
+  {% if ssh_import_results %}<div class="alert"><strong>Resultado de importación</strong>{% for result in ssh_import_results %}<div class="mono muted">{{ result }}</div>{% endfor %}</div>{% endif %}
+  <div class="alert"><strong>Aislamiento</strong>La clave se descifra solo en memoria. Cuando una operación Gideon Rx requiera OpenSSH, se materializa temporalmente con permisos 0600 y se elimina al terminar. No se toca el agente SSH global del sistema.</div>
+  </details>
+  <div class="spacer"></div>
+  {% for key in ssh_identities %}<div class="card card-pad" style="margin-bottom:8px"><div class="flex-between wrap"><div><strong>{{ key.label }}</strong><div class="mono muted">{{ key.key_type }} · {{ key.fingerprint }}</div><div class="muted">Actualizada {{ key.updated_at }}</div>{% if key.default_username %}<div class="muted">Perfil Jobs: <strong>{{ key.default_username }}</strong>@SSH · puerto {{ key.default_port or 22 }}{% if key.connection_verified_at %} · validado {{ key.connection_verified_at }}{% endif %}</div>{% endif %}</div><span class="chip success">CIFRADA</span></div><details data-gideon-disclosure-key="security.ssh.{{ key.id }}.actions"><summary>Probar conexión / Más acciones</summary>
+    <div class="divider"></div><strong>Conexión SSH global</strong><p class="muted">Esta identidad se usa para todas las sedes. El destino siguiente sirve únicamente para comprobar SSH + SFTP; no vincula la credencial a esa sede.</p>
+    <form method="post" action="/security/assets/ssh-identity/{{ key.id }}/probe" class="form-grid" data-ssh-profile-form><input type="hidden" name="csrf" value="{{ identity.csrf_token }}"><input type="hidden" name="username" value="{{ key.default_username or 'damautapp' }}"><input type="hidden" name="port" value="{{ key.default_port or 22 }}">
+      <div class="field wide"><label>Destino de prueba</label><select class="select" name="site_code" required>{% for site in ssh_sites %}<option value="{{ site.code }}">{{ site.code }} · {{ site.name }} · {{ site.host }}</option>{% endfor %}</select></div>
+      {% if key.default_username and key.connection_ssh_ok and key.connection_sftp_ok %}<div class="wide alert success"><strong>Perfil global listo</strong>{{ key.default_username }}@*:{{ key.default_port or 22 }} · SSH ✓ · SFTP ✓</div>{% endif %}
+      <details class="wide" data-gideon-disclosure-key="security.ssh.{{ key.id }}.profile"><summary>Opciones avanzadas · cambiar usuario/puerto</summary><div class="grid-even" style="margin-top:10px"><label>Usuario SSH<input class="input" name="username_override" value="{{ key.default_username or 'damautapp' }}" maxlength="64"></label><label>Puerto SSH<input class="input" type="number" name="port_override" min="1" max="65535" value="{{ key.default_port or 22 }}"></label></div></details>
+      {% if step_up and step_up.active %}
+      <input type="hidden" name="current_password" value=""><input type="hidden" name="mfa_code" value="">
+      <div class="wide alert success"><strong>MFA reforzado vigente</strong>Esta sesión ya está autorizada. No se volverá a pedir contraseña/MFA hasta que venza el periodo de 15 minutos.</div>
+      {% else %}
+      <div class="field"><label>Contraseña actual</label><input class="input" type="password" name="current_password" required autocomplete="current-password"></div><div class="field"><label>MFA</label><input class="input" name="mfa_code" required inputmode="numeric" autocomplete="one-time-code"></div>
+      {% endif %}
+      <div class="wide"><button class="btn btn-primary" {% if not ssh_sites %}disabled{% endif %}>Probar conexión</button><small class="muted">Si funciona, Gideon Rx guarda solo usuario/puerto. La clave privada sigue cifrada y nunca se guarda una contraseña SSH.</small></div>
+    </form>
+    <details class="wide" data-gideon-disclosure-key="security.ssh.{{ key.id }}.more"><summary>Más acciones de la identidad</summary><div class="grid-even" style="margin-top:10px">
+      <form method="post" action="/security/assets/ssh-identity/{{ key.id }}/test" class="stack"><input type="hidden" name="csrf" value="{{ identity.csrf_token }}"><input class="input" type="password" name="current_password" placeholder="Contraseña actual" required><input class="input" name="mfa_code" placeholder="MFA" required><button class="btn">Validar criptografía</button></form>
+      <form method="post" action="/security/assets/ssh-identity/{{ key.id }}/delete" class="stack"><input type="hidden" name="csrf" value="{{ identity.csrf_token }}"><input class="input" type="password" name="current_password" placeholder="Contraseña actual" required><input class="input" name="mfa_code" placeholder="MFA" required><button class="btn btn-danger">Eliminar</button></form>
+    </div></details>
+  </details></div>{% else %}<div class="empty">No hay identidades SSH privadas administradas por Gideon Rx.</div>{% endfor %}
+</section>
+
+<section class="card card-pad" data-gideon-advanced-section="security" hidden>
+  <h2 class="section-title">Claves públicas SSH</h2><p class="muted">Repositorio público Gideon Rx. Esta función NO modifica sshd, authorized_keys ni reglas de firewall del host.</p>
+  <form method="post" action="/security/assets/ssh-public/upload" enctype="multipart/form-data" class="form-grid"><input type="hidden" name="csrf" value="{{ identity.csrf_token }}"><div class="field"><label>Etiqueta</label><input class="input" name="label" value="Administración GIDEON"></div><div class="field"><label>Clave .pub</label><input class="input" type="file" name="file" accept=".pub" required></div><div class="field"><label>Contraseña actual</label><input class="input" type="password" name="current_password" required></div><div class="field"><label>MFA</label><input class="input" name="mfa_code" required></div><div class="wide"><button class="btn btn-primary">Registrar clave pública</button></div></form>
+  <div class="spacer"></div>
+  {% for key in asset_status.ssh_public_keys %}<div class="card card-pad" style="margin-bottom:8px"><strong>{{ key.label }}</strong><div class="mono muted">{{ key.fingerprint }}</div><details data-gideon-disclosure-key="security.ssh-public.{{ key.id }}.delete"><summary>Eliminar</summary><form method="post" action="/security/assets/ssh-public/{{ key.id }}/delete" class="flex wrap"><input type="hidden" name="csrf" value="{{ identity.csrf_token }}"><input class="input" type="password" name="current_password" placeholder="Contraseña actual" required><input class="input" name="mfa_code" placeholder="MFA" required><button class="btn btn-danger btn-small">Eliminar</button></form></details></div>{% else %}<div class="empty">No hay claves públicas SSH registradas.</div>{% endfor %}
+</section>
+
+<section class="card card-pad">
+  <div class="flex-between wrap"><div><h2 class="section-title">Credenciales RDP / VNC</h2><p class="muted">Vault cifrado para Apache Guacamole. La contraseña nunca se entrega al navegador ni aparece en logs.</p></div><span class="chip {{ 'success' if remote_credentials else 'warning' }}">{{ remote_credentials|length }} CREDENCIAL(ES)</span></div>
+  <form method="post" action="/security/assets/remote-credential" class="form-grid"><input type="hidden" name="csrf" value="{{ identity.csrf_token }}">
+    <div class="field"><label>Protocolo</label><select class="select" name="protocol"><option value="RDP">RDP</option><option value="VNC">VNC</option></select></div>
+    <div class="field"><label>Etiqueta</label><input class="input" name="label" placeholder="Administración Windows tiendas" maxlength="120" required></div>
+    <div class="field"><label>Usuario</label><input class="input" name="username" autocomplete="off" placeholder="DOMINIO\usuario"></div>
+    <div class="field"><label>Dominio RDP (opcional)</label><input class="input" name="domain" autocomplete="off"></div>
+    <div class="field wide"><label>Contraseña remota</label><input class="input" type="password" name="remote_password" autocomplete="new-password" required><small class="muted">Se cifra inmediatamente con una clave derivada y separada del vault SSH/TOTP.</small></div>
+    <div class="field"><label>Contraseña actual WebAdmin</label><input class="input" type="password" name="current_password" required></div>
+    <div class="field"><label>MFA</label><input class="input" name="mfa_code" required></div>
+    <div class="wide"><button class="btn btn-primary">Guardar en Vault Gideon Rx</button></div>
+  </form>
+  <div class="spacer"></div>
+  {% for c in remote_credentials %}<div class="card card-pad" style="margin-bottom:8px"><div class="flex-between wrap"><div><strong>{{ c.protocol }} · {{ c.label }}</strong><div class="muted">{{ c.username or 'Sin usuario' }}{% if c.domain %} · {{ c.domain }}{% endif %}</div></div><span class="chip success">CIFRADA</span></div><details data-gideon-disclosure-key="security.remote-credential.{{ c.id }}.delete"><summary>Eliminar credencial</summary><form method="post" action="/security/assets/remote-credential/{{ c.id }}/delete" class="stack"><input type="hidden" name="csrf" value="{{ identity.csrf_token }}"><input class="input" type="password" name="current_password" placeholder="Contraseña actual" required><input class="input" name="mfa_code" placeholder="MFA" required><button class="btn btn-danger">Eliminar</button></form></details></div>{% else %}<div class="empty">No hay credenciales de escritorio remoto.</div>{% endfor %}
+</section>
+
+<section class="card card-pad" data-gideon-advanced-section="security" hidden>
+  <div class="flex-between wrap"><div><h2 class="section-title">Cliente Web Apache Guacamole</h2><p class="muted">Gideon Rx usa guacd como backend y <span class="mono">guacamole-common-js</span> como cliente en navegador.</p></div><span class="chip {{ 'success' if guacamole_client.ready else 'warning' }}">{{ 'READY' if guacamole_client.ready else 'PENDIENTE' }}</span></div>
+  <dl class="kv"><dt>guacd</dt><dd><span class="chip {{ 'success' if guacd_status.online else 'danger' }}">{{ 'ONLINE' if guacd_status.online else 'OFFLINE' }}</span> <span class="mono">{{ guacd_status.host }}:{{ guacd_status.port }}</span></dd><dt>JS</dt><dd>{{ guacamole_client.version or '-' }}</dd><dt>SHA-256</dt><dd class="mono">{{ guacamole_client.sha256[:24] ~ '…' if guacamole_client.sha256 else '-' }}</dd></dl>
+  <div class="alert"><strong>Supply chain fail-closed</strong>RC28 no descarga JavaScript de un CDN en tiempo de ejecución. Cargue una copia oficial/pinneada de <span class="mono">guacamole-common-js</span> y, de ser posible, su SHA-256 esperado. Gideon Rx valida la API mínima y guarda la huella.</div>
+  <form method="post" action="/security/assets/guacamole-client/upload" enctype="multipart/form-data" class="form-grid"><input type="hidden" name="csrf" value="{{ identity.csrf_token }}">
+    <div class="field wide"><label>guacamole-common-js</label><input class="input" type="file" name="file" accept=".js" required></div>
+    <div class="field"><label>Versión declarada</label><input class="input" name="client_version" placeholder="1.5.x"></div>
+    <div class="field wide"><label>SHA-256 esperado (recomendado)</label><input class="input mono" name="expected_sha256" maxlength="64" placeholder="64 caracteres hex"></div>
+    <div class="field"><label>Contraseña actual</label><input class="input" type="password" name="current_password" required></div>
+    <div class="field"><label>MFA</label><input class="input" name="mfa_code" required></div>
+    <div class="wide"><button class="btn btn-primary">Instalar cliente Web</button></div>
+  </form>
+  <div class="alert"><strong>guacd</strong>El despliegue recomendado está en <span class="mono">deploy/guacamole/docker-compose.yml</span>. El puerto 4822 queda publicado solo en 127.0.0.1 y nunca en la LAN/Internet.</div>
+</section>
+
+<section class="card card-pad" data-gideon-advanced-section="security" hidden>
+  <h2 class="section-title">Recuperación administrativa</h2><p class="muted">Genere un código de recuperación de un solo uso para su cuenta SUPERADMIN. Guárdelo fuera del servidor.</p>
+  {% if recovery_code %}<div class="alert warning"><strong>Código mostrado una sola vez</strong><div id="recoveryCode" class="codebox copyable">{{ recovery_code }}</div><button type="button" class="btn btn-small" data-copy="#recoveryCode">Copiar</button><div class="muted">Expira: {{ recovery_expires }}</div></div>{% endif %}
+  <form method="post" action="/security/assets/recovery-code" class="form-grid"><input type="hidden" name="csrf" value="{{ identity.csrf_token }}"><div class="field"><label>Contraseña actual</label><input class="input" type="password" name="current_password" required></div><div class="field"><label>MFA</label><input class="input" name="mfa_code" required></div><div class="wide"><button class="btn btn-primary">Generar código de recuperación</button></div></form>
+  <div class="alert"><strong>Uso</strong>Si pierde la contraseña, abra <span class="mono">/account/recovery</span>. El código no desactiva MFA y se invalida al usarlo.</div>
+</section>
+</div>
+{% endblock %}
+

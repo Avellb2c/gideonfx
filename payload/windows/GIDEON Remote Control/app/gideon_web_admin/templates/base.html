@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="es" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{ title }} · Gideon Rx</title>
+  <link rel="icon" href="{{ static_url('gideon-rx-logo.svg') }}">
+  <link rel="stylesheet" href="{{ static_url('app.css') }}">
+  <link rel="stylesheet" href="{{ static_url('ui_hardening.css') }}">
+  <link rel="stylesheet" href="{{ static_url('dashboard_ux.css') }}">
+  <link rel="stylesheet" href="{{ static_url('table_controls.css') }}">
+  <script src="{{ static_url('sidebar_compact.js') }}"></script>
+  {% block extra_styles %}{% endblock %}
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar" id="gideonSidebar">
+    <div class="brand gideon-sidebar-brand" title="Gideon Rx · Consola administrativa">
+      <img src="{{ static_url('gideon-rx-logo.svg') }}" alt="Gideon Rx" class="gideon-gideons-brand-logo">
+      <div class="gideon-sidebar-brand-copy">
+        <strong>Gideon Rx</strong>
+        <small>Consola administrativa</small>
+      </div>
+    </div>
+
+    <button class="gideon-sidebar-compact-toggle" type="button" data-sidebar-compact-toggle aria-expanded="true" aria-controls="gideonSidebar" title="Ocultar menú lateral">
+      <img src="{{ static_url('icons/sidebar-toggle.svg') }}" alt="" aria-hidden="true">
+      <span>Ocultar menú</span>
+    </button>
+
+    <nav class="nav" aria-label="Navegación principal">
+      {% if identity and identity.can('dashboard.view') %}<a class="nav-link {{ 'active' if active_path=='/' else '' }}" href="/" title="Inicio" aria-label="Inicio"><img src="{{ static_url('icons/home.svg') }}" alt=""><span class="gideon-nav-label">Inicio</span></a>{% endif %}
+
+      {% if identity and (identity.can('remote.view') or identity.can('jobs.execute') or identity.can('transfers.view') or identity.can('jobs.view') or identity.can('scripts.view')) %}<div class="nav-section">Operar</div>{% endif %}
+      {% if identity and identity.can('remote.view') %}<a class="nav-link {{ 'active' if active_path.startswith('/remote') else '' }}" href="/remote" title="Control remoto" aria-label="Control remoto"><img src="{{ static_url('icons/remote.svg') }}" alt=""><span class="gideon-nav-label">Control remoto</span></a>{% endif %}
+      {% if identity and identity.can('jobs.execute') %}<a class="nav-link {{ 'active' if active_path.startswith('/execute') else '' }}" href="/execute" title="Nueva ejecución" aria-label="Nueva ejecución"><img src="{{ static_url('icons/play.svg') }}" alt=""><span class="gideon-nav-label">Nueva ejecución</span></a>{% endif %}
+      {% if identity and identity.can('transfers.view') %}<a class="nav-link {{ 'active' if active_path.startswith('/transfers') else '' }}" href="/transfers" title="Transferencias" aria-label="Transferencias"><img src="{{ static_url('icons/files.svg') }}" alt=""><span class="gideon-nav-label">Transferencias</span></a>{% endif %}
+      {% if identity and identity.can('jobs.view') %}<a class="nav-link {{ 'active' if active_path.startswith('/jobs') else '' }}" href="/jobs" title="Actividad y Jobs" aria-label="Actividad y Jobs"><img src="{{ static_url('icons/jobs.svg') }}" alt=""><span class="gideon-nav-label">Actividad y Jobs</span></a>{% endif %}
+      {% if identity and identity.can('scripts.view') %}<a class="nav-link {{ 'active' if active_path.startswith('/scripts') else '' }}" href="/scripts" title="Scripts" aria-label="Scripts"><img src="{{ static_url('icons/scripts.svg') }}" alt=""><span class="gideon-nav-label">Scripts</span></a>{% endif %}
+
+      {% if identity and (identity.can('media.view') or identity.can('screens.view')) %}<div class="nav-section">Medios</div>{% endif %}
+      {% if identity and identity.can('media.view') %}
+        <a class="nav-link {{ 'active' if active_path.startswith('/media/library') else '' }}" href="/media/library" title="Biblioteca" aria-label="Biblioteca"><img src="{{ static_url('icons/files.svg') }}" alt=""><span class="gideon-nav-label">Biblioteca</span></a>
+        <a class="nav-link {{ 'active' if active_path.startswith('/media/campaigns') or active_path=='/media' else '' }}" href="/media/campaigns" title="Campañas" aria-label="Campañas"><img src="{{ static_url('icons/play.svg') }}" alt=""><span class="gideon-nav-label">Campañas</span></a>
+        <a class="nav-link {{ 'active' if active_path.startswith('/media/schedule') else '' }}" href="/media/schedule" title="Programación" aria-label="Programación"><img src="{{ static_url('icons/jobs.svg') }}" alt=""><span class="gideon-nav-label">Programación</span></a>
+        <a class="nav-link {{ 'active' if active_path.startswith('/media/history') else '' }}" href="/media/history" title="Historial" aria-label="Historial"><img src="{{ static_url('icons/jobs.svg') }}" alt=""><span class="gideon-nav-label">Historial</span></a>
+      {% endif %}
+      {% if identity and identity.can('screens.view') %}<a class="nav-link {{ 'active' if active_path.startswith('/media/screens') else '' }}" href="/media/screens" title="Pantallas" aria-label="Pantallas"><img src="{{ static_url('icons/remote.svg') }}" alt=""><span class="gideon-nav-label">Pantallas</span></a>{% endif %}
+
+      {% if identity and (identity.can('agents.view') or identity.can('groups.view') or identity.can('releases.view')) %}<div class="nav-section">Flota</div>{% endif %}
+      {% if identity and identity.can('agents.view') %}
+        <a class="nav-link {{ 'active' if active_path.startswith('/agents') else '' }}" href="/agents" title="Equipos" aria-label="Equipos"><img src="{{ static_url('icons/agents.svg') }}" alt=""><span class="gideon-nav-label">Equipos</span></a>
+      {% endif %}
+      {% if identity and identity.can('groups.view') %}
+        <a class="nav-link {{ 'active' if active_path.startswith('/sites') else '' }}" href="/sites" title="Sedes" aria-label="Sedes"><img src="{{ static_url('icons/hosts.svg') }}" alt=""><span class="gideon-nav-label">Sedes</span></a>
+        <a class="nav-link {{ 'active' if active_path.startswith('/groups') else '' }}" href="/groups" title="Grupos" aria-label="Grupos"><img src="{{ static_url('icons/agents.svg') }}" alt=""><span class="gideon-nav-label">Grupos</span></a>
+      {% endif %}
+      {% if identity and identity.can('agents.view') %}
+        <a class="nav-link {{ 'active' if active_path.startswith('/installers') else '' }}" href="/installers" title="Crear instalador" aria-label="Crear instalador"><img src="{{ static_url('icons/hosts.svg') }}" alt=""><span class="gideon-nav-label">Crear instalador</span></a>
+        <a class="nav-link {{ 'active' if active_path.startswith('/updates') else '' }}" href="/updates" title="Actualizaciones" aria-label="Actualizaciones"><img src="{{ static_url('icons/remote.svg') }}" alt=""><span class="gideon-nav-label">Actualizaciones</span></a>
+      {% endif %}
+      {% if identity and identity.can('releases.view') %}<a class="nav-link {{ 'active' if active_path.startswith('/releases') else '' }}" href="/releases" title="Versiones publicadas" aria-label="Versiones publicadas"><img src="{{ static_url('icons/files.svg') }}" alt=""><span class="gideon-nav-label">Versiones publicadas</span></a>{% endif %}
+
+      {% if identity and (identity.role == 'SUPERADMIN' or identity.can('gateway.view') or identity.can('diagnostics.view') or identity.can('users.view') or identity.can('security_assets.manage') or identity.can('sessions.view') or identity.can('audit.view') or identity.can('settings.view') or identity.can('system_updates.manage')) %}<div class="nav-section">Administración</div>{% endif %}
+      {% if identity and identity.role == 'SUPERADMIN' %}<a class="nav-link {{ 'active' if active_path.startswith('/infrastructure/tls') else '' }}" href="/infrastructure/tls" title="Acceso externo y TLS" aria-label="Acceso externo y TLS"><img src="{{ static_url('icons/remote.svg') }}" alt=""><span class="gideon-nav-label">Acceso externo y TLS</span></a>{% endif %}
+      {% if identity and identity.can('gateway.view') %}
+        <a class="nav-link {{ 'active' if active_path=='/gateway' else '' }}" href="/gateway" title="Gateway" aria-label="Gateway"><img src="{{ static_url('icons/infrastructure.svg') }}" alt=""><span class="gideon-nav-label">Gateway</span></a>
+        <a class="nav-link {{ 'active' if active_path.startswith('/infrastructure/pki') else '' }}" href="/infrastructure/pki" title="Certificados y PKI" aria-label="Certificados y PKI"><img src="{{ static_url('icons/remote.svg') }}" alt=""><span class="gideon-nav-label">Certificados y PKI</span></a>
+      {% endif %}
+      {% if identity and identity.can('diagnostics.view') %}<a class="nav-link {{ 'active' if active_path.startswith('/diagnostics') else '' }}" href="/diagnostics" title="Diagnóstico y salud" aria-label="Diagnóstico y salud"><img src="{{ static_url('icons/jobs.svg') }}" alt=""><span class="gideon-nav-label">Diagnóstico y salud</span></a>{% endif %}
+      {% if identity and identity.can('users.view') %}<a class="nav-link {{ 'active' if active_path.startswith('/users') else '' }}" href="/users" title="Usuarios y roles" aria-label="Usuarios y roles"><img src="{{ static_url('icons/settings.svg') }}" alt=""><span class="gideon-nav-label">Usuarios y roles</span></a>{% endif %}
+      {% if identity and identity.can('security_assets.manage') %}<a class="nav-link {{ 'active' if active_path.startswith('/security/assets') else '' }}" href="/security/assets" title="Claves y secretos" aria-label="Claves y secretos"><img src="{{ static_url('icons/remote.svg') }}" alt=""><span class="gideon-nav-label">Claves y secretos</span></a>{% endif %}
+      {% if identity and identity.can('security_assets.manage') %}<!-- GIDEON_DEPENDENCY_CENTER_NAV_RC30_95_22 --><a class="nav-link {{ 'active' if active_path.startswith('/system/dependencies') else '' }}" href="/system/dependencies" title="Entorno y dependencias" aria-label="Entorno y dependencias"><img src="{{ static_url('icons/dependencies.svg') }}" alt=""><span class="gideon-nav-label">Entorno y dependencias</span></a>{% endif %}
+      {% if identity and identity.can('sessions.view') %}<a class="nav-link {{ 'active' if active_path.startswith('/sessions') else '' }}" href="/sessions" title="Sesiones" aria-label="Sesiones"><img src="{{ static_url('icons/remote.svg') }}" alt=""><span class="gideon-nav-label">Sesiones</span></a>{% endif %}
+      {% if identity and identity.can('audit.view') %}<a class="nav-link {{ 'active' if active_path.startswith('/audit') else '' }}" href="/audit" title="Auditoría" aria-label="Auditoría"><img src="{{ static_url('icons/jobs.svg') }}" alt=""><span class="gideon-nav-label">Auditoría</span></a>{% endif %}
+
+      {% if identity and identity.can('settings.view') %}<a class="nav-link {{ 'active' if active_path.startswith('/settings') else '' }}" href="/settings" title="Configuración" aria-label="Configuración"><img src="{{ static_url('icons/settings.svg') }}" alt=""><span class="gideon-nav-label">Configuración</span></a>{% endif %}
+      {% if identity and identity.can('system_updates.manage') %}<a class="nav-link {{ 'active' if active_path.startswith('/system-updates') else '' }}" href="/system-updates" title="Actualización del sistema" aria-label="Actualización del sistema"><img src="{{ static_url('icons/files.svg') }}" alt=""><span class="gideon-nav-label">Actualización del sistema</span></a>{% endif %}
+    </nav>
+
+    <div class="sidebar-foot">Producto {{ product_version }}<br>Agent {{ agent_version }} · Gateway {{ gateway_version }}</div>
+  </aside>
+  <div class="backdrop" data-menu-toggle></div>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="top-context">
+        <button class="btn icon-btn mobile-menu" data-menu-toggle aria-label="Menú">☰</button>
+        <span class="crumb">Gideon Rx · Consola administrativa Web</span>
+        <span class="gateway-pill gateway-pill-neutral" title="Estado de la sesión administrativa; la seguridad de transporte se valida en Acceso externo y TLS"><span class="dot"></span>Sesión WebAdmin</span>
+        {% if step_up and step_up.active %}<span class="gateway-pill" data-stepup-badge><span class="dot"></span>MFA reforzado · <span data-stepup-remaining>{{ (step_up.remaining_seconds // 60) }}m</span></span>{% endif %}
+      </div>
+      <div class="top-actions">
+        <button class="btn icon-btn btn-ghost" data-theme-toggle title="Cambiar tema">◐</button>
+        <a class="user-menu" href="/account/mfa/setup"><span class="avatar">{{ (identity.display_name or identity.username)[:1]|upper }}</span><span class="user-meta"><strong>{{ identity.display_name }}</strong><small>{{ identity.role }}</small></span></a>
+        <form method="post" action="/logout"><input type="hidden" name="csrf" value="{{ identity.csrf_token }}"><button class="btn btn-ghost btn-small" type="submit">Salir</button></form>
+      </div>
+    </header>
+    <div class="content">{% block content %}{% endblock %}</div>
+  </main>
+</div>
+<script>window.GIDEON_STEP_UP={{ step_up|tojson }};</script>
+<script src="{{ static_url('gideon_live.js') }}"></script>
+<script src="{{ static_url('app.js') }}"></script>
+<script src="{{ static_url('step_up.js') }}"></script>
+<script src="{{ static_url('ui_state.js') }}"></script>
+<script src="{{ static_url('workflow_simplify.js') }}"></script>
+<script src="{{ static_url('table_controls.js') }}"></script>
+<script src="{{ static_url('timezone_display.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
+
+

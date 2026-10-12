@@ -1,0 +1,36 @@
+[Unit]
+Description=GIDEON Remote Control Web Admin
+After=network-online.target gideon-agent-gateway.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=gideonweb
+Group=gideonweb
+EnvironmentFile=/etc/gideon-web-admin/web.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=GIDEON_WEB_ADMIN_CONFIG=/etc/gideon-web-admin/web_admin.json
+ExecStart=/opt/gideon-remote-control/venv/bin/python /opt/gideon-remote-control/gideon_web_admin.py --config /etc/gideon-web-admin/web_admin.json
+WorkingDirectory=/opt/gideon-remote-control
+Restart=on-failure
+RestartSec=5
+UMask=0027
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectKernelLogs=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/gideon-web-admin
+
+[Install]
+WantedBy=multi-user.target

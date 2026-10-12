@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% block content %}
+<div class="page-head"><div><a class="link" href="/jobs" data-gideon-back data-back-fallback="/jobs">← Jobs</a><h1 class="mono">{{ job_id }}</h1><p>Análisis, firma y despacho de una transferencia segura.</p></div><div class="page-actions"><a class="btn" href="/transfers">Nueva transferencia</a></div></div>
+<section class="card card-pad" {% if auto_refresh %}data-job-live="{{ job_id }}" data-poll-ms="2000" data-partial-refresh-url="{{ request.url }}" data-partial-target=".content"{% endif %}>
+  <div class="card-head"><div><h2>{{ job.File }}</h2><p class="muted">{{ job.Destination }} · {{ job.SizeBytes }} bytes · {{ job.TargetCount }} destino(s)</p></div><span id="jobStatusChip" class="chip {{ 'success' if job.Status=='COMPLETED' else 'danger' if job.Status=='FAILED' else 'info' }}">{{ job.Status }}</span></div>
+  <div class="grid-even">
+    <div><span class="muted">Fase</span><strong id="transferJobPhase">{{ job.Phase or '-' }}</strong></div>
+    <div><span class="muted">Antimalware</span><strong id="transferJobScan">{{ job.ScanStatus or 'PENDING' }}</strong></div>
+    <div><span class="muted">Motor</span><strong id="transferJobEngine">{{ job.ScanEngine or '-' }}</strong></div>
+    <div><span class="muted">Tiempo de análisis</span><strong id="transferJobDuration">{% if job.ScanDurationMs is not none %}{{ job.ScanDurationMs }} ms{% else %}Pendiente{% endif %}</strong></div>
+    <div><span class="muted">Despachados</span><strong id="transferJobProgress">{{ job.QueuedCount or 0 }}/{{ job.TargetCount or 0 }}</strong></div>
+    <div><span class="muted">Actualizado</span><strong id="transferJobUpdated">{{ job.UpdatedAt or '-' }}</strong></div>
+  </div>
+  <div class="spacer"></div>
+  <div id="transferJobDetail" class="alert {{ 'danger' if job.Status=='FAILED' else 'success' if job.Status=='COMPLETED' else 'info' }}"><strong>{{ 'Transferencia bloqueada' if job.Status=='FAILED' else 'Preparación completada' if job.Status=='COMPLETED' else 'Procesamiento interno' }}</strong>{{ job.Detail }}</div>
+  {% if job.MediaCampaignCandidate and job.MediaCampaignCandidate.Status == 'READY' and identity.can('media.manage') %}
+  <div class="alert success"><strong>Video disponible para Marketing</strong>Este MP4 ya superó los controles para campañas. <a class="btn btn-small" href="/transfers/{{ job.JobId }}/create-campaign">Crear campaña con este video</a></div>
+  {% endif %}
+  {% if job.Error %}<pre id="transferJobError" class="error-box">{{ job.Error }}</pre>{% else %}<pre id="transferJobError" class="error-box" hidden></pre>{% endif %}
+  <dl class="kv"><dt>SHA-256</dt><dd class="mono">{{ job.Sha256 or 'Pendiente' }}</dd><dt>Solicitado por</dt><dd>{{ job.CreatedBy or '-' }}</dd><dt>Creado</dt><dd>{{ job.CreatedAt or '-' }}</dd>{% if job.ScanDetail %}<dt>Detalle del análisis</dt><dd>{{ job.ScanDetail }}</dd>{% endif %}</dl>
+</section>
+{% if results %}<div class="spacer"></div><section class="card card-pad"><h2>Jobs de destino</h2><p class="muted">El análisis terminó y cada Agent continúa su ejecución en el Job indicado.</p><div class="table-wrap"><table><thead><tr><th>Agent</th><th>Sede</th><th>Destino</th><th>Job</th><th>Acción</th></tr></thead><tbody>{% for row in results %}<tr><td class="mono">{{ row.AgentId or '-' }}</td><td>{{ row.SiteCode or '-' }} · {{ row.Hostname or '-' }}</td><td class="mono">{{ row.DestinationPath or job.Destination }}</td><td class="mono">{{ row.JobId or '-' }}</td><td>{% if row.JobId %}<a class="btn btn-small" href="/jobs/{{ row.JobId }}">Ver progreso</a>{% endif %}</td></tr>{% endfor %}</tbody></table></div></section>{% endif %}
+{% if job.Events %}<div class="spacer"></div><details class="card card-pad"><summary><strong>Historial técnico</strong></summary><div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Estado</th><th>Detalle</th></tr></thead><tbody>{% for event in job.Events|reverse %}<tr><td>{{ event.At }}</td><td><span class="chip info">{{ event.Status }}</span></td><td>{{ event.Detail }}</td></tr>{% endfor %}</tbody></table></div></details>{% endif %}
+{% endblock %}{% block scripts %}{% if auto_refresh %}<script src="{{ static_url('job_live.js') }}"></script>{% endif %}{% endblock %}
+

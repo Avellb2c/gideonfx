@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block extra_styles %}<link rel="stylesheet" href="{{ static_url('media_campaigns.css') }}">{% endblock %}
+{% block content %}
+{% set distribution_rows = campaign.distribution|default([], true) %}
+{% set current_distribution = distribution_rows | selectattr('revision_no', 'equalto', campaign.current_revision_no) | list if distribution_rows else [] %}
+{% set distribution_labels = {'PENDING':'Pendiente', 'SYNCING':'Sincronizando', 'READY':'Listo', 'OFFLINE':'Sin conexión', 'ERROR':'Requiere atención'} %}
+{% set asset_labels = {'QUARANTINED':'En revisión', 'ANALYZING':'Analizando', 'READY':'Listo para usar', 'REJECTED':'No compatible', 'ERROR':'Requiere atención', 'ARCHIVED':'Archivado'} %}
+{% set campaign_version_token = campaign.version_token|default('', true) %}
+{% set campaign_updated_at = campaign.updated_at|default('', true) %}
+
+<div class="page-head">
+  <div><h1>{{ campaign.title }}</h1><p>{{ campaign.objective or 'Sin objetivo descrito' }}</p></div>
+  <div class="page-actions">
+    {% if identity.can('media.manage') %}<a class="btn btn-primary" href="/media/campaigns/{{ campaign.campaign_id }}/revise">Nueva revisión</a>{% endif %}
+    <a class="btn" href="/media/campaigns">Volver a campañas</a>
+  </div>
+</div>
+{% include "media_tabs.html" %}
+{% if message %}<div class="alert success"><strong>Listo</strong>{{ message }}</div>{% endif %}
+
+<section class="media-detail-summary">
+  <div><small>Estado</small><strong><span class="chip media-state-{{ campaign.state|lower }}">{{ campaign.state|replace('_', ' ')|title }}</span></strong></div>
+  <div><small>Revisión actual</small><strong>v{{ campaign.current_revision_no }}</strong></div>
+  <div><small>Pantallas</small><strong>{{ campaign.assignments|length }}</strong></div>
+  <div><small>Distribución</small><strong>{{ current_distribution|length }} destino(s)</strong></div>
+</section>
+
+<section class="card">
+  <div class="card-head card-pad"><div><h2>Qué verá cada pantalla</h2><p>El contenido puede ser distinto por pantalla. Los detalles de infraestructura permanecen protegidos.</p></div></div>
+  <div class="table-wrap media-table-wrap">
+    <table>
+      <thead><tr><th>Pantalla</th><th>Video</th><th>Horario</th><th>Prioridad</th></tr></thead>
+      <tbody>
+      {% for assignment in campaign.assignments %}
+        {% set asset = assignment.asset|default({}, true) %}
+        {% set asset_state = asset.status|default('QUARANTINED', true)|upper %}
+        <tr>
+          <td><strong>{{ assignment.screen_name }}</strong>{% if assignment.emergency %}<small class="media-emergency-badge">Emergencia</small>{% endif %}</td>
+          <td>
+            {% if asset %}
+              <strong>{{ asset.display_name|default(assignment.content_title|default('Video de campaña', true), true) }}</strong>
+              <small class="muted block">{{ asset_labels.get(asset_state, asset_state|replace('_',' ')|title) }}{% if asset.resolution %} · {{ asset.resolution }}{% endif %}{% if asset.duration_seconds %} · {{ asset.duration_seconds }} s{% endif %}</small>
+            {% else %}
+              <strong>{{ assignment.content_title or 'Video pendiente de elegir' }}</strong>
+              <small class="muted block">Seleccione un video aprobado antes de publicar.</small>
+            {% endif %}
+          </td>
+          <td>{{ assignment.schedule.start_date }} a {{ assignment.schedule.end_date }}<small class="muted block">{{ assignment.schedule.start_time }}–{{ assignment.schedule.end_time }} · {{ assignment.schedule.weekdays|length }} día(s)</small>{% if assignment.schedule.blackout_dates %}<small class="muted block">Bloqueadas: {{ assignment.schedule.blackout_dates|join(', ') }}</small>{% endif %}</td>
+          <td>{{ assignment.priority or 'Sin prioridad' }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="4" class="empty"><strong>Esta campaña aún no tiene pantallas</strong>Use una nueva revisión para seleccionar pantallas y videos.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card media-distribution-card" data-media-distribution data-url="/api/v1/media/campaigns/{{ campaign.campaign_id }}/distribution" aria-labelledby="distributionTitle">
+  <div class="card-head card-pad">
+    <div><h2 id="distributionTitle">Estado de distribución</h2><p>Gideon Rx prepara y entrega el contenido en segundo plano. Esta vista se actualiza mientras permanece abierta.</p></div>
+    <span class="media-live-indicator" data-distribution-live>Actualización automática</span>
+  </div>
+  <div class="table-wrap media-table-wrap">
+    <table>
+      <thead><tr><th>Pantalla</th><th>Video</th><th>Estado</th><th>Última actualización</th><th>Actividad</th></tr></thead>
+      <tbody data-distribution-rows>
+      {% for delivery in current_distribution %}
+        {% set delivery_state = delivery.state|default('PENDING', true)|upper %}
+        {% set view_job_id = delivery.preparation_job_id|default(delivery.gateway_job_id|default('', true), true) %}
+        <tr data-distribution-row data-distribution-screen="{{ delivery.screen_name }}" data-distribution-video="{{ delivery.display_name }}">
+          <td><strong>{{ delivery.screen_name }}</strong><small class="muted block">{{ delivery.site_code }}</small></td>
+          <td><strong>{{ delivery.display_name }}</strong>{% if delivery.resolution %}<small class="muted block">{{ delivery.resolution }}</small>{% endif %}</td>
+          <td><span class="chip media-distribution-state media-distribution-{{ delivery_state|lower }}" data-distribution-state>{{ distribution_labels.get(delivery_state, delivery_state|replace('_',' ')|title) }}</span><small class="muted block" data-distribution-message>{{ delivery.last_error or '' }}</small></td>
+          <td data-distribution-updated>{{ delivery.updated_at or 'Pendiente' }}</td>
+          <td data-distribution-job>{% if view_job_id and identity.can('jobs.view') %}<a class="btn btn-small" href="/jobs/{{ view_job_id }}">Ver Job</a>{% elif view_job_id %}<span class="muted">Seguimiento en campaña</span>{% else %}<span class="muted">Se preparará al publicar</span>{% endif %}</td>
+        </tr>
+      {% else %}
+        <tr data-distribution-empty><td colspan="5" class="empty"><strong>Aún no hay entregas en curso</strong>Al programar o activar una campaña con videos listos, Gideon Rx crea los Jobs seguros en segundo plano.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+{% if identity.can('media.manage') %}
+<section class="card card-pad">
+  <div class="card-head"><div><h2>Acciones</h2><p>Las acciones crean una nueva revisión y se registran en auditoría.</p></div></div>
+  <div class="media-action-row">
+    {% if campaign.state not in ['ACTIVE','ARCHIVED'] and identity.can('campaigns.approve') %}<form method="post" action="/media/campaigns/{{ campaign.campaign_id }}/activate"><input type="hidden" name="csrf" value="{{ identity.csrf_token }}"><input type="hidden" name="version_token" value="{{ campaign_version_token }}"><input type="hidden" name="expected_updated_at" value="{{ campaign_updated_at }}"><button class="btn btn-primary" type="submit">Activar</button></form>{% endif %}
+    {% if campaign.state=='ACTIVE' %}<form method="post" action="/media/campaigns/{{ campaign.campaign_id }}/pause"><input type="hidden" name="csrf" value="{{ identity.csrf_token }}"><input type="hidden" name="version_token" value="{{ campaign_version_token }}"><input type="hidden" name="expected_updated_at" value="{{ campaign_updated_at }}"><button class="btn" type="submit">Pausar</button></form>{% endif %}
+    {% if campaign.state=='ARCHIVED' and identity.can('campaigns.approve') %}<form method="post" action="/media/campaigns/{{ campaign.campaign_id }}/reactivate"><input type="hidden" name="csrf" value="{{ identity.csrf_token }}"><input type="hidden" name="version_token" value="{{ campaign_version_token }}"><input type="hidden" name="expected_updated_at" value="{{ campaign_updated_at }}"><button class="btn btn-primary" type="submit">Reactivar</button></form>{% endif %}
+    <form method="post" action="/media/campaigns/{{ campaign.campaign_id }}/duplicate"><input type="hidden" name="csrf" value="{{ identity.csrf_token }}"><input type="hidden" name="version_token" value="{{ campaign_version_token }}"><input type="hidden" name="expected_updated_at" value="{{ campaign_updated_at }}"><button class="btn" type="submit">Duplicar</button></form>
+    {% if campaign.state!='ARCHIVED' %}<form method="post" action="/media/campaigns/{{ campaign.campaign_id }}/archive"><input type="hidden" name="csrf" value="{{ identity.csrf_token }}"><input type="hidden" name="version_token" value="{{ campaign_version_token }}"><input type="hidden" name="expected_updated_at" value="{{ campaign_updated_at }}"><button class="btn btn-danger" type="submit">Archivar</button></form>{% endif %}
+  </div>
+</section>
+{% endif %}
+
+<section class="card">
+  <div class="card-head card-pad"><div><h2>Versiones</h2><p>Historial inmutable de esta campaña.</p></div></div>
+  <div class="table-wrap media-table-wrap"><table><thead><tr><th>Versión</th><th>Estado</th><th>Nota</th><th>Creada</th><th>Por</th></tr></thead><tbody>{% for revision in campaign.revisions %}<tr><td>v{{ revision.revision_no }}</td><td><span class="chip media-state-{{ revision.state|lower }}">{{ revision.state|replace('_', ' ')|title }}</span></td><td>{{ revision.change_note or '—' }}</td><td>{{ revision.created_at }}</td><td>{{ revision.created_by }}</td></tr>{% else %}<tr><td colspan="5" class="empty">No hay revisiones para mostrar.</td></tr>{% endfor %}</tbody></table></div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ static_url('media_campaigns.js') }}"></script>{% endblock %}
+

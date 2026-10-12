@@ -1,0 +1,47 @@
+#!/bin/sh
+set -e
+
+APP=/usr/lib/gideon-agent
+DATA=/var/lib/gideon-agent
+CFG=/etc/gideon-agent
+
+if ! id gideonagent >/dev/null 2>&1; then
+    useradd --system --home "$DATA" --shell /usr/sbin/nologin gideonagent
+fi
+
+install -d -o root -g root -m 0750 "$DATA" "$CFG"
+[ -d "$APP" ] && [ ! -L "$APP" ] || { echo 'GIDEON_PACKAGE_SECURITY_ERROR: app root inválido.' >&2; exit 1; }
+[ ! -e "$APP/venv" ] || [ ! -L "$APP/venv" ] || { echo 'GIDEON_PACKAGE_SECURITY_ERROR: venv symlink rechazado.' >&2; exit 1; }
+[ -d "$APP/vendor" ] || { echo 'GIDEON_DEPENDENCY_ERROR: faltan dependencias offline.' >&2; exit 1; }
+chown -R root:root "$APP" "$DATA" "$CFG"
+find "$APP" -xdev -type d -exec chmod 0755 {} +
+find "$APP" -xdev -type f -exec chmod 0644 {} +
+for executable in "$APP/gideon-agent-setup" "$APP/gideon-agent-first-run-launch" "$APP/gideon-agent-first-run-native" "$APP/gideon-agent-player-launch"; do [ ! -e "$executable" ] || chmod 0755 "$executable"; done
+
+# El venv se arma 100% offline: todas las ruedas (.whl) necesarias ya
+# viajan dentro del paquete en $APP/vendor, no se descarga nada de internet.
+python3 -m venv --clear "$APP/venv"
+"$APP/venv/bin/pip" install --no-index --find-links="$APP/vendor" -r "$APP/requirements-agent.txt"
+chown -R root:root "$APP"
+find "$APP/venv/bin" -xdev -type f -exec chmod 0755 {} +
+"$APP/venv/bin/python" -c "import sys;sys.path.insert(0,'$APP');import gideon_agent,gideon_agent_http,gideon_agent_security,gideon_agent_worker,gideon_common;print(gideon_agent.VERSION)"
+
+systemctl daemon-reload || true
+systemctl enable --now gideon-agent-player-launch.timer || true
+
+if [ -f "$CFG/agent.json" ]; then
+    # Actualización de un agente ya identificado: reiniciar con el binario nuevo.
+    systemctl enable --now gideon-agent.service || true
+else
+    cat <<'MSG'
+
+GIDEON Agent instalado. Falta un único paso local (no requiere red):
+
+    sudo gideon-agent-configure --site-code <CODIGO> --site-name "<NOMBRE>" \
+        --gateway https://agent.midominio.com --enrollment-secret <SECRETO>
+    sudo systemctl enable --now gideon-agent
+
+MSG
+fi
+
+exit 0

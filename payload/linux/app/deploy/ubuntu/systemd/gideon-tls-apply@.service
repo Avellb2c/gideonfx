@@ -1,0 +1,12 @@
+[Unit]
+Description=GIDEON apply prepared TLS configuration
+After=network-online.target
+
+[Service]
+Type=exec
+User=root
+Group=root
+ExecStart=/opt/gideon/web/venv/bin/python -I -B /opt/gideon/web/app/deploy/ubuntu/gideon_tls_manager_entry.py --apply-job %i
+RuntimeMaxSec=900
+MemoryMax=384M
+TasksMax=64

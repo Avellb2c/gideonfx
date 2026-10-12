@@ -1,0 +1,37 @@
+[Unit]
+Description=Actualización aislada de firmas ClamAV GIDEON
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/gideon/updater/prepare_gideon_clamav_db.sh --refresh
+# Restart releases the old signature set before loading the new one. clamd's
+# live RELOAD keeps both copies temporarily and can stall large INSTREAM scans.
+ExecStartPost=/usr/bin/systemctl try-restart gideon-clamd.service
+User=root
+Group=root
+UMask=0027
+# The root-owned wrapper must drop to gideonweb before the networked freshclam
+# process starts. no_new_privs blocks runuser/setuid under this sandbox.
+NoNewPrivileges=false
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadOnlyPaths=/var/lib/clamav /usr/share/clamav
+ReadWritePaths=/etc/gideon/security /var/lib/gideon/security/clamav /var/log/gideon/updater /run
+# freshclam validates the complete signature database before replacing it.
+# Current databases need roughly 1 GiB during that short verification window.
+MemoryHigh=1024M
+MemoryMax=1536M
+CPUQuota=50%
+Nice=10
+IOSchedulingClass=idle
+TasksMax=64

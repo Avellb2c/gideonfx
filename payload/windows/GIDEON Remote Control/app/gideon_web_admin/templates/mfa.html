@@ -1,0 +1,3 @@
+{% extends "auth_base.html" %}{% block auth %}<div class="auth-brand"><img src="{{ static_url('gideon-rx-logo.svg') }}"><div><strong>Gideon Rx Web Admin</strong><small>Verificación en dos pasos</small></div></div><h1>Código de seguridad</h1><p>Ingrese el código de 6 dígitos de Microsoft Authenticator, Google Authenticator, 2FAS u otra app TOTP.</p>{% if error %}<div class="auth-error">{{ error }}</div>{% endif %}<form method="post" action="/mfa"><input type="hidden" name="csrf" value="{{ identity.csrf_token }}"><div class="field"><label>Código TOTP</label><input class="input mono" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" required autofocus></div><button class="btn btn-primary">Verificar</button></form>{% endblock %}
+
+

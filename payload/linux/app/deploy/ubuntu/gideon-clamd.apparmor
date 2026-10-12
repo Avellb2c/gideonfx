@@ -1,0 +1,6 @@
+# Narrow additions for the GIDEON private clamd instance.
+/etc/gideon/security/clamd.conf r,
+/var/lib/gideon/security/clamav/ r,
+/var/lib/gideon/security/clamav/** kr,
+/run/gideon-clamd/ rw,
+/run/gideon-clamd/** rw,

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block extra_styles %}<link rel="stylesheet" href="{{ static_url('media_campaigns.css') }}">{% endblock %}
+{% block content %}
+{% set campaign_catalog = campaign_page|default({}, true) %}
+{% set campaign_rows = campaign_catalog.get('items', campaigns|default([], true)) %}
+{% set campaign_pagination = campaign_catalog.get('pagination', {}) %}
+{% set campaign_query = campaign_catalog.get('query', filters.query|default('', true)) %}
+<div class="page-head">
+  <div>
+    <h1>Campañas</h1>
+    <p>Planifique lo que se mostrará en cada pantalla, sin tocar equipos ni contenido publicado.</p>
+  </div>
+  {% if identity.can('media.manage') %}<div class="page-actions"><a class="btn btn-primary" href="/media/campaigns/new">Nueva campaña</a></div>{% endif %}
+</div>
+
+{% include "media_tabs.html" %}
+{% if message %}<div class="alert success"><strong>Listo</strong>{{ message }}</div>{% endif %}
+{% if error %}<div class="alert danger"><strong>No se pudo completar la acción</strong>{{ error }}</div>{% endif %}
+{% if gateway_error %}<div class="alert warning"><strong>Inventario parcial</strong>La información guardada sigue disponible. {{ gateway_error }}</div>{% endif %}
+
+<section class="card card-pad media-filter-card">
+  <form method="get" action="/media/campaigns" class="media-filter-grid media-campaign-filter-grid">
+    <div class="field"><label for="mediaSite">Sede</label><select class="input" id="mediaSite" name="site"><option value="">Todas las sedes</option>{% for site in sites %}<option value="{{ site.site_code }}" {{ 'selected' if filters.site==site.site_code else '' }}>{{ site.site_code }} · {{ site.site_name }}</option>{% endfor %}</select></div>
+    <div class="field"><label for="mediaGroup">Grupo</label><select class="input" id="mediaGroup" name="group"><option value="">Todos los grupos</option>{% for group in groups %}<option value="{{ group.id }}" {{ 'selected' if filters.group==group.id|string else '' }}>{{ group.name }}</option>{% endfor %}</select></div>
+    <div class="field"><label for="mediaOS">Sistema operativo</label><select class="input" id="mediaOS" name="os"><option value="">Todos los sistemas</option><option value="windows" {{ 'selected' if filters.os=='windows' else '' }}>Windows</option><option value="linux" {{ 'selected' if filters.os=='linux' else '' }}>Linux</option><option value="darwin" {{ 'selected' if filters.os=='darwin' else '' }}>macOS</option></select></div>
+    <div class="field"><label for="mediaState">Estado</label><select class="input" id="mediaState" name="state"><option value="">Cualquier estado</option>{% for state in campaign_states %}<option value="{{ state }}" {{ 'selected' if filters.state==state else '' }}>{{ state|replace('_', ' ')|title }}</option>{% endfor %}</select></div>
+    <div class="field media-campaign-search"><label for="campaignSearch">Buscar campaña</label><input class="input" id="campaignSearch" name="q" type="search" value="{{ campaign_query }}" placeholder="Nombre, mensaje, sede o pantalla" autocomplete="off"></div>
+    <div class="field media-filter-action"><label>&nbsp;</label><button class="btn" type="submit">Aplicar filtros</button></div>
+  </form>
+</section>
+
+<section class="card">
+  <div class="card-head card-pad"><div><h2>Campañas registradas</h2><p>{{ campaign_pagination.total|default(campaign_rows|length, true) }} campaña(s) según los filtros actuales.</p></div><span class="muted media-page-size">Mostrando hasta {{ campaign_pagination.page_size|default(campaign_rows|length, true) }} por página</span></div>
+  <div class="table-wrap media-table-wrap">
+    <table>
+      <thead><tr><th>Campaña</th><th>Estado</th><th>Pantallas</th><th>Sedes</th><th>Revisión</th><th>Actualizada</th><th></th></tr></thead>
+      <tbody>
+      {% for campaign in campaign_rows %}
+        <tr>
+          <td><strong>{{ campaign.title }}</strong><small class="muted block">{{ campaign.objective or 'Sin objetivo descrito' }}</small></td>
+          <td><span class="chip media-state-{{ campaign.state|lower }}">{{ campaign.state|replace('_', ' ')|title }}</span></td>
+          <td>{{ campaign.screen_count }}</td><td>{{ campaign.site_codes or '—' }}</td><td>v{{ campaign.current_revision_no }}</td><td>{{ campaign.updated_at }}</td>
+          <td><a class="btn btn-small" href="/media/campaigns/{{ campaign.campaign_id }}">Ver</a></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7" class="empty"><strong>Aún no hay campañas para mostrar</strong>Empiece con una campaña y asigne un mensaje a una o más pantallas.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if campaign_pagination.pages|default(0, true) > 1 %}
+  <form method="get" action="/media/campaigns" class="media-pagination" aria-label="Páginas de campañas">
+    {% if filters.site %}<input type="hidden" name="site" value="{{ filters.site }}">{% endif %}
+    {% if filters.group %}<input type="hidden" name="group" value="{{ filters.group }}">{% endif %}
+    {% if filters.os %}<input type="hidden" name="os" value="{{ filters.os }}">{% endif %}
+    {% if filters.state %}<input type="hidden" name="state" value="{{ filters.state }}">{% endif %}
+    {% if campaign_query %}<input type="hidden" name="q" value="{{ campaign_query }}">{% endif %}
+    <span class="muted">Página {{ campaign_pagination.page }} de {{ campaign_pagination.pages }}</span>
+    <button class="btn btn-small" type="submit" name="page" value="{{ campaign_pagination.page - 1 }}" {{ 'disabled' if not campaign_pagination.has_previous else '' }}>Anterior</button>
+    <button class="btn btn-small" type="submit" name="page" value="{{ campaign_pagination.page + 1 }}" {{ 'disabled' if not campaign_pagination.has_next else '' }}>Siguiente</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}
+

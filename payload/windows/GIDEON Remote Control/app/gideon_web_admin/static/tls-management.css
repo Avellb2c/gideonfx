@@ -1,0 +1,4 @@
+#tls-root fieldset { border: 0; padding: 0; margin: 0; min-inline-size: 0; }
+#tls-root .mono, #tls-jobs a { overflow-wrap: anywhere; }
+#tls-root .alert p:last-child { margin-bottom: 0; }
+#tls-root .field input[type="file"] { max-width: 100%; }

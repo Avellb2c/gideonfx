@@ -1,0 +1,36 @@
+{% extends "base.html" %}{% block content %}
+<div class="page-head"><div><h1>Diagnóstico</h1><p>Comprobaciones seguras del servidor y estado técnico de los Agents. No ejecuta comandos arbitrarios ni expone un shell.</p></div><div class="page-actions"><a class="btn btn-primary" href="/diagnostics">↻ Ejecutar comprobaciones</a></div></div>
+<section class="card card-pad">
+  <div class="flex-between wrap"><div><h2 class="section-title">Control plane GIDEON</h2><p class="muted">Estado agregado por Coordinator/Diagnostics. Un snapshot RUNNING que deja de actualizarse se muestra como DEGRADED.</p></div><span class="chip {{ 'success' if control_plane.state=='RUNNING' else 'warning' if control_plane.state in ['STARTING','DEGRADED'] else 'danger' }}">{{ control_plane.state }}</span></div>
+  <div class="diagnostic-summary-grid">
+    <div class="diagnostic-summary"><span>Estado</span><strong>{{ control_plane.state }}</strong><small>{{ control_plane.detail }}</small></div>
+    <div class="diagnostic-summary"><span>Snapshot</span><strong>{{ 'VIGENTE' if control_plane.fresh else 'OBSOLETO' }}</strong><small>{% if control_plane.age_seconds is not none %}Edad {{ control_plane.age_seconds|round|int }} s{% else %}Sin timestamp válido{% endif %}</small></div>
+    <div class="diagnostic-summary"><span>Fuente</span><strong class="mono">{{ control_plane.source }}</strong><small>{{ control_plane.generated_at_utc or '-' }}</small></div>
+    <div class="diagnostic-summary"><span>Componentes</span><strong>{{ control_plane.services|length }}</strong><small>Servicios Gideon Rx observados</small></div>
+  </div>
+  {% if control_plane.services %}<div class="table-wrap table-flat" style="margin-top:12px"><table><thead><tr><th>Componente</th><th>Estado</th><th>Fuente</th><th>Detalle</th></tr></thead><tbody>{% for c in control_plane.services %}<tr><td><strong>{{ c.component }}</strong></td><td><span class="chip {{ 'success' if c.state=='RUNNING' else 'warning' if c.state in ['STARTING','DEGRADED'] else 'danger' }}">{{ c.state }}</span></td><td>{{ c.source or '-' }}</td><td class="mono">{{ c.detail or '-' }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+</section>
+<div class="spacer"></div>
+<section class="card">
+  <div class="card-head"><div><h2>Servidor / WebAdmin / Gateway</h2><p>Validaciones locales de infraestructura y seguridad.</p></div></div>
+  <div class="table-wrap table-flat"><table><thead><tr><th>Comprobación</th><th>Estado</th><th>Detalle</th></tr></thead><tbody>{% for c in checks %}<tr><td><strong>{{ c.Name }}</strong></td><td><span class="chip {{ 'success' if c.Ok else ('warning' if c.Level=='WARNING' else 'danger') }}">{{ c.Level }}</span></td><td class="mono">{{ c.Detail }}</td></tr>{% endfor %}</tbody></table></div>
+</section>
+<div class="spacer"></div>
+<section class="card diagnostic-agent-table">
+  <div class="card-head"><div><h2>Agents</h2><p>El estado ONLINE/OFFLINE se calcula por heartbeat; los estados técnicos provienen del último diagnóstico autenticado.</p></div><span class="chip info">{{ agents|length }} registrados</span></div>
+  <div class="table-wrap table-flat"><table><thead><tr><th>Estado</th><th>Sede</th><th>Equipo</th><th>Gateway</th><th>IP observada</th><th>Último heartbeat</th><th>Acción</th></tr></thead><tbody>
+  {% for a in agents %}
+    <tr>
+      <td><span class="chip {{ a._state.css }}">{{ a._state.code }}</span><span class="state-description">{{ a._state.description }}</span></td>
+      <td>{{ a.site_code }} · {{ a.site_name or '-' }}</td>
+      <td>{{ a.agent_name or a.hostname or '-' }}<div class="mono muted">{{ a.agent_id }}</div></td>
+      <td class="mono">{{ a.Diagnostics.gateway.current_endpoint if a.Diagnostics and a.Diagnostics.gateway else '-' }}</td>
+      <td class="mono">{{ a.last_remote_ip or '-' }}</td>
+      <td>{{ a.last_seen or '-' }}{% if a._state.heartbeat_age_seconds is not none %}<div class="muted">{{ a._state.heartbeat_age_seconds|round|int }} s</div>{% endif %}</td>
+      <td><a class="btn btn-small" href="/agents/{{ a.agent_id }}">Ver diagnóstico</a></td>
+    </tr>
+  {% else %}<tr><td colspan="7" class="empty">No hay Agents enrolados o el Gateway no está disponible.</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+{% endblock %}
+

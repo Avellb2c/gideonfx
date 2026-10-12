@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="es" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{ remote_session.source_label }} · Gideon Rx</title>
+  <link rel="icon" href="{{ static_url('gideon-rx-logo.svg') }}">
+  <link rel="stylesheet" href="{{ static_url('app.css') }}">
+  <link rel="stylesheet" href="{{ static_url('remote_viewer.css') }}">
+</head>
+<body class="remote-window-body">
+  <div class="remote-window-toolbar">
+    <div class="remote-window-title">
+      <strong>{{ remote_session.source_label }}</strong>
+      <span class="mono">{{ remote_session.target_host }}:{{ remote_session.target_port }} · {{ remote_session.rdp_session_mode or 'STANDARD' }}</span>
+      <span class="chip warning" id="remoteStatus">CONECTANDO</span>
+      <span class="muted" id="remoteStatusDetail">Abriendo túnel WSS seguro…</span>
+    </div>
+    <div class="remote-window-actions">
+      <span class="chip info">F11 FULLSCREEN</span>
+      <button class="btn btn-small" id="remoteCopy" type="button">Copiar</button>
+      <button class="btn btn-small" id="remotePaste" type="button">Pegar</button>
+      <button class="btn btn-small" id="remoteSendFile" type="button">Enviar archivo</button>
+      <button class="btn btn-small" id="remoteFullscreen" type="button" title="Pantalla completa (F11)">⛶ Pantalla completa</button>
+      <button class="btn btn-small danger" id="remoteDisconnect" type="button">Desconectar</button>
+      <button class="btn btn-small" id="remoteDiagCopy" type="button" title="Copiar errores y diagnóstico técnico de esta sesión">Copiar errores</button>
+      <button class="btn btn-small" id="remoteWindowClose" type="button">Cerrar ventana</button>
+    </div>
+  </div>
+  <span class="muted" id="remoteTransferStatus" aria-live="polite"></span>
+  <input type="file" id="remoteFileInput" hidden>
+  <section class="remote-viewer-shell remote-window-viewport" id="remoteViewport" data-session-id="{{ remote_session.session_id }}" data-source="{{ remote_session.source_label|e }}" data-target-host="{{ remote_session.target_host|e }}" data-target-port="{{ remote_session.target_port }}" data-protocol="{{ remote_session.protocol|e }}" data-session-mode="{{ remote_session.rdp_session_mode or 'STANDARD' }}" data-clipboard-enabled="{{ '1' if remote_session.clipboard_enabled else '0' }}" data-file-transfer-enabled="{{ '1' if remote_session.file_transfer_enabled else '0' }}" data-connectable="1" data-csrf="{{ identity.csrf_token|e }}">
+    <div id="remoteDisplay" class="remote-display" tabindex="0" aria-label="Escritorio remoto"></div>
+  </section>
+  <script src="/remote-client/guacamole-common.min.js"></script>
+  <script src="{{ static_url('remote_viewer.js') }}"></script>
+</body>
+</html>
+
+

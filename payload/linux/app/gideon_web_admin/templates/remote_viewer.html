@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block extra_styles %}<link rel="stylesheet" href="{{ static_url('remote_viewer.css') }}">{% endblock %}
+{% block content %}
+<div class="page-head remote-viewer-head">
+  <div>
+    <a class="link" href="/remote" data-gideon-back data-back-fallback="/remote">← Control remoto</a>
+    <h1>{{ remote_session.source_label }}</h1>
+    <p>{{ remote_session.protocol }} · {{ remote_session.rdp_session_mode or 'STANDARD' }} · <span class="mono">{{ remote_session.target_host }}:{{ remote_session.target_port }}</span> · Sesión <span class="mono">{{ remote_session.session_id }}</span></p>
+  </div>
+  <div class="page-actions remote-toolbar" aria-label="Acciones de sesión remota">
+    <details class="remote-toolbar-menu" data-gideon-transient-menu>
+      <summary class="btn remote-toolbar-trigger" id="remoteTransferMenuToggle" aria-controls="remoteTransferMenu" aria-expanded="false">Transferir</summary>
+      <div class="remote-toolbar-popover" id="remoteTransferMenu" aria-labelledby="remoteTransferMenuToggle">
+        <button class="btn" id="remoteCopy" type="button" title="Copiar el último texto del equipo remoto al portapapeles local">Copiar texto</button>
+        <button class="btn" id="remotePaste" type="button" title="Pegar el texto del portapapeles local en el equipo remoto">Pegar texto</button>
+        <button class="btn" id="remoteSendFile" type="button" title="Enviar un archivo a la unidad Gideon Rx Transfer del equipo remoto">Enviar archivo</button>
+      </div>
+    </details>
+    <details class="remote-toolbar-menu" data-gideon-transient-menu>
+      <summary class="btn remote-toolbar-trigger" id="remoteViewMenuToggle" aria-controls="remoteViewMenu" aria-expanded="false">Vista</summary>
+      <div class="remote-toolbar-popover" id="remoteViewMenu" aria-labelledby="remoteViewMenuToggle">
+        <button class="btn" id="remotePopout" type="button">Ventana aparte</button>
+        <button class="btn" id="remoteFullscreen" type="button" title="F11 alterna pantalla completa">Pantalla completa (F11)</button>
+        <button class="btn" id="remoteRefitDisplay" type="button" title="Recalcular el ajuste visual sin cambiar la resolución ni reiniciar la conexión remota">Ajustar imagen</button>
+      </div>
+    </details>
+    <button class="btn" id="remoteDiagnosticsToggle" type="button" aria-controls="remoteDiagnosticCard" aria-expanded="false">Diagnóstico</button>
+    <button class="btn danger" id="remoteDisconnect" type="button">Desconectar</button>
+  </div>
+</div>
+<div class="remote-viewer-status">
+  <span class="chip warning" id="remoteStatus">CONECTANDO</span>
+  <span class="muted" id="remoteStatusDetail">Abriendo túnel WSS seguro…</span>
+  <span class="muted remote-transfer-status" id="remoteTransferStatus" aria-live="polite"></span>
+</div>
+<input type="file" id="remoteFileInput" hidden>
+<section class="remote-viewer-shell" id="remoteViewport"
+  data-session-id="{{ remote_session.session_id }}"
+  data-source="{{ remote_session.source_label|e }}"
+  data-target-host="{{ remote_session.target_host|e }}"
+  data-target-port="{{ remote_session.target_port }}"
+  data-protocol="{{ remote_session.protocol|e }}"
+  data-session-mode="{{ remote_session.rdp_session_mode or 'STANDARD' }}"
+  data-clipboard-enabled="{{ '1' if remote_session.clipboard_enabled else '0' }}"
+  data-file-transfer-enabled="{{ '1' if remote_session.file_transfer_enabled else '0' }}"
+  data-connectable="{{ '1' if remote_connectable else '0' }}"
+  data-csrf="{{ identity.csrf_token|e }}">
+  <div id="remoteDisplay" class="remote-display" tabindex="0" aria-label="Escritorio remoto"></div>
+</section>
+<section class="alert danger remote-retry-panel" id="remoteCredentialRetryPanel" hidden>
+  <div class="remote-retry-copy">
+    <strong id="remoteRetryTitle">Credenciales incorrectas</strong>
+    <span id="remoteRetryText">RDP rechazó el usuario o la contraseña.</span>
+  </div>
+  <button class="btn btn-primary" id="remoteRetryOpen" type="button">Volver a ingresar credenciales</button>
+</section>
+<section class="card card-pad remote-diagnostic-card" id="remoteDiagnosticCard" hidden>
+  <div class="flex-between wrap">
+    <div>
+      <h2 class="section-title">Diagnóstico de la sesión</h2>
+      <p class="muted" id="remoteDiagnosticSummary">Esperando diagnóstico del servidor…</p>
+    </div>
+    <div class="page-actions">
+      <button class="btn btn-small" id="remoteRefreshDiagnostics" type="button">Actualizar diagnóstico</button>
+      <button class="btn btn-small" id="remoteCopyDiagnostics" type="button">Copiar reporte</button>
+      <button class="btn btn-small" id="remoteCloseDiagnostics" type="button">Cerrar</button>
+    </div>
+  </div>
+  <div class="remote-diagnostic-grid">
+    <div><span class="muted">Servidor</span><strong id="remoteDiagServerStatus">—</strong></div>
+    <div><span class="muted">Clasificación</span><strong id="remoteDiagClassification">—</strong></div>
+    <div><span class="muted">guacd</span><strong id="remoteDiagGuacd">—</strong></div>
+    <div><span class="muted">Imagen</span><strong id="remoteDiagGraphics">—</strong></div>
+  </div>
+  <div class="alert warning" id="remoteDiagnosticRecommendation" hidden></div>
+  <pre class="codebox remote-diagnostic-code" id="remoteDiagnosticDetail" hidden></pre>
+</section>
+<div class="alert info remote-viewer-note">La sesión usa WSS hasta WebAdmin y credenciales server-side. Ctrl+C/Ctrl+V funcionan dentro del escritorio. Los botones Copiar/Pegar sincronizan texto con el equipo local y Enviar archivo lo coloca en la unidad temporal <strong>Gideon Rx Transfer</strong>. Impresión permanece deshabilitada.</div>
+
+<dialog id="remoteRetryCredentialDialog" class="gideon-modal" aria-labelledby="remoteRetryDialogTitle">
+  <form class="gideon-modal-card" id="remoteRetryForm" method="dialog">
+    <div class="gideon-modal-head">
+      <div>
+        <h3 id="remoteRetryDialogTitle">Corregir credenciales RDP</h3>
+        <p id="remoteRetryDialogSubtitle">Ingrese nuevamente las credenciales para este mismo equipo.</p>
+      </div>
+      <button type="button" class="btn btn-small" id="remoteRetryClose" aria-label="Cerrar">Cerrar</button>
+    </div>
+    <div class="remote-credential-stack">
+      <label class="remote-field"><span>Usuario remoto</span><input class="input" type="text" id="remoteRetryUsername" autocomplete="username" maxlength="256" required></label>
+      <label class="remote-field"><span>Contraseña</span><span class="remote-password-input"><input class="input" type="password" id="remoteRetryPassword" autocomplete="new-password" maxlength="1024" data-lpignore="true" required><button type="button" class="remote-password-toggle" id="remoteRetryPasswordToggle" aria-pressed="false" aria-label="Mostrar contraseña">Mostrar</button></span></label>
+      <label class="remote-field"><span>Dominio <span class="muted">(opcional)</span></span><input class="input" type="text" id="remoteRetryDomain" autocomplete="off" maxlength="256"></label>
+      <div class="alert info">La contraseña se mantiene sólo en memoria durante un ciclo corto para probar automáticamente los modos RDP autorizados. Nunca se escribe en la base de datos, el ticket ni los reportes, y se elimina al recibir el primer frame, al agotar el ciclo o al caducar. Use la contraseña real de Windows, no el PIN de Windows Hello. Para una cuenta local puede escribir <strong>WINTEST\usuario</strong> o <strong>.\usuario</strong>; para una cuenta Microsoft use <strong>MicrosoftAccount\correo</strong>.</div>
+    </div>
+    <div class="alert danger" id="remoteRetryError" hidden></div>
+    <div class="gideon-modal-actions">
+      <button type="button" class="btn" id="remoteRetryCancel">Cancelar</button>
+      <button type="submit" class="btn btn-primary" id="remoteRetrySubmit">Reintentar conexión</button>
+    </div>
+  </form>
+</dialog>
+{% endblock %}
+{% block scripts %}
+<script src="/remote-client/guacamole-common.min.js"></script>
+  <script src="{{ static_url('remote_viewer.js') }}"></script>
+{% endblock %}
+

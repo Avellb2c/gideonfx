@@ -1,0 +1,4 @@
+# Narrow additions for the GIDEON private signature updater.
+/etc/gideon/security/freshclam.conf r,
+/var/lib/gideon/security/clamav/ rw,
+/var/lib/gideon/security/clamav/** krw,

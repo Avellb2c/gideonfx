@@ -1,0 +1,314 @@
+{% extends "base.html" %}
+{% block extra_styles %}<link rel="stylesheet" href="{{ static_url('workflow_forms.css') }}">{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Generador de Agents</h1>
+    <p>Un único Builder para Windows, Linux, Raspberry Pi y macOS. Genere un instalador operativo reducido con fuentes legales separadas o un kit completo autocontenido.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn" href="/agents">Ver equipos</a>
+    {% if identity.can('security_assets.manage') %}<a class="btn" href="/security/assets">Claves y secretos</a>{% endif %}
+  </div>
+</div>
+
+{% if build_active %}<div data-auto-refresh="3500" data-partial-refresh="1" data-partial-refresh-url="/installers" data-partial-target=".content" hidden></div>{% endif %}
+{% if error %}<div class="alert danger"><strong>No se pudo iniciar el build</strong>{{ error }}</div>{% endif %}
+{% if message %}<div class="alert success"><strong>Operación completada</strong>{{ message }}</div>{% endif %}
+
+<section class="card card-pad installer-readiness" aria-label="Estado del generador">
+  <div><strong>Listo para generar</strong><span class="muted">El instalador y, cuando corresponda, su paquete legal de fuentes quedan autenticados por SHA-256 y Ed25519.</span></div>
+  <div class="installer-readiness-chips"><span class="chip info">Agent {{ agent_current_version }}</span><span class="chip {{ 'success' if signing.usable else 'danger' }}">{{ 'Firma Ed25519 activa' if signing.usable else 'Firma pendiente' }}</span><span class="chip info">HTTPS/PULL</span></div>
+</section>
+
+{% set installer_queue = build_queue|default({}) %}
+<section class="card card-pad installer-readiness" aria-label="Cola de generación de Agents">
+  <div>
+    <strong>Cola de generación protegida</strong>
+    <span class="muted">Gideon Rx genera como máximo {{ installer_queue.limit|default(1) }} paquete(s) pesado(s) a la vez. Las solicitudes idénticas del mismo operador se unen a la misma cola; cada operador conserva su propio grant temporal.</span>
+  </div>
+  <div class="installer-readiness-chips">
+    <span class="chip {{ 'warning' if installer_queue.active|default(0) else 'success' }}">{{ installer_queue.active|default(0) }} activo(s)</span>
+    <span class="chip info">{{ installer_queue.waiting|default(0) }} en espera</span>
+  </div>
+</section>
+
+{% if not signing.usable %}
+<div class="alert warning"><strong>Debe configurar la firma Ed25519 antes de generar Agents</strong>La clave pública se inserta en cada Agent. La clave privada permanece protegida en el servidor.</div>
+{% endif %}
+
+<script id="agentBuilderCatalog" type="application/json">{{ builder_catalog|tojson }}</script>
+
+<form method="post" action="/installers/build" class="installer-builder" id="agentBuilderForm">
+  <input type="hidden" name="csrf" value="{{ identity.csrf_token }}">
+  <input type="hidden" name="target_package" id="targetPackageCompat" value="">
+
+  <section class="card card-pad builder-start-card">
+    <div class="flex-between wrap">
+      <div><h2 class="section-title">1. Equipo</h2><p class="muted">Seleccione el perfil, la sede y cómo se identificará el Agent. El resto se completa con valores seguros y permanece visible para revisar.</p></div>
+      <span class="chip success">Configuración inicial</span>
+    </div>
+    <div class="builder-unified-grid">
+      <div class="field wide">
+        <label>Perfil</label>
+        <select class="select" name="builder_profile" id="builderProfileSelect" required>
+          {% for p in builder_catalog.profiles %}<option value="{{ p.id }}">{{ p.label }}</option>{% endfor %}
+        </select>
+        <small>Seleccione “Personalizado” solo si necesita cambiar la combinación recomendada.</small>
+      </div>
+      <div class="field wide">
+        <label>Sede</label>
+        <select class="select" name="site_code" id="builderSiteSelect">
+          <option value="">Solicitar/confirmar durante la instalación</option>
+          {% for s in sites %}<option value="{{ s.code }}">{{ s.code }} - {{ s.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Nombre del Agent</label>
+        <select class="select" name="agent_name_mode" id="builderAgentNameMode">
+          <option value="automatic" selected>Automático · nombre del equipo</option>
+          <option value="custom">Personalizado</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Nombre personalizado</label>
+        <input class="input" name="agent_name" id="builderAgentName" maxlength="80" placeholder="Ej. PULSE-18610-01" disabled>
+      </div>
+    </div>
+  </section>
+
+  <div class="spacer"></div>
+  <section class="card card-pad">
+    <div class="flex-between wrap">
+      <div>
+        <h2 class="section-title">2. Plataforma y paquete</h2>
+        <p class="muted">Revise el sistema operativo, arquitectura y formato que el perfil precargó antes de generar.</p>
+      </div>
+      <span class="chip info">Agent {{ agent_current_version }}</span>
+    </div>
+
+    <div class="builder-unified-grid">
+      <div class="field">
+        <label>Sistema operativo</label>
+        <select class="select" name="os_family" id="builderOsFamily" required></select>
+      </div>
+      <div class="field">
+        <label>Versión / distribución</label>
+        <select class="select" name="os_variant" id="builderOsVariant" required></select>
+      </div>
+      <div class="field">
+        <label>Arquitectura</label>
+        <select class="select" name="architecture" id="builderArchitecture" required></select>
+      </div>
+      <div class="field">
+        <label>Formato</label>
+        <select class="select" name="package_choice" id="builderPackageChoice" required></select>
+        <small id="builderPackageDetail">La disponibilidad depende del toolchain presente en el servidor.</small>
+      </div>
+    </div>
+
+    <div class="builder-result-card" id="builderResultCard">
+      <div>
+        <span>Resultado</span>
+        <strong id="builderResultTitle">—</strong>
+        <small id="builderResultNotes">Seleccione una plataforma.</small>
+      </div>
+      <div class="builder-result-meta">
+        <span class="chip info" id="builderResultTarget">TARGET —</span>
+        <span class="chip info" id="builderResultFormat">FORMATO —</span>
+        <span class="chip info" id="builderResultBackend">BACKEND —</span>
+      </div>
+    </div>
+
+    <div class="builder-unified-grid" style="margin-top:16px">
+      <div class="field wide">
+        <label for="builderVlcDelivery">Reproducción multimedia</label>
+        <select class="select" name="vlc_delivery" id="builderVlcDelivery">
+          <option value="detached" selected>Operativo reducido · VLC listo, fuentes legales en paquete separado</option>
+          <option value="bundled">Kit completo · VLC y fuentes correspondientes dentro del instalador</option>
+          <option value="component" disabled>Componente VLC remoto · no publicado</option>
+        </select>
+        <small id="builderVlcDeliveryHelp">Recomendado: instala y reproduce normalmente; el ZIP legal de fuentes se descarga y conserva por separado.</small>
+      </div>
+    </div>
+    <div class="alert info-compact" id="builderVlcDeliveryNotice"><strong>Dos artefactos verificables</strong>Recibirá el instalador operativo y un Source Companion ZIP independiente con las fuentes de terceros, su SHA-256 y su firma Ed25519. El ZIP legal no se instala en los equipos.</div>
+  </section>
+
+  <div class="spacer"></div>
+  <section class="card card-pad">
+    <div class="flex-between wrap">
+      <div><h2 class="section-title">3. Conectividad y Gateway</h2><p class="muted">Elija cómo debe alcanzar el Agent al mismo Gateway lógico. El modo Automático utiliza los endpoints resilientes configurados en P3.</p></div>
+      <span class="chip info">Gateway detectado</span>
+    </div>
+
+    <div class="form-grid">
+      <div class="field">
+        <label>Modo de conectividad</label>
+        <select class="select" name="connectivity_mode" id="builderConnectivityMode" required>
+          <option value="automatic" selected>Automático</option>
+          <option value="production">Producción / Internet</option>
+          <option value="lan">Red interna / LAN</option>
+          <option value="local_test">Prueba local - esta PC</option>
+          <option value="personalized">Personalizado</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Gateway del Agent</label>
+        <select class="select mono" name="gateway_endpoint_id" id="gatewayEndpointSelect" required>
+          {% for g in gateway_endpoints %}
+          <option value="{{ g.id }}"
+                  data-url="{{ g.url }}"
+                  data-mode="{{ 'local_test' if g.local_test else 'lan' if g.role=='INTERNAL' else 'production' }}"
+                  data-role="{{ g.role }}"
+                  data-source="{{ g.source }}"
+                  data-status="{{ g.status }}"
+                  data-tls="{{ g.tls }}"
+                  data-latency="{{ g.latency_ms if g.latency_ms is not none else '' }}"
+                  data-last-checked="{{ g.last_checked }}"
+                  data-local-test="{{ '1' if g.local_test else '0' }}"
+                  {% if not g.selectable %}disabled{% endif %}
+                  {% if gateway_default_endpoint and g.id==gateway_default_endpoint.id %}selected{% endif %}>
+            {{ g.label }} · {{ g.url }}{% if not g.selectable %} · informativo{% endif %}
+          </option>
+          {% endfor %}
+          <option value="manual" data-mode="manual" data-role="MANUAL" data-source="Operador" {% if not gateway_default_endpoint %}selected{% endif %}>Introducir dirección manualmente…</option>
+        </select>
+      </div>
+      <div class="field wide">
+        <label>URL efectiva</label>
+        <input class="input mono" id="gatewayUrlInput" name="gateway_url" type="url" required value="{{ gateway_default }}" placeholder="https://gateway.empresa.com:29443" readonly>
+        <input type="hidden" id="gatewayModeInput" name="gateway_mode" value="production">
+        <small>Loopback solo se permite en “Prueba local - esta PC”; nunca se anuncia a Agents remotos.</small>
+      </div>
+    </div>
+
+    <div class="gateway-runtime-card" id="gatewayRuntimeCard">
+      <div class="gateway-runtime-head">
+        <div><strong id="gatewayRuntimeRole">Gateway</strong><small id="gatewayRuntimeSource">Origen no seleccionado</small></div>
+        <span class="chip info" id="gatewayRuntimeStatus">NO PROBADO</span>
+      </div>
+      <div class="gateway-runtime-grid">
+        <div><span>Endpoint</span><strong class="mono" id="gatewayRuntimeUrl">—</strong></div>
+        <div><span>TLS</span><strong id="gatewayRuntimeTls">—</strong></div>
+        <div><span>Latencia</span><strong id="gatewayRuntimeLatency">—</strong></div>
+        <div><span>Última comprobación</span><strong id="gatewayRuntimeChecked">—</strong></div>
+      </div>
+      <div class="gateway-actions">
+        <button class="btn btn-small" type="button" data-gateway-test>Probar conectividad</button>
+        <button class="btn btn-small" type="button" data-use-local-test>Usar esta PC para prueba</button>
+        <button class="btn btn-small" type="button" data-local-diagnostics>Ver diagnóstico local</button>
+        <button class="btn btn-small" type="button" data-disable-local-test>Desactivar modo local</button>
+        <button class="btn btn-small" type="button" data-save-gateway>Guardar como Gateway configurado</button>
+      </div>
+      <div class="alert warning local-test-banner" id="localTestBanner" hidden><strong>PRUEBA LOCAL ACTIVA</strong>Este instalador solo debe utilizarse en esta misma PC. No se propagará como endpoint productivo.</div>
+      <div class="gateway-probe-detail muted" id="gatewayProbeDetail"></div>
+    </div>
+
+    <div class="local-diagnostics" id="localDiagnostics" hidden>
+      <div class="flex-between wrap"><strong>Diagnóstico · Prueba local</strong><span class="chip info" id="localDiagnosticStatus">PENDIENTE</span></div>
+      <div id="localDiagnosticChecks" class="gateway-checks"></div>
+      <div class="muted" id="localDiagnosticMeta"></div>
+    </div>
+  </section>
+
+  <div class="spacer"></div>
+  <section class="card card-pad">
+    <div class="flex-between wrap">
+      <div><h2 class="section-title">4. Enrolamiento y actualización</h2><p class="muted">El bootstrap es temporal y el canal Stable es el recomendado para producción.</p></div>
+      <span class="chip success">Sesión administrativa validada · MFA activo</span>
+    </div>
+
+    <div class="builder-unified-grid">
+      <div class="field">
+        <label>Modo de enrolamiento</label>
+        <select class="select" name="enrollment_mode" id="builderEnrollmentMode">
+          {% for m in builder_catalog.enrollment_modes %}<option value="{{ m.id }}" data-default-uses="{{ m.default_uses }}" data-min-uses="{{ m.min_uses }}" data-max-uses="{{ m.max_uses }}">{{ m.label }}</option>{% endfor %}
+        </select>
+        <small id="builderEnrollmentHelp">Un equipo / un uso del grant.</small>
+      </div>
+      <div class="field"><label>Canal de actualización</label><select class="select" name="channel"><option value="stable" selected>Stable · recomendado</option><option value="pilot">Pilot · pruebas</option></select></div>
+      <div class="field"><label>Vigencia del grant</label><div class="input-with-suffix"><input class="input" type="number" name="ttl_hours" min="1" max="720" value="24"><span>horas</span></div></div>
+      <div class="field"><label>Usos máximos</label><input class="input" id="builderMaxUses" type="number" name="max_uses" min="1" max="1" value="1"><small>Se ajusta al modo de enrolamiento seleccionado.</small></div>
+    </div>
+
+    <div class="alert info-compact"><strong>Bootstrap temporal</strong>El grant se usa solo para el primer enrolamiento. Expira por tiempo/usos y no contiene la clave privada de firma.</div>
+    <div class="alert success"><strong>MFA de sesión activo</strong>Puede generar varios instaladores durante la jornada sin repetir contraseña + MFA. Las operaciones críticas conservan step-up authentication.</div>
+  </section>
+
+  <div class="spacer"></div>
+  <section class="card card-pad">
+    <div class="flex-between wrap">
+      <div><h2 class="section-title">5. Revisar y generar</h2><div class="installer-safety"><span class="chip success">CA incluida</span><span class="chip success">Ed25519 pública</span><span class="chip success">SHA-256</span><span class="chip info">HTTPS/PULL</span><span class="chip info">Sin MSI</span><span class="chip success">Windows autocontenido</span><span class="chip success" id="builderVlcDeliveryChip">Operativo + fuentes separadas</span></div></div>
+      <div class="flex wrap">
+        <button class="btn" type="submit" name="build_action" value="local_test" {% if not signing.usable %}disabled{% endif %}>Generar Agent de prueba local</button>
+        <button class="btn btn-primary btn-large" type="submit" {% if not signing.usable %}disabled{% endif %}>Generar instalador seguro</button>
+      </div>
+    </div>
+  </section>
+</form>
+
+<div class="spacer"></div>
+<section class="card">
+  <div class="card-head"><div><h2>Builds recientes</h2><p>Resumen operativo de los últimos builds. Integridad, endpoint y otros datos técnicos sólo se muestran al abrir su detalle.</p></div><span class="muted">{{ build_filtered_count }} de {{ build_total_count }}</span></div>
+  <div class="card-pad">
+    <form class="commandbar table-filter-bar" method="get" data-gideon-persist-query="installers.builds.v1" data-gideon-persist-defaults='{"status":"all","sort":"created_desc"}'>
+      <label class="sr-only" for="installerBuildSearch">Buscar builds</label>
+      <input class="input search" id="installerBuildSearch" name="q" value="{{ build_filter_query }}" placeholder="Buscar objetivo, paquete, versión, perfil o solicitante…">
+      <label class="sr-only" for="installerBuildStatus">Estado</label>
+      <select class="select" id="installerBuildStatus" name="status">
+        <option value="all" {{ 'selected' if build_filter_status=='all' }}>Todos los estados</option>
+        <option value="active" {{ 'selected' if build_filter_status=='active' }}>En progreso</option>
+        <option value="ready" {{ 'selected' if build_filter_status=='ready' }}>Listos</option>
+        <option value="failed" {{ 'selected' if build_filter_status=='failed' }}>Con error o interrumpidos</option>
+        <option value="attention" {{ 'selected' if build_filter_status=='attention' }}>Requieren revisión</option>
+      </select>
+      <label class="sr-only" for="installerBuildSort">Orden</label>
+      <select class="select" id="installerBuildSort" name="sort">
+        <option value="created_desc" {{ 'selected' if build_filter_sort=='created_desc' }}>Ordenar: más recientes</option>
+        <option value="target" {{ 'selected' if build_filter_sort=='target' }}>Ordenar: objetivo</option>
+        <option value="status" {{ 'selected' if build_filter_sort=='status' }}>Ordenar: estado</option>
+        <option value="version" {{ 'selected' if build_filter_sort=='version' }}>Ordenar: versión</option>
+        <option value="requester" {{ 'selected' if build_filter_sort=='requester' }}>Ordenar: solicitante</option>
+      </select>
+      <button class="btn btn-primary" type="submit">Aplicar</button>
+      <a class="btn btn-ghost" href="/installers" data-gideon-clear-persisted-filters="installers.builds.v1">Limpiar</a>
+    </form>
+  </div>
+  <div class="table-wrap table-flat">
+    <table>
+      <thead><tr><th>Estado</th><th>Fecha</th><th>Objetivo</th><th>Paquete</th><th>Versión</th><th>Solicitado por</th><th>Acciones</th></tr></thead>
+      <tbody>
+      {% for b in builds %}
+        {% set sc = b.source_companion if b.source_companion is mapping else {} %}
+        <tr class="{{ 'row-selected' if selected_build and selected_build==b.build_id }}">
+          <td><span class="chip {{ 'success' if b.status=='READY' else 'danger' if b.status=='FAILED' else 'warning' if b.status in ['QUEUED','BUILDING'] else 'info' }}"><span class="mini-dot"></span>{{ b.status }}</span></td>
+          <td>{{ b.created_at }}</td>
+          <td><strong>{{ b.target_id }}</strong><div class="muted">{{ b.os_variant or b.builder_profile or '' }}</div><span class="chip {{ 'warning' if b.gateway_mode=='local_test' else 'info' }}">{{ b.gateway_mode or 'legacy' }}</span></td>
+          <td>{{ b.artifact_name or b.package_type }}{% if b.enrollment_mode %}<div class="muted">{{ b.enrollment_mode }} · {{ b.grant_max_uses }} uso(s)</div>{% endif %}<div class="muted">{{ 'Operativo reducido · VLC incluido' if b.vlc_delivery=='detached' else 'Kit completo · fuentes incluidas' }}</div>{% if sc.status=='READY' %}<span class="chip success">Fuentes legales separadas</span>{% endif %}{% if b.grant_revoked_at %}<span class="chip danger">Grant revocado</span>{% endif %}</td>
+          <td><strong>{{ b.display_version or b.version }}</strong><div class="muted">{{ b.channel }} · versión funcional {{ b.version }}</div></td>
+          <td>{{ b.requested_by }}</td>
+          <td class="table-actions">{% if b.status=='READY' %}<a class="btn btn-primary btn-small" href="/installers/builds/{{ b.build_id }}/download">Instalador</a><a class="btn btn-small" href="/installers/builds/{{ b.build_id }}/signature.json">Firma instalador</a>{% if sc.status=='READY' %}<a class="btn btn-small" href="/installers/builds/{{ b.build_id }}/sources/download">Fuentes legales</a><a class="btn btn-small" href="/installers/builds/{{ b.build_id }}/sources/signature.json">Firma fuentes</a>{% endif %}{% if identity.can('agents.operate') and b.grant_id and not b.grant_revoked_at %}<form method="post" action="/installers/builds/{{ b.build_id }}/revoke-grant" data-confirm="¿Revocar el bootstrap de este instalador? Los Agents ya enrolados no se desconectarán."><input type="hidden" name="csrf" value="{{ identity.csrf_token }}"><button class="btn btn-danger btn-small">Revocar grant</button></form>{% endif %}{% endif %}<details class="technical-details" data-gideon-disclosure-key="installer-tech-{{ b.build_id }}"><summary>Detalle técnico</summary><dl class="compact-kv"><dt>Artefacto</dt><dd class="mono">{{ b.artifact_name or b.package_type or '—' }}</dd><dt>Perfil</dt><dd>{{ 'Instalador operativo reducido' if b.vlc_delivery=='detached' else 'Kit completo autocontenido' }}</dd><dt>Gateway</dt><dd class="mono">{{ b.gateway_url or '—' }}</dd><dt>Entrega VLC</dt><dd>{{ 'VLC operativo incluido; fuentes correspondientes en Source Companion separado' if b.vlc_delivery=='detached' else 'VLC, avisos y fuentes correspondientes incluidos en el instalador' }}</dd><dt>SHA-256 instalador</dt><dd>{% if b.sha256 %}<span class="mono" id="sha-{{ b.build_id }}">{{ b.sha256 }}</span><button class="btn btn-small" type="button" data-copy="#sha-{{ b.build_id }}">Copiar</button>{% else %}—{% endif %}</dd>{% if sc.status=='READY' %}<dt>Paquete legal</dt><dd class="mono">{{ sc.artifact_name }}</dd><dt>Tamaño paquete legal</dt><dd>{{ sc.size_bytes }} bytes</dd><dt>SHA-256 fuentes</dt><dd><span class="mono" id="source-sha-{{ b.build_id }}">{{ sc.sha256 }}</span><button class="btn btn-small" type="button" data-copy="#source-sha-{{ b.build_id }}">Copiar</button></dd><dt>Firma fuentes</dt><dd>Ed25519 · {{ sc.key_id }}</dd>{% endif %}</dl>{% if b.status!='READY' %}<div class="build-detail">{{ b.detail }}</div>{% if b.support_rel %}<div style="margin-top:8px"><a class="btn btn-small" href="/installers/builds/{{ b.build_id }}/support.zip">Descargar diagnóstico</a></div>{% endif %}{% endif %}</details></td>
+        </tr>
+      {% else %}<tr><td colspan="7"><div class="empty">{% if build_total_count %}<strong>No hay builds que coincidan con el filtro</strong>Use “Limpiar” para volver a ver el historial completo.{% else %}<strong>Aún no hay instaladores generados</strong>Seleccione un perfil y genere el primer Agent.{% endif %}</div></td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="spacer"></div>
+<details class="card card-pad advanced-block">
+  <summary><strong>Avanzado · generar solamente un grant temporal</strong></summary>
+  <p class="muted">Úselo solo para instaladores construidos por otra estación de build confiable. Para uso normal, utilice el Builder superior.</p>
+  {% if identity.can('agents.operate') %}
+  <form method="post" action="/installers/grant" class="form-grid compact-form">
+    <input type="hidden" name="csrf" value="{{ identity.csrf_token }}">
+    <div class="field"><label>Vigencia (horas)</label><input class="input" type="number" name="ttl_hours" min="1" max="720" value="24"></div>
+    <div class="field"><label>Usos máximos</label><input class="input" type="number" name="max_uses" min="1" max="100" value="1"></div>
+    <div class="field wide"><label>Etiqueta</label><input class="input" name="label" value="external-builder"></div>
+    <div class="wide"><button class="btn">Generar grant manual</button></div>
+  </form>
+  {% endif %}
+  {% if grant %}<div class="alert success"><strong>Grant generado — se muestra una sola vez</strong><div id="grantValue" class="codebox copyable">{{ grant.EnrollmentGrant }}</div><button type="button" class="btn btn-small" data-copy="#grantValue">Copiar</button><div class="muted">ID revocable: <span class="mono">{{ grant.GrantId or '-' }}</span> · Expira: {{ grant.ExpiresAt }} · usos: {{ grant.MaxUses }}</div></div>{% endif %}
+</details>
+{% endblock %}
+

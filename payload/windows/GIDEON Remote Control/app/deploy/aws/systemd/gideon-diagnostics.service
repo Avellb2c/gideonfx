@@ -1,0 +1,46 @@
+[Unit]
+Description=GIDEON Remote Control read-only diagnostics
+PartOf=gideon-remote-control.target
+After=network-online.target gideon-agent-gateway.service gideon-web-admin.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=gideonmonitor
+Group=gideonmonitor
+SupplementaryGroups=gideongateway gideonweb gideonbackup
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUNBUFFERED=1
+Environment=GIDEON_DATA_ROOT=/var/lib/gideon
+ExecStart=/opt/gideon/web/venv/bin/python /opt/gideon/web/app/gideon_diagnostics_service.py --daemon --platform linux --data-root /var/lib/gideon
+WorkingDirectory=/opt/gideon/web/app
+Restart=on-failure
+RestartSec=5
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectHostname=true
+ProtectClock=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectKernelLogs=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadOnlyPaths=/etc/gideon /var/lib/gideon/gateway /var/lib/gideon/web /var/lib/gideon/shared
+ReadWritePaths=/var/lib/gideon/diagnostics
+NoExecPaths=/var/lib/gideon /tmp /var/tmp /dev/shm
+MemoryMax=192M
+TasksMax=32
+LimitNOFILE=1024
+
+[Install]
+WantedBy=gideon-remote-control.target

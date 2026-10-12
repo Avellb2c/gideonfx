@@ -1,0 +1,7 @@
+[Unit]
+Description=GIDEON five-minute TLS confirmation deadline
+
+[Timer]
+OnActiveSec=5min
+AccuracySec=1s
+Unit=gideon-tls-rollback.service

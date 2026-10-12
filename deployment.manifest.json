@@ -1,0 +1,276 @@
+{
+    "schema_version":  2,
+    "product":  "GIDEON Remote Control",
+    "generated_utc":  "2026-08-31T07:05:29.6221241Z",
+    "installer_updated_utc":  "2026-09-14T15:57:00Z",
+    "environment":  "PRODUCTION",
+    "source":  {
+                   "machine":  "DESKTOP-NQK5ET7",
+                   "os":  "Microsoft Windows 10 Home Single Language",
+                   "build":  "19045",
+                   "install_root":  "C:\\Program Files\\GIDEON Remote Control",
+                   "data_root":  "C:\\ProgramData\\GIDEON Remote Control",
+                   "include_secrets":  true,
+                   "include_state_databases":  true,
+                   "default_install_mode":  "fresh",
+                   "state_import_requires_explicit_clone":  true
+               },
+    "coexistence":  {
+                        "shared_server_safe":  true,
+                        "never_reset_firewall":  true,
+                        "never_prune_docker":  true,
+                        "never_modify_docker_daemon_json":  true,
+                        "never_stop_third_party_services":  true,
+                        "dhcp_supported":  true
+                    },
+    "dependencies":  [
+                         {
+                             "id":  "windows-yara-cli",
+                             "product":  "YARA",
+                             "version":  "4.5.5",
+                             "architecture":  "x64",
+                             "deployment":  "PRIVATE_GIDEON_INSTALL",
+                             "source":  "OFFICIAL_VIRUSTOTAL_GITHUB_RELEASE",
+                             "offline_cache":  true,
+                             "network_fetch_exception":  true,
+                             "archive_sha256":  "352396c8a3d9b31b157a4820abd3b9347fc934a2314cdda8a4f566a5570163e4",
+                             "executable_sha256":  "1c45eb279d820aba81fd41c22384428ebe44037cf5793be4b52a9d3b3df62b33"
+                         }
+                     ],
+    "network":  {
+                    "webadmin_internal_port":  28443,
+                    "gateway_internal_port":  29443,
+                    "admin_external_port":  9443,
+                    "agent_external_port":  443,
+                    "external_access_profile":  "PRIVATE_ADMIN_PUBLIC_AGENTS",
+                    "vpn_detected":  true
+                },
+    "guacamole":  {
+                      "implementation":  "DOCKER_ONLY",
+                      "containers":  [
+                                         "gideon-guacamole-bridge",
+                                         "gideon-guacd"
+                                     ],
+                      "guacd_private_port":  4822,
+                      "bridge_private_port":  8090,
+                      "browser_path":  "WSS_VIA_WEBADMIN",
+                      "credentials_browser_exposure":  "FORBIDDEN",
+                      "runtime_status":  "PASS",
+                      "webadmin_mapping":  "PASS",
+                      "webadmin_config_source":  "APPLICATION_EFFECTIVE_DEFAULT",
+                      "webadmin_guacd_host":  "127.0.0.1",
+                      "webadmin_guacd_port":  4822,
+                      "images":  [
+                                     {
+                                         "container":  "gideon-guacamole-bridge",
+                                         "image":  "gideon_guacamole_bridge_adaptive_rc1_oneclick_fixed-gideon-guacamole-bridge",
+                                         "source_image":  "gideon_guacamole_bridge_adaptive_rc1_oneclick_fixed-gideon-guacamole-bridge",
+                                         "source_mutable_tag":  false,
+                                         "image_id":  "sha256:143eff1236bb150a6b0ef949cce004b7bf8a78eecbf7ac9201171d334ebca3b5",
+                                         "pinned_reference":  "sha256:143eff1236bb150a6b0ef949cce004b7bf8a78eecbf7ac9201171d334ebca3b5",
+                                         "repo_digests":  [
+                                                              "gideon_guacamole_bridge_adaptive_rc1_oneclick_fixed-gideon-guacamole-bridge@sha256:143eff1236bb150a6b0ef949cce004b7bf8a78eecbf7ac9201171d334ebca3b5"
+                                                          ],
+                                         "created":  "2026-08-27T18:17:42.867427334Z",
+                                         "os":  "linux",
+                                         "architecture":  "amd64",
+                                         "size_bytes":  58681732,
+                                         "archive":  "guacamole-image-1.tar",
+                                         "archive_sha256":  "2e5fbc991871c0148d23b8200862dde2b6da7db4e4c64ea68e86c3c582387b15",
+                                         "deploy_by":  "IMAGE_ID"
+                                     },
+                                     {
+                                         "container":  "gideon-guacd",
+                                         "image":  "gideon/guacd:1.6.0-freerdp3",
+                                         "source_image":  "gideon/guacd:1.6.0-freerdp3",
+                                         "source_mutable_tag":  false,
+                                         "image_id":  "sha256:d88ba8e9244196ed6e85928cbfea48dc94726374fb08ab40a15f3d08f8677170",
+                                         "pinned_reference":  "sha256:d88ba8e9244196ed6e85928cbfea48dc94726374fb08ab40a15f3d08f8677170",
+                                         "repo_digests":  [],
+                                         "created":  "2026-09-14T01:47:11.07344771Z",
+                                         "os":  "linux",
+                                         "architecture":  "amd64",
+                                         "size_bytes":  133809990,
+                                         "archive":  "guacamole-image-2.tar",
+                                         "archive_sha256":  "7db390bf14d94a7dfe9c99bdf6c94d16fd4f6eb7e6c7ad37066eafe9dd60d2fe",
+                                         "deploy_by":  "IMAGE_ID"
+                                     }
+                                 ]
+                  },
+    "services":  [
+                     {
+                         "name":  "GIDEONRemoteControl",
+                         "display_name":  "GIDEON RC30 GIDEONRemoteControl",
+                         "description":  "",
+                         "state":  "Running",
+                         "start_mode":  "Auto",
+                         "start_name":  "LocalSystem",
+                         "path_name":  "\"C:\\Program Files\\GIDEON Remote Control RC30\\Runtime\\GIDEONServiceHost.exe\" GIDEONRemoteControl",
+                         "dependencies":  [
+
+                                          ],
+                         "delayed_auto_start":  0,
+                         "sid_query":  "[SC] QueryServiceConfig2 SUCCESS\r\n\r\nSERVICE_NAME: GIDEONRemoteControl\r\nSERVICE_SID_TYPE:  NONE",
+                         "failure_query":  "[SC] QueryServiceConfig2 SUCCESS\r\n\r\nSERVICE_NAME: GIDEONRemoteControl\r\n        RESET_PERIOD (in seconds)    : 0\r\n        REBOOT_MESSAGE               : \r\n        COMMAND_LINE                 :"
+                     },
+                     {
+                         "name":  "GIDEONRemoteControlBackup",
+                         "display_name":  "GIDEON RC30 GIDEONRemoteControlBackup",
+                         "description":  "",
+                         "state":  "Running",
+                         "start_mode":  "Auto",
+                         "start_name":  "LocalSystem",
+                         "path_name":  "\"C:\\Program Files\\GIDEON Remote Control RC30\\Runtime\\GIDEONServiceHost.exe\" GIDEONRemoteControlBackup",
+                         "dependencies":  [
+
+                                          ],
+                         "delayed_auto_start":  0,
+                         "sid_query":  "[SC] QueryServiceConfig2 SUCCESS\r\n\r\nSERVICE_NAME: GIDEONRemoteControlBackup\r\nSERVICE_SID_TYPE:  NONE",
+                         "failure_query":  "[SC] QueryServiceConfig2 SUCCESS\r\n\r\nSERVICE_NAME: GIDEONRemoteControlBackup\r\n        RESET_PERIOD (in seconds)    : 0\r\n        REBOOT_MESSAGE               : \r\n        COMMAND_LINE                 :"
+                     },
+                     {
+                         "name":  "GIDEONRemoteControlDiagnostics",
+                         "display_name":  "GIDEON RC30 GIDEONRemoteControlDiagnostics",
+                         "description":  "",
+                         "state":  "Running",
+                         "start_mode":  "Auto",
+                         "start_name":  "LocalSystem",
+                         "path_name":  "\"C:\\Program Files\\GIDEON Remote Control RC30\\Runtime\\GIDEONServiceHost.exe\" GIDEONRemoteControlDiagnostics",
+                         "dependencies":  [
+
+                                          ],
+                         "delayed_auto_start":  0,
+                         "sid_query":  "[SC] QueryServiceConfig2 SUCCESS\r\n\r\nSERVICE_NAME: GIDEONRemoteControlDiagnostics\r\nSERVICE_SID_TYPE:  NONE",
+                         "failure_query":  "[SC] QueryServiceConfig2 SUCCESS\r\n\r\nSERVICE_NAME: GIDEONRemoteControlDiagnostics\r\n        RESET_PERIOD (in seconds)    : 0\r\n        REBOOT_MESSAGE               : \r\n        COMMAND_LINE                 :"
+                     },
+                     {
+                         "name":  "GIDEONRemoteControlGateway",
+                         "display_name":  "GIDEON RC30 GIDEONRemoteControlGateway",
+                         "description":  "",
+                         "state":  "Running",
+                         "start_mode":  "Auto",
+                         "start_name":  "LocalSystem",
+                         "path_name":  "\"C:\\Program Files\\GIDEON Remote Control RC30\\Runtime\\GIDEONServiceHost.exe\" GIDEONRemoteControlGateway",
+                         "dependencies":  [
+
+                                          ],
+                         "delayed_auto_start":  0,
+                         "sid_query":  "[SC] QueryServiceConfig2 SUCCESS\r\n\r\nSERVICE_NAME: GIDEONRemoteControlGateway\r\nSERVICE_SID_TYPE:  NONE",
+                         "failure_query":  "[SC] QueryServiceConfig2 SUCCESS\r\n\r\nSERVICE_NAME: GIDEONRemoteControlGateway\r\n        RESET_PERIOD (in seconds)    : 0\r\n        REBOOT_MESSAGE               : \r\n        COMMAND_LINE                 :"
+                     },
+                     {
+                         "name":  "GIDEONRemoteControlUpdater",
+                         "display_name":  "GIDEON RC30 GIDEONRemoteControlUpdater",
+                         "description":  "",
+                         "state":  "Running",
+                         "start_mode":  "Auto",
+                         "start_name":  "LocalSystem",
+                         "path_name":  "\"C:\\Program Files\\GIDEON Remote Control RC30\\Runtime\\GIDEONServiceHost.exe\" GIDEONRemoteControlUpdater",
+                         "dependencies":  [
+
+                                          ],
+                         "delayed_auto_start":  0,
+                         "sid_query":  "[SC] QueryServiceConfig2 SUCCESS\r\n\r\nSERVICE_NAME: GIDEONRemoteControlUpdater\r\nSERVICE_SID_TYPE:  NONE",
+                         "failure_query":  "[SC] QueryServiceConfig2 SUCCESS\r\n\r\nSERVICE_NAME: GIDEONRemoteControlUpdater\r\n        RESET_PERIOD (in seconds)    : 0\r\n        REBOOT_MESSAGE               : \r\n        COMMAND_LINE                 :"
+                     },
+                     {
+                         "name":  "GIDEONRemoteControlWebAdmin",
+                         "display_name":  "GIDEON RC30 GIDEONRemoteControlWebAdmin",
+                         "description":  "",
+                         "state":  "Running",
+                         "start_mode":  "Auto",
+                         "start_name":  "LocalSystem",
+                         "path_name":  "\"C:\\Program Files\\GIDEON Remote Control RC30\\Runtime\\GIDEONServiceHost.exe\" GIDEONRemoteControlWebAdmin",
+                         "dependencies":  [
+
+                                          ],
+                         "delayed_auto_start":  0,
+                         "sid_query":  "[SC] QueryServiceConfig2 SUCCESS\r\n\r\nSERVICE_NAME: GIDEONRemoteControlWebAdmin\r\nSERVICE_SID_TYPE:  NONE",
+                         "failure_query":  "[SC] QueryServiceConfig2 SUCCESS\r\n\r\nSERVICE_NAME: GIDEONRemoteControlWebAdmin\r\n        RESET_PERIOD (in seconds)    : 0\r\n        REBOOT_MESSAGE               : \r\n        COMMAND_LINE                 :"
+                     },
+                     {
+                         "name":  "GIDEONAgent",
+                         "display_name":  "GIDEON Remote Control Agent",
+                         "description":  "GIDEON Remote Control Agent · secure outbound control channel",
+                         "state":  "Running",
+                         "start_mode":  "Auto",
+                         "start_name":  "LocalSystem",
+                         "path_name":  "C:\\Program Files\\GIDEONAgent\\GIDEONAgentServiceHost.exe",
+                         "dependencies":  [
+
+                                          ],
+                         "delayed_auto_start":  1,
+                         "sid_query":  "[SC] QueryServiceConfig2 SUCCESS\r\n\r\nSERVICE_NAME: GIDEONAgent\r\nSERVICE_SID_TYPE:  NONE",
+                         "failure_query":  "[SC] QueryServiceConfig2 SUCCESS\r\n\r\nSERVICE_NAME: GIDEONAgent\r\n        RESET_PERIOD (in seconds)    : 86400\r\n        REBOOT_MESSAGE               : \r\n        COMMAND_LINE                 : \r\n        FAILURE_ACTIONS              : RESTART -- Delay = 5000 milliseconds.\r\n                                       RESTART -- Delay = 15000 milliseconds.\r\n                                       RESTART -- Delay = 60000 milliseconds."
+                     }
+                 ],
+    "firewall_rules":  [
+                           {
+                               "display_name":  "GIDEON Gateway TEST 10.155.184.118 8443",
+                               "display_group":  "",
+                               "direction":  "Inbound",
+                               "action":  "Allow",
+                               "enabled":  "True",
+                               "profile":  "Any",
+                               "program":  "Any",
+                               "protocol":  "TCP",
+                               "local_port":  "8443",
+                               "remote_port":  "Any",
+                               "local_address":  "10.155.184.118",
+                               "remote_address":  "LocalSubnet"
+                           },
+                           {
+                               "display_name":  "GIDEON Gateway TEST 192.168.100.9 8443",
+                               "display_group":  "",
+                               "direction":  "Inbound",
+                               "action":  "Allow",
+                               "enabled":  "True",
+                               "profile":  "Any",
+                               "program":  "Any",
+                               "protocol":  "TCP",
+                               "local_port":  "8443",
+                               "remote_port":  "Any",
+                               "local_address":  "192.168.100.9",
+                               "remote_address":  "LocalSubnet"
+                           },
+                           {
+                               "display_name":  "GIDEON Gateway TEST 10.155.182.140 8443",
+                               "display_group":  "",
+                               "direction":  "Inbound",
+                               "action":  "Allow",
+                               "enabled":  "True",
+                               "profile":  "Any",
+                               "program":  "Any",
+                               "protocol":  "TCP",
+                               "local_port":  "8443",
+                               "remote_port":  "Any",
+                               "local_address":  "10.155.182.140",
+                               "remote_address":  "LocalSubnet"
+                           }
+                       ],
+    "webadmin_bootstrap_users":  [
+                                     {
+                                         "username":  "dchaskypp",
+                                         "display_name":  "Administrador GIDEON",
+                                         "role":  "SUPERADMIN"
+                                     },
+                                     {
+                                         "username":  "damautapp",
+                                         "display_name":  "DAMAUTAPP",
+                                         "role":  "ADMIN"
+                                     }
+                                 ],
+    "historical_hardening":  [
+                                 "PS51_COMPATIBLE",
+                                 "NO_ORDEREDDICTIONARY_CONTAINSKEY",
+                                 "UTF8_NO_BOM_JSON",
+                                 "ROBOCOPY_0_7_SUCCESS",
+                                 "NO_SKIPCERTIFICATECHECK_PS7_ONLY",
+                                 "SQLITE_STOP_SERVICES_BEFORE_BACKUP",
+                                 "FERNET_KEY_VALIDATE",
+                                 "PRIVATE_PYTHON_RUNTIME",
+                                 "GIDEON_PROCESS_OWNERSHIP_CHECK",
+                                 "SCM_RECOVERY_AND_HEALTH_WAIT",
+                                 "FAIL_CLOSED_DIAGNOSTICS"
+                             ]
+}

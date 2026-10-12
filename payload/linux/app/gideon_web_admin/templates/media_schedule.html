@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block extra_styles %}<link rel="stylesheet" href="{{ static_url('media_campaigns.css') }}">{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Programación</h1>
+    <p>Vea todas las campañas en un calendario global, detecte horas ocupadas y revise conflictos antes de publicar.</p>
+  </div>
+</div>
+{% include "media_tabs.html" %}
+{% if gateway_error %}<div class="alert warning"><strong>Inventario parcial</strong>{{ gateway_error }}</div>{% endif %}
+
+<section class="card card-pad media-global-calendar" data-media-calendar data-calendar-url="/api/v1/media/calendar" aria-label="Calendario global de campañas">
+  <div class="media-calendar-toolbar">
+    <div class="media-calendar-toolbar-main">
+      <button class="btn btn-small" type="button" data-calendar-prev aria-label="Periodo anterior">‹</button>
+      <button class="btn btn-small" type="button" data-calendar-today>Hoy</button>
+      <button class="btn btn-small" type="button" data-calendar-next aria-label="Periodo siguiente">›</button>
+      <h2 data-calendar-title>Calendario de campañas</h2>
+    </div>
+    <div class="media-calendar-view-switch" role="group" aria-label="Vista del calendario">
+      <button class="is-selected" type="button" data-calendar-view="month">Mes</button>
+      <button type="button" data-calendar-view="week">Semana</button>
+      <button type="button" data-calendar-view="agenda">Agenda</button>
+    </div>
+  </div>
+  <div class="media-calendar-filters">
+    <div class="field"><label for="calendarSite">Sede</label><select class="input" id="calendarSite" data-calendar-filter="site"><option value="">Todas las sedes</option>{% for site in sites %}<option value="{{ site.site_code }}">{{ site.site_code }} · {{ site.site_name }}</option>{% endfor %}</select></div>
+    <div class="field"><label for="calendarScreen">Pantalla</label><select class="input" id="calendarScreen" data-calendar-filter="screen"><option value="">Todas las pantallas</option>{% for screen in screens %}<option value="{{ screen.screen_id }}">{{ screen.commercial_name }} · {{ screen.site_code }}</option>{% endfor %}</select></div>
+    <div class="field"><label for="calendarState">Estado</label><select class="input" id="calendarState" data-calendar-filter="state"><option value="">Todas las campañas con horario</option><option value="SCHEDULED">Programada</option><option value="ACTIVE">Activa</option><option value="PAUSED">Pausada</option><option value="PENDING_APPROVAL">Pendiente de aprobación</option><option value="DRAFT">Borrador</option><option value="EXPIRED">Vencida</option></select></div>
+    <div class="field media-calendar-search"><label for="calendarSearch">Buscar</label><input class="input" id="calendarSearch" type="search" data-calendar-filter="q" placeholder="Campaña, sede o pantalla" autocomplete="off"></div>
+    <div class="media-calendar-filter-action"><button class="btn" type="button" data-calendar-apply>Aplicar</button></div>
+  </div>
+  <div class="media-calendar-status" data-calendar-status role="status" aria-live="polite">Cargando programación…</div>
+  <div class="media-calendar-layout">
+    <section class="media-calendar-main" aria-label="Calendario">
+      <div class="media-calendar-weekdays" data-calendar-weekdays></div>
+      <div class="media-calendar-grid" data-calendar-grid></div>
+      <div class="media-calendar-agenda-view" data-calendar-agenda-view hidden></div>
+    </section>
+    <aside class="media-calendar-side" aria-label="Horarios ocupados">
+      <div class="media-calendar-side-head"><div><span class="media-mini-label">Vista operativa</span><h3>Horarios ocupados</h3></div><span class="chip" data-calendar-conflicts>0 conflictos</span></div>
+      <p class="muted">Se muestran las campañas por pantalla y sus ventanas de reproducción. Un conflicto de igual prioridad queda marcado antes de publicar.</p>
+      <div class="media-calendar-occupied" data-calendar-occupied></div>
+      <div class="media-calendar-legend"><span><i class="is-active"></i>Activa</span><span><i class="is-scheduled"></i>Programada</span><span><i class="is-paused"></i>Pausada</span><span><i class="is-conflict"></i>Conflicto</span></div>
+    </aside>
+  </div>
+</section>
+
+<section class="card media-schedule-list" data-calendar-fallback-list>
+  <div class="card-head card-pad"><div><h2>Resumen de campañas</h2><p>Acceda al detalle de una campaña para revisar su revisión y asignaciones.</p></div></div>
+  <div class="table-wrap media-table-wrap"><table><thead><tr><th>Campaña</th><th>Estado</th><th>Pantallas</th><th>Revisión</th><th></th></tr></thead><tbody>{% for campaign in scheduled %}<tr><td><strong>{{ campaign.title }}</strong></td><td><span class="chip media-state-{{ campaign.state|lower }}">{{ campaign.state|replace('_', ' ')|title }}</span></td><td>{{ campaign.screen_count }}</td><td>v{{ campaign.current_revision_no }}</td><td><a class="btn btn-small" href="/media/campaigns/{{ campaign.campaign_id }}">Ver programación</a></td></tr>{% else %}<tr><td colspan="5" class="empty"><strong>Sin programación activa</strong>Programe una campaña desde el flujo guiado.</td></tr>{% endfor %}</tbody></table></div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ static_url('media_schedule.js') }}"></script>{% endblock %}
+

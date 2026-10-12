@@ -1,0 +1,4 @@
+#!/bin/sh
+# Wrapper delgado: configura la identidad del agente ya instalado (site_code,
+# gateway, secreto de enrolamiento). No descarga nada, es 100% local.
+exec /usr/lib/gideon-agent/venv/bin/python /usr/lib/gideon-agent/configure-agent.py "$@"

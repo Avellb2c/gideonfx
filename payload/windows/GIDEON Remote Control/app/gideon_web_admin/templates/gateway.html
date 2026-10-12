@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head"><div><h1>Infraestructura · Gateway</h1><p>Estado del Gateway Gideon Rx y separación explícita entre listener, ruta interna y endpoint anunciado a Agents.</p></div></div>
+{% if error %}<div class="alert danger"><strong>Sin conexión por la ruta interna WebAdmin → Gateway</strong>{{ error }}</div>{% endif %}
+<div class="grid-even">
+  <section class="card card-pad">
+    <h2 class="section-title">Control plane</h2>
+    <div class="status-line"><span class="chip {{ 'success' if health.Ok else 'danger' }}"><span class="mini-dot"></span>{{ 'Operativo' if health.Ok else 'No disponible' }}</span></div>
+    <div class="spacer"></div>
+    <dl class="kv"><dt>Gateway</dt><dd>{{ health.Version or '-' }}</dd><dt>Protocolo</dt><dd>{{ health.ProtocolVersion or '-' }}</dd><dt>Schema</dt><dd>{{ 'Ready' if health.get('Schema',{}).get('Ready') else 'Requiere atención' }}</dd><dt>Release API</dt><dd>{{ 'Disponible' if health.get('Capabilities',{}).get('ReleaseApproval') else 'No disponible' }}</dd><dt>Última recarga</dt><dd>{{ health.ConfigReloadAt or '-' }}</dd></dl>
+  </section>
+  <section class="card card-pad">
+    <h2 class="section-title">Direcciones separadas</h2>
+    <dl class="kv">
+      <dt>Listen Address</dt><dd class="mono">{{ gateway_runtime.listen_address or gateway_runtime.config.listen_host or '-' }}{% if gateway_runtime.listen_port %}:{{ gateway_runtime.listen_port }}{% endif %}</dd>
+      <dt>Internal Endpoint</dt><dd class="mono">{{ gateway_runtime.internal_endpoint or web_config.gateway_base_url or '-' }}</dd>
+      <dt>Advertised Endpoint</dt><dd class="mono">{{ gateway_runtime.advertised_endpoint or web_config.gateway_public_url or '-' }}</dd>
+      <dt>Config runtime</dt><dd class="mono">{{ gateway_runtime.path or '-' }}</dd>
+    </dl>
+    <div class="alert info-compact"><strong>Regla de seguridad</strong>127.0.0.1/localhost es una ruta interna o de laboratorio. Nunca se anuncia automáticamente a un Agent remoto.</div>
+  </section>
+</div>
+<div class="spacer"></div>
+<section class="card">
+  <div class="card-head"><div><h2>Endpoints detectados</h2><p>La detección es de solo lectura; las pruebas de conectividad se realizan desde el Generador de Agents.</p></div><a class="btn btn-small" href="/installers">Abrir Generador</a></div>
+  <div class="table-wrap table-flat"><table><thead><tr><th>Rol</th><th>Endpoint</th><th>Origen</th><th>Estado</th><th>TLS</th><th>Última prueba</th></tr></thead><tbody>
+    {% for g in gateway_endpoints %}<tr><td><span class="chip {{ 'warning' if g.local_test else 'info' }}">{{ g.role }}</span></td><td class="mono">{{ g.url }}</td><td>{{ g.source }}</td><td>{{ g.status }}</td><td>{{ g.tls }}</td><td>{{ g.last_checked or '—' }}</td></tr>{% else %}<tr><td colspan="6"><div class="empty"><strong>No se detectó configuración runtime</strong>Revise gateway.json o configure el endpoint manualmente en el Generador.</div></td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+{% endblock %}
+

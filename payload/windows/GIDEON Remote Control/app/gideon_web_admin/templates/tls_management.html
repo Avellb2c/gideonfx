@@ -1,0 +1,52 @@
+{% extends "base.html" %}{% block extra_styles %}<link rel="stylesheet" href="{{ static_url('tls-management.css') }}">{% endblock %}{% block content %}
+<div class="page-head"><div><h1>TLS y acceso externo</h1><p>Certificados HTTPS del servidor, direcciones públicas y redes administrativas · Ubuntu</p></div><div class="page-actions"><button class="btn" type="button" id="tls-refresh">Actualizar estado</button></div></div>
+<div id="tls-root" data-csrf="{{ identity.csrf_token }}">
+<div class="alert warning"><strong>Publicación controlada</strong>DNS, IP pública fija y firewall de la nube se configuran por separado. El cambio reinicia WebAdmin y Gateway: puede interrumpir sesiones remotas. Mantenga una sesión SSH de recuperación.</div>
+{% if tls_error %}<div class="alert danger">{{ tls_error }} Para actualizar una instalación existente, consulte <span class="mono">INSTALL-GIDEON-TLS-MANAGER.sh</span> en el paquete original.</div>{% endif %}
+<div class="grid-even">
+<section class="card card-pad"><h2 class="section-title">Configuración activa</h2><div id="tls-current">
+{% set current=tls_status.get('current',{}) %}
+<dl class="kv"><dt>WebAdmin</dt><dd class="mono">{{ current.get('web_url') or 'Pendiente' }}</dd><dt>Agentes</dt><dd class="mono">{{ current.get('agent_url') or 'Pendiente' }}</dd><dt>Modo</dt><dd>{{ current.get('mode') or 'Sin publicación externa' }}</dd></dl>
+{% for role,cert in current.get('certificates',{}).items() %}<p><strong>{{ 'WebAdmin' if role=='web' else 'Gateway' }}</strong>: {{ cert.get('expires') or cert.get('error') }}{% if cert.get('days_left') is not none %} · {{ cert.days_left }} días{% endif %}</p>{% endfor %}
+</div><p id="tls-renewal" class="muted">Renovación automática: {{ 'Certbot timer activo' if tls_status.get('renewal_timer_active') else 'no activa / no comprobada' }}. PEM/PFX y CA privada requieren reemplazo manual.</p><a class="btn" href="/infrastructure/tls/ca.pem">Descargar CA pública de laboratorio</a></section>
+<section class="card card-pad"><h2 class="section-title">Cómo aplicar sin perder acceso</h2><ol><li>Valide archivos, nombres, puertos e IPs.</li><li>Revise la nueva URL y aplique con contraseña + MFA.</li><li>Abra esa URL, inicie sesión y confirme en menos de 5 minutos.</li></ol><p>Si falla HTTPS, vence el plazo o el servidor reinicia antes de confirmar, se restaura la configuración previa. No se cambia la CA cliente ni se desactiva mTLS.</p><p class="muted">La verificación local no garantiza DNS ni conectividad desde Internet. Para cambios de CA/URL, prepare la actualización de agentes.</p></section>
+</div>
+<div class="spacer"></div>
+<section class="card card-pad"><h2 class="section-title">1. Preparar y validar</h2>
+<form id="tls-prepare" class="form-grid" autocomplete="off" data-stepup-fresh>
+<fieldset class="wide" {% if tls_error or not tls_enabled %}disabled{% endif %}>
+<div class="form-grid">
+<div class="field wide"><label for="tls-mode">Certificados</label><select class="select" id="tls-mode" name="mode"><option value="existing">Conservar certificados actuales (cambiar acceso)</option><option value="private-ca">Generar certificados de laboratorio con la CA GIDEON</option><option value="letsencrypt">Obtener / renovar con Let’s Encrypt</option><option value="pem">Importar certificado + clave PEM</option><option value="pfx">Importar PFX / P12</option></select></div>
+<div class="field"><label for="tls-web-host">Dominio o IPv4 WebAdmin</label><input class="input" id="tls-web-host" name="web_host" required value="{{ current.get('web_host','') }}" placeholder="admin.example.com"></div>
+<div class="field"><label for="tls-agent-host">Dominio o IPv4 agentes</label><input class="input" id="tls-agent-host" name="agent_host" required value="{{ current.get('agent_host','') }}" placeholder="agents.example.com"></div>
+<div class="field"><label for="tls-web-port">Puerto WebAdmin</label><input class="input" id="tls-web-port" name="web_port" type="number" min="1" max="65535" required value="{{ current.get('web_port',9443) }}"></div>
+<div class="field"><label for="tls-agent-port">Puerto agentes</label><input class="input" id="tls-agent-port" name="agent_port" type="number" min="1" max="65535" required value="{{ current.get('agent_port',443) }}"></div>
+<div class="field wide"><label for="tls-cidrs">IPs / CIDR administrativas, separadas por coma</label><input class="input" id="tls-cidrs" name="admin_cidr" required value="{{ current.get('admin_cidr',[])|join(', ') }}" placeholder="203.0.113.8/32"><small>Debe incluir su IP actual: <strong>{{ client_ip }}</strong>. No se acepta 0.0.0.0/0 ni ::/0.</small></div>
+<div class="field wide" data-tls-mode="private-ca" hidden><div class="alert">La CA de laboratorio no tiene confianza pública. Instale solo su certificado público en los clientes; nunca distribuya claves privadas.</div></div>
+<div class="field wide" data-tls-mode="letsencrypt" hidden><label for="tls-email">Email ACME</label><input class="input" id="tls-email" name="email" type="email"><label class="check-row"><input type="checkbox" name="agree_acme_tos"><span>Acepto los <a href="https://letsencrypt.org/repository/" target="_blank" rel="noopener noreferrer">términos de Let’s Encrypt</a> y autorizo solicitar el certificado al aplicar.</span></label><small>Dominios con registros A correctos, TCP/80 libre y accesible. No emite certificados durante la validación previa ni modifica DNS/firewall.</small></div>
+<div class="field" data-tls-mode="pem" hidden><label for="tls-web-cert">WebAdmin: certificado y cadena PEM</label><input class="input" id="tls-web-cert" type="file" name="web_cert" accept=".pem,.crt,.cer"></div>
+<div class="field" data-tls-mode="pem" hidden><label for="tls-web-key">WebAdmin: clave privada PEM</label><input class="input" id="tls-web-key" type="file" name="web_key" accept=".pem,.key"></div>
+<div class="field" data-tls-mode="pem" hidden><label for="tls-agent-cert">Agentes: certificado y cadena PEM (opcional)</label><input class="input" id="tls-agent-cert" type="file" name="agent_cert" accept=".pem,.crt,.cer"></div>
+<div class="field" data-tls-mode="pem" hidden><label for="tls-agent-key">Agentes: clave privada PEM (opcional)</label><input class="input" id="tls-agent-key" type="file" name="agent_key" accept=".pem,.key"></div>
+<div class="field" data-tls-mode="pfx" hidden><label for="tls-web-pfx">WebAdmin: PFX / P12</label><input class="input" id="tls-web-pfx" type="file" name="web_pfx" accept=".pfx,.p12"></div>
+<div class="field" data-tls-mode="pfx" hidden><label for="tls-agent-pfx">Agentes: PFX / P12 (opcional)</label><input class="input" id="tls-agent-pfx" type="file" name="agent_pfx" accept=".pfx,.p12"></div>
+<div class="field" data-tls-mode="pem pfx" hidden><label for="tls-web-pass">Contraseña del archivo WebAdmin</label><input class="input" id="tls-web-pass" name="web_file_password" type="password" autocomplete="new-password"></div>
+<div class="field" data-tls-mode="pem pfx" hidden><label for="tls-agent-pass">Contraseña del archivo de agentes</label><input class="input" id="tls-agent-pass" name="agent_file_password" type="password" autocomplete="new-password"></div>
+<div class="field wide" data-tls-mode="pem pfx" hidden><label for="tls-ca">CA corporativa / privada de confianza PEM (opcional)</label><input class="input" id="tls-ca" type="file" name="ca" accept=".pem,.crt,.cer"><small>Sin archivo se utilizan las CA públicas de Ubuntu. Si omite los archivos de agentes, se reutiliza el certificado WebAdmin: debe cubrir ambos nombres. Archivos hasta 512 KiB; bundle CA hasta 2 MiB.</small></div>
+<label class="check-row wide"><input type="checkbox" name="accept_agent_reconfiguration"><span>He previsto actualizar agentes si cambia su URL o CA de confianza.</span></label>
+<div class="field"><label for="tls-prepare-password">Contraseña actual SuperAdmin</label><input class="input" id="tls-prepare-password" name="current_password" type="password" autocomplete="current-password" required></div>
+<div class="field"><label for="tls-prepare-mfa">Código MFA</label><input class="input" id="tls-prepare-mfa" name="mfa_code" inputmode="numeric" autocomplete="one-time-code" required></div>
+<div class="wide"><button class="btn btn-primary" type="submit">Validar y preparar</button><small> No aplica cambios. La preparación caduca a los 30 minutos.</small></div>
+</div></fieldset></form></section>
+<div class="spacer"></div>
+<section class="card card-pad"><h2 class="section-title">2. Revisar, aplicar y confirmar</h2><div id="tls-feedback" role="status" aria-live="polite"></div><div id="tls-jobs"><p class="muted">Las solicitudes preparadas aparecen aquí. Pulse Actualizar estado para consultar su resultado.</p></div>
+<form id="tls-action" class="form-grid" autocomplete="off" data-stepup-fresh>
+<div class="field wide"><label for="tls-request-id">Solicitud</label><input class="input" id="tls-request-id" name="id" readonly required placeholder="Seleccione una solicitud"></div>
+<div class="field"><label for="tls-action-password">Contraseña actual SuperAdmin</label><input class="input" id="tls-action-password" name="current_password" type="password" autocomplete="current-password" required></div>
+<div class="field"><label for="tls-action-mfa">Código MFA</label><input class="input" id="tls-action-mfa" name="mfa_code" inputmode="numeric" autocomplete="one-time-code" required></div>
+<label class="check-row wide"><input type="checkbox" name="acknowledge_restart" required><span>Revisé las direcciones y entiendo la interrupción temporal y la confirmación de 5 minutos.</span></label>
+<div class="wide flex wrap"><button class="btn btn-primary" type="submit" name="action" value="apply">Aplicar configuración preparada</button><button class="btn" type="submit" name="action" value="confirm">Confirmar acceso por la nueva URL</button><button class="btn" type="submit" name="action" value="cancel">Cancelar preparación</button></div>
+</form></section></div>
+<script src="{{ static_url('tls-management.js') }}" defer></script>
+{% endblock %}
+

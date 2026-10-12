@@ -1,0 +1,10 @@
+[Unit]
+Description=Retry GIDEON Player local graphical companion launch
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=30s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

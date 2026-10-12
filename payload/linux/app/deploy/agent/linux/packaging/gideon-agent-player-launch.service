@@ -1,0 +1,8 @@
+[Unit]
+Description=GIDEON Player physical-screen launcher
+After=graphical.target gideon-agent.service
+ConditionPathExists=/usr/lib/gideon-agent/gideon-agent-player-launch
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/gideon-agent/gideon-agent-player-launch

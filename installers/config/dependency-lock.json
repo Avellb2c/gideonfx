@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "artifacts": [
+    {
+      "id": "windows-yara-cli",
+      "product": "YARA",
+      "version": "4.5.5",
+      "architecture": "x64",
+      "publisher": "VirusTotal",
+      "source": "Official VirusTotal/yara GitHub release",
+      "url": "https://github.com/VirusTotal/yara/releases/download/v4.5.5/yara-4.5.5-2368-win64.zip",
+      "sha256": "352396c8a3d9b31b157a4820abd3b9347fc934a2314cdda8a4f566a5570163e4",
+      "destination": "offline-cache/windows/yara/yara-4.5.5-2368-win64.zip",
+      "executable": "yara64.exe",
+      "executable_sha256": "1c45eb279d820aba81fd41c22384428ebe44037cf5793be4b52a9d3b3df62b33",
+      "compiler": "yarac64.exe",
+      "compiler_sha256": "5b6705b9a8dabf496bccf163a65887574290c97f8b999c8cb73df5417b04bbd7"
+    },
+    {
+      "id": "ubuntu-2404-release-cloudimg-amd64",
+      "product": "Ubuntu Server cloud image",
+      "version": "24.04-LTS-release-20260814",
+      "architecture": "amd64",
+      "publisher": "Canonical",
+      "source": "Official Ubuntu 24.04 LTS release image (QCOW2, UEFI/GPT bootable)",
+      "url": "https://cloud-images.ubuntu.com/releases/releases/noble/release-20260814/ubuntu-24.04-server-cloudimg-amd64.img",
+      "sha256": "6e40c07ae715f744f84af0bec76415cc1987dd115b4b8de437818561f01a3733",
+      "destination": "offline-cache/hyperv/sources/ubuntu-24.04-server-cloudimg-amd64-20260814.img",
+      "required": false,
+      "build_only": true
+    },
+    {
+      "id": "linux-docker-static-amd64",
+      "product": "Docker Engine static binaries",
+      "version": "29.7.2",
+      "architecture": "x86_64",
+      "publisher": "Docker, Inc.",
+      "source": "Official Docker Linux static stable archive",
+      "url": "https://download.docker.com/linux/static/stable/x86_64/docker-29.7.2.tgz",
+      "sha256": "803d433f226db4776e1768fd319fc6c6e4935a456acf84fcc0080818b854bc8f",
+      "destination": "offline-cache/hyperv/bootstrap/docker-29.7.2.tgz",
+      "required": true,
+      "install_mode": "offline-first-boot"
+    }
+  ]
+}

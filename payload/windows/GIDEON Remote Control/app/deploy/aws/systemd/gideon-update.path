@@ -1,0 +1,10 @@
+[Unit]
+Description=GIDEON Remote Control update inbox watcher
+PartOf=gideon-remote-control.target
+
+[Path]
+PathExistsGlob=/var/lib/gideon/updates/inbox/*.ready
+Unit=gideon-update.service
+
+[Install]
+WantedBy=gideon-remote-control.target

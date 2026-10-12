@@ -1,0 +1,7 @@
+[Unit]
+Description=GIDEON expire prepared TLS uploads
+
+[Timer]
+OnActiveSec=30min
+AccuracySec=1min
+Unit=gideon-tls-rollback.service

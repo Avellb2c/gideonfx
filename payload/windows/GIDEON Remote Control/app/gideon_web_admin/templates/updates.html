@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Actualizaciones de Agents</h1><p>Versión instalada, release estable y avance confirmado por cada equipo.</p></div>
+  <div class="page-actions"><a class="btn btn-primary" href="/updates">↻ Revalidar estado</a></div>
+</div>
+{% if requested %}<div class="alert success"><strong>Actualización solicitada</strong>La orden para <span class="mono">{{ requested }}</span> quedó persistida en el Gateway. Puede cerrar esta página; el Agent la recogerá al conectarse.</div>{% endif %}
+<div class="metrics">
+  <div class="metric"><div class="label">Equipos</div><div class="value">{{ agents|length }}</div></div>
+  <div class="metric" style="--metric:var(--success)"><div class="label">Al día</div><div class="value">{{ agents|selectattr('_current')|list|length }}</div></div>
+  <div class="metric" style="--metric:var(--warning)"><div class="label">Requieren atención</div><div class="value">{{ agents|rejectattr('_current')|list|length }}</div></div>
+</div>
+<div class="table-wrap"><table>
+  <thead><tr><th>Equipo</th><th>Sede</th><th>Plataforma</th><th>Instalada</th><th>Stable</th><th>Estado reportado</th><th>Último avance</th><th>Acción</th></tr></thead>
+  <tbody>{% for a in agents %}<tr>
+    <td><a class="link" href="/agents/{{ a.agent_id }}">{{ a.agent_name or a.hostname or a.agent_id }}</a><div class="mono muted">{{ a.agent_id }}</div></td>
+    <td>{{ a.site_code }} · {{ a.site_name or '-' }}</td><td>{{ a.platform or '-' }} / {{ a.architecture or '-' }}</td>
+    <td><strong>{{ a.agent_version or 'No reportada' }}</strong></td><td>{{ a._stable or '-' }}</td>
+    <td><span class="chip {{ a._update_css }}"><span class="mini-dot"></span>{{ a._update_label }}</span>{% if a._update_target %}<div class="muted">Objetivo {{ a._update_target }}</div>{% endif %}{% if a._update_detail %}<div class="state-description" title="{{ a._update_detail }}">{{ a._update_detail }}</div>{% endif %}</td>
+    <td>{{ a._update_checked_at or a.last_seen or '-' }}</td>
+    <td>{% if a._stable and identity.can('agents.operate') %}<form method="post" action="/agents/{{ a.agent_id }}/update" data-confirm="¿{{ 'Comprobar nuevamente' if a._current else 'Forzar la actualización' }} de {{ a.agent_name or a.hostname or a.agent_id }} a {{ a._stable }}? La orden quedará auditada y persistida."><input type="hidden" name="csrf" value="{{ identity.csrf_token }}"><input type="hidden" name="target_version" value="{{ a._stable }}"><button class="btn btn-small {{ '' if a._current else 'btn-primary' }}">{{ 'Comprobar ahora' if a._current else 'Forzar actualización' }}</button></form>{% elif not a._stable %}<a class="btn btn-small" href="/releases">Crear/publicar stable</a>{% else %}<span class="muted">Sin permiso operativo</span>{% endif %}</td>
+  </tr>{% else %}<tr><td colspan="8" class="empty">No hay Agents.</td></tr>{% endfor %}</tbody>
+</table></div>
+<div class="spacer"></div><details class="card card-pad"><summary><strong>Opciones avanzadas de releases</strong></summary><p class="muted">La instalación solo acepta bundles stable aprobados, con firma Ed25519, SHA-256 y plataforma/arquitectura coincidentes. Identidad, sede, token y confianza TLS se preservan.</p><a class="btn" href="/releases">Abrir Versiones / Releases</a></details>
+{% endblock %}
+

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Agentes</h1><p>Vista operativa de equipos enrolados. Los identificadores, rutas y telemetría técnica se consultan sólo al abrir el detalle.</p></div>
+  <div class="page-actions"><a class="btn" href="/installers">Instaladores</a><a class="btn btn-primary" href="/agents">↻ Actualizar</a></div>
+</div>
+
+<div class="metrics">
+  <div class="metric"><div class="label">Enrolados</div><div class="value">{{ total_agents|length }}</div></div>
+  <div class="metric" style="--metric:var(--success)"><div class="label">Activos</div><div class="value">{{ total_agents|selectattr('_online')|list|length }}</div></div>
+  <div class="metric" style="--metric:var(--red)"><div class="label">Inactivos</div><div class="value">{{ total_agents|rejectattr('_online')|list|length }}</div></div>
+  <div class="metric" style="--metric:var(--warning)"><div class="label">Con actualización</div><div class="value">{{ total_agents|selectattr('_update')|list|length }}</div></div>
+</div>
+
+<form class="commandbar table-filter-bar" method="get" data-gideon-persist-query="agents.filters.v1" data-gideon-persist-defaults='{"status":"all","platform":"all","sort":"site"}'>
+  <label class="sr-only" for="agentsSearch">Buscar equipos</label>
+  <input class="input search" id="agentsSearch" name="q" value="{{ q }}" placeholder="Buscar sede, código, equipo, SO o perfil…">
+  <label class="sr-only" for="agentsStatus">Estado</label>
+  <select class="select" id="agentsStatus" name="status"><option value="all" {{ 'selected' if status=='all' }}>Todos los estados</option><option value="online" {{ 'selected' if status=='online' }}>Activos</option><option value="offline" {{ 'selected' if status=='offline' }}>Inactivos</option><option value="updates" {{ 'selected' if status=='updates' }}>Con actualización</option></select>
+  <label class="sr-only" for="agentsPlatform">Sistema operativo</label>
+  <select class="select" id="agentsPlatform" name="platform"><option value="all" {{ 'selected' if platform=='all' }}>Todos los sistemas</option><option value="windows" {{ 'selected' if platform=='windows' }}>Windows</option><option value="linux" {{ 'selected' if platform=='linux' }}>Linux</option><option value="raspberry" {{ 'selected' if platform=='raspberry' }}>Raspberry Pi</option><option value="macos" {{ 'selected' if platform=='macos' }}>macOS</option><option value="other" {{ 'selected' if platform=='other' }}>Otro sistema</option></select>
+  <label class="sr-only" for="agentsSort">Orden</label>
+  <select class="select" id="agentsSort" name="sort"><option value="site" {{ 'selected' if sort=='site' }}>Ordenar: sede</option><option value="name" {{ 'selected' if sort=='name' }}>Ordenar: equipo</option><option value="state" {{ 'selected' if sort=='state' }}>Ordenar: disponibilidad</option><option value="last_seen" {{ 'selected' if sort=='last_seen' }}>Ordenar: actividad</option><option value="version" {{ 'selected' if sort=='version' }}>Ordenar: versión</option></select>
+  <button class="btn btn-primary" type="submit">Aplicar</button>
+  <a class="btn btn-ghost" href="/agents" data-gideon-clear-persisted-filters="agents.filters.v1">Limpiar</a>
+</form>
+
+<div class="table-wrap"><table class="operational-table"><thead><tr><th>Estado</th><th>Código</th><th>Sede</th><th>Equipo</th><th>Canal</th><th>Versión</th><th>Plataforma</th><th>Perfil</th><th>Última actividad</th><th><span class="sr-only">Acciones</span></th></tr></thead><tbody>
+{% for a in agents %}
+  <tr>
+    <td><span class="chip {{ a._state.css }}"><span class="mini-dot"></span>{{ a._state.code }}</span><div class="state-description" title="{{ a._state.description }}">{{ a._state.description }}</div></td>
+    <td>{{ a.site_code }}</td><td>{{ a.site_name or '-' }}</td>
+    <td><a class="link" href="/agents/{{ a.agent_id }}">{{ a.agent_name or a.hostname or 'Equipo sin nombre' }}</a><details class="technical-details" data-gideon-disclosure-key="agent-tech-{{ a.agent_id }}"><summary>Datos técnicos</summary><dl class="compact-kv"><dt>AgentId</dt><dd class="mono">{{ a.agent_id }}</dd>{% if a.Diagnostics and a.Diagnostics.gateway and a.Diagnostics.gateway.current_endpoint %}<dt>Endpoint observado</dt><dd class="mono">{{ a.Diagnostics.gateway.current_endpoint }}</dd>{% endif %}</dl></details></td>
+    <td><span class="chip info">HTTPS/PULL</span></td>
+    <td><strong>{{ a.agent_version or 'No reportada' }}</strong><div><span class="chip {{ a._update_css }}">{{ a._update_label }}</span>{% if a._update_target and not a._current %}<span class="muted"> → {{ a._update_target }}</span>{% endif %}</div></td>
+    <td>{{ a.platform or '-' }} / {{ a.architecture or '-' }}</td><td>{{ a.host_profile or '-' }}</td>
+    <td>{{ a.last_seen or '-' }}{% if a._state.heartbeat_age_seconds is not none %}<div class="muted">hace {{ a._state.heartbeat_age_seconds|round|int }} s</div>{% endif %}</td>
+    <td class="table-actions"><a class="btn btn-small" href="/agents/{{ a.agent_id }}">Detalle</a>{% if identity.can('remote.control') %}<a class="btn btn-primary btn-small" href="/remote?agent_id={{ a.agent_id }}">Controlar</a>{% endif %}{% if identity.can('jobs.execute') %}<a class="btn btn-small" href="/execute?agent={{ a.agent_id }}">Script</a>{% endif %}</td>
+  </tr>
+{% else %}<tr><td colspan="10" class="empty">No hay Agents que coincidan con el filtro.</td></tr>{% endfor %}
+</tbody></table></div>
+{% endblock %}
+

@@ -1,0 +1,86 @@
+from __future__ import annotations
+
+from enum import StrEnum
+
+
+class JobKind(StrEnum):
+    SCRIPT = "SCRIPT"
+    FILE_TRANSFER = "FILE_TRANSFER"
+    VIDEO_TRANSFER = "VIDEO_TRANSFER"
+    REPORT_COLLECTION = "REPORT_COLLECTION"
+
+
+class JobState(StrEnum):
+    """Canonical job-state vocabulary shared by backend, domain and Qt UI.
+
+    Legacy state names are kept as explicit values so existing manifests remain
+    readable, while new code uses one enum instead of maintaining two partial
+    definitions.
+    """
+
+    CREATED = "CREATED"
+    PREFLIGHT = "PREFLIGHT"
+    STARTING = "STARTING"
+    DISPATCHING = "DISPATCHING"
+    RUNNING = "RUNNING"
+    COLLECTING = "COLLECTING"
+    WAITING_REMOTE_REPORTS = "WAITING_REMOTE_REPORTS"
+    MONITORING = "MONITORING"
+    WAITING_CONNECTIVITY = "WAITING_CONNECTIVITY"
+    WAITING_CONNECTION = "WAITING_CONNECTION"
+    COMPLETED = "COMPLETED"
+    COMPLETED_WITH_WARNINGS = "COMPLETED_WITH_WARNINGS"
+    COMPLETED_WITH_ERRORS = "COMPLETED_WITH_ERRORS"
+    COMPLETED_WITH_SKIPPED = "COMPLETED_WITH_SKIPPED"
+    PARTIAL = "PARTIAL"
+    FAILED = "FAILED"
+    LAUNCH_FAILED = "LAUNCH_FAILED"
+    CANCEL_REQUESTED = "CANCEL_REQUESTED"
+    CANCELLING = "CANCELLING"
+    CANCELLED = "CANCELLED"
+    CANCELLED_WITH_ERRORS = "CANCELLED_WITH_ERRORS"
+    INTERRUPTED = "INTERRUPTED"
+    ACTION_REQUIRED = "ACTION_REQUIRED"
+
+
+class HostState(StrEnum):
+    PENDING = "PENDING"
+    PREFLIGHT = "PREFLIGHT"
+    CONNECTING = "CONNECTING"
+    UPLOADING = "UPLOADING"
+    DISPATCHED = "DISPATCHED"
+    RUNNING = "RUNNING"
+    RESULT_READY = "RESULT_READY"
+    COLLECTING = "COLLECTING"
+    COLLECTED = "COLLECTED"
+    WAITING_CONNECTIVITY = "WAITING_CONNECTIVITY"
+    SKIPPED = "SKIPPED"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+
+
+class TransportProfile(StrEnum):
+    SFTP_SSH_SFTP = "SFTP_SSH_SFTP"
+    SCP_SSH_SCP = "SCP_SSH_SCP"
+    STDIN_SSH_SCP = "STDIN_SSH_SCP"
+    AGENT_HTTPS_PULL = "AGENT_HTTPS_PULL"
+
+
+class RiskLevel(StrEnum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+
+
+class ArtifactKind(StrEnum):
+    SCRIPT_PACKAGE = "SCRIPT_PACKAGE"
+    REPORT = "REPORT"
+    FILE = "FILE"
+    VIDEO = "VIDEO"
+    LOG = "LOG"
+
+
+class TransferDirection(StrEnum):
+    UPLOAD = "UPLOAD"
+    DOWNLOAD = "DOWNLOAD"

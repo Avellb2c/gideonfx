@@ -1,0 +1,14 @@
+fastapi>=0.115,<1
+uvicorn[standard]>=0.30,<1
+jinja2>=3.1,<4
+python-multipart>=0.0.9,<1
+argon2-cffi>=23.1,<26
+openpyxl>=3.1,<4
+cryptography>=45,<48
+# Python on Windows does not ship the IANA zoneinfo database. Campaign
+# scheduling must use the same named zones on every WebAdmin host instead of
+# silently treating local calendar times as UTC. Pin the release input so a
+# future IANA update is reviewed and released deliberately.
+tzdata==2026.4
+# GIDEON SSH Vault: OpenSSH encrypted private keys
+bcrypt>=4.2,<6

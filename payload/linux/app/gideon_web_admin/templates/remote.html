@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+{% block extra_styles %}<link rel="stylesheet" href="{{ static_url('workflow_forms.css') }}">{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Control remoto</h1>
+    <p>Sesiones RDP/VNC en navegador mediante Apache Guacamole. El navegador nunca recibe credenciales del equipo.</p>
+  </div>
+</div>
+
+{% if error %}<div class="alert danger"><strong>Error</strong><span data-error-text>{{ error }}</span></div>{% endif %}
+{% if message %}<div class="alert success"><strong>Listo</strong>{{ message }}</div>{% endif %}
+
+<div class="grid-even">
+  <section class="card card-pad">
+    <h2 class="section-title">Servicio de sesiones</h2>
+    <dl class="kv">
+      <dt>guacd</dt><dd><span class="chip {{ 'success' if guacd_status.online else 'danger' }}">{{ 'ONLINE' if guacd_status.online else 'OFFLINE' }}</span> <span class="mono">{{ guacd_status.host }}:{{ guacd_status.port }}</span></dd>
+      <dt>Cliente Web</dt><dd><span class="chip {{ 'success' if guacamole_client.ready else 'warning' }}">{{ 'READY' if guacamole_client.ready else 'FALTA JS' }}</span>{% if guacamole_client.version %} {{ guacamole_client.version }}{% endif %}</dd>
+      <dt>Sesiones activas</dt><dd>{{ remote_stats.active }} / {{ remote_stats.max_active }}</dd>
+      <dt>Máx. por usuario</dt><dd>{{ remote_stats.max_per_user }}</dd>
+      <dt>Máx. por equipo</dt><dd>{{ remote_stats.max_per_target }}</dd>
+    </dl>
+    {% if not guacd_status.online %}<div class="alert warning">guacd no responde. Revise <span class="mono">deploy/guacamole/docker-compose.yml</span> y la ruta del servidor hacia las redes de tiendas.</div>{% endif %}
+    {% if not guacamole_client.ready %}<div class="alert warning">Un SuperAdmin debe cargar el bundle oficial <strong>guacamole-common-js</strong> desde <a class="link" href="/security/assets">Claves y secretos</a>.</div>{% endif %}
+  </section>
+
+  <section class="card card-pad">
+    <h2 class="section-title">Seguridad aplicada</h2>
+    <ul class="plain-list">
+      <li>WSS misma-origin + sesión WebAdmin + MFA.</li>
+      <li>MFA reforzado reutilizable durante 15 minutos en la sesión WebAdmin.</li>
+      <li>Ticket HttpOnly de un solo uso y vida corta.</li>
+      <li>Credenciales cifradas en Vault Gideon Rx; nunca viajan al navegador.</li>
+      <li>Destinos limitados a CIDR privados autorizados.</li>
+      <li>El Agent detecta si Windows admite una sola sesión o un host multi-sesión; WebAdmin no ofrece simultaneidad sin capacidad RDS.</li>
+      <li>RDP usa NLA por defecto; portapapeles y unidad temporal se habilitan por sesión y por acción. Impresión permanece deshabilitada.</li>
+      <li>Auditoría de solicitud, conexión y desconexión.</li>
+    </ul>
+  </section>
+</div>
+
+<div class="spacer"></div>
+<section class="card card-pad remote-source-tools" aria-label="Buscar destinos remotos">
+  <div class="flex-between wrap">
+    <div><h2 class="section-title">1. Elegir destino</h2><p class="muted">Gideon Rx muestra todos los Agents enrolados y los hosts directos. Sólo habilita la conexión de Agents cuyo túnel inverso y servicio remoto estén listos.</p></div>
+    <span class="muted" id="remoteSourceFilterStatus" aria-live="polite"></span>
+  </div>
+  <div class="remote-source-filter-row">
+    <div class="remote-source-tabs" role="group" aria-label="Tipo de destino">
+      <button class="btn btn-small btn-primary" type="button" data-remote-source-filter="ALL" aria-pressed="true">Todos</button>
+      <button class="btn btn-small" type="button" data-remote-source-filter="AGENT" aria-pressed="false">Equipo con Agent</button>
+      <button class="btn btn-small" type="button" data-remote-source-filter="HOST" aria-pressed="false">Host directo</button>
+    </div>
+    <div class="remote-source-filter-selects" aria-label="Filtros de equipos">
+      <label><span class="sr-only">Sistema operativo</span><select class="select" id="remotePlatformFilter"><option value="ALL">Todos los SO</option><option value="windows">Windows</option><option value="linux">Linux</option><option value="raspberry">Raspberry Pi</option><option value="other">Otro SO</option></select></label>
+      <label><span class="sr-only">Disponibilidad</span><select class="select" id="remoteAvailabilityFilter"><option value="ALL">Cualquier estado</option><option value="READY">Servicio listo</option><option value="NOT_READY">Requiere atención</option></select></label>
+      <label><span class="sr-only">Ruta</span><select class="select" id="remoteTunnelFilter"><option value="ALL">Cualquier ruta</option><option value="ONLINE">Túnel ONLINE</option><option value="DIRECT">Host directo</option><option value="OFFLINE">Túnel offline</option></select></label>
+    </div>
+    <label class="remote-source-search"><span class="sr-only">Buscar equipo</span><input class="input" type="search" id="remoteSourceSearch" placeholder="Buscar por sede, código, equipo, SO o IP" autocomplete="off"></label>
+  </div>
+</section>
+<div class="grid-even remote-target-grid">
+  <section class="card" data-remote-source-section="AGENT">
+    <div class="card-head"><div><h2>Agents enrolados</h2><p>El Agent usa su túnel inverso saliente. Gideon Rx conecta exclusivamente al servicio local que el Agent anunció; no expone ni depende de la IP privada.</p></div></div>
+    <div class="checkbox-list" style="border:0;border-radius:0">
+      {% for a in agents %}
+      <label class="check-row remote-source-row {{ 'remote-unavailable' if not a.RemoteReady }}">
+        <input type="radio" name="remote_source_pick" value="AGENT|{{ a.agent_id }}"
+               data-source-type="AGENT" data-source-id="{{ a.agent_id }}"
+               data-platform="{{ a.platform or '' }}"
+               data-source-platform="{{ a.platform or '' }}"
+               data-source-ready="{{ '1' if a.RemoteReady else '0' }}"
+               data-source-service-ready="{{ '1' if a.RemoteAccessReady else '0' }}"
+               data-source-tunnel="{{ 'ONLINE' if a.ReverseTunnelReady else 'OFFLINE' }}"
+               data-source-status="{{ 'READY' if a.RemoteReady else 'NOT_READY' }}"
+               data-source-label="{{ a.site_code }} · {{ a.site_name or '-' }} · {{ a.agent_name or a.hostname or 'Agent' }}"
+               data-target-ips='{{ a.RemoteIPs|tojson }}'
+               data-remote-protocol="{{ a.RemoteProtocol or 'RDP' }}"
+               data-remote-protocols="{{ (a.RemoteProtocols or ['RDP'])|join(',') }}"
+               data-remote-port="{{ a.RemoteProfile.port if a.RemoteProfile else 3389 }}"
+               data-remote-server="{{ a.RemoteProfile.server if a.RemoteProfile else '' }}"
+               data-remote-ports='{{ (a.RemoteProfile.ports or {})|tojson }}'
+               data-remote-servers='{{ (a.RemoteProfile.servers or {})|tojson }}'
+               data-remote-ready-map='{{ (a.RemoteProfile.ready_by_protocol or {})|tojson }}'
+               data-remote-password-required='{{ (a.RemoteProfile.password_required or {})|tojson }}'
+               data-remote-session-kinds='{{ (a.RemoteProfile.session_kinds or {})|tojson }}'
+               data-remote-ready="{{ '1' if a.RemoteAccessReady else '0' }}"
+               data-remote-reason="{{ a.RemoteAccessReason|e }}"
+               data-remote-file-transfer="{{ '1' if a.RemoteProfile.file_transfer else '0' }}"
+               data-remote-file-transfer-reason="{{ a.RemoteProfile.file_transfer_reason|e }}"
+               data-rdp-security="{{ a.RdpNegotiation.preferred_security or rdp_security or 'nla' }}"
+               data-rdp-detected="{{ '1' if a.RdpNegotiation.valid else '0' }}"
+               data-rdp-security-source="{{ a.RdpNegotiation.source or 'webadmin-default' }}"
+               data-rdp-product-name="{{ a.RdpNegotiation.product_name|e }}"
+               data-rdp-session-model="{{ a.RdpNegotiation.session_model or 'unknown' }}"
+               data-rdp-concurrent="{{ '1' if a.RdpNegotiation.concurrent_sessions_possible else '0' }}"
+               data-rdp-concurrent-licensed="{{ '1' if a.RdpNegotiation.concurrent_sessions_licensed is true else '0' }}"
+               data-rdp-admin="{{ '1' if a.RdpNegotiation.administrative_console else '0' }}"
+               data-rdp-screen-share="{{ '1' if a.RdpNegotiation.interactive_screen_sharing else '0' }}"
+               data-agent-background="{{ '1' if a.RdpNegotiation.agent_background_ready else '0' }}"
+               data-active-console-user="{{ a.RdpNegotiation.active_console_user|e }}"
+               data-active-console-domain="{{ a.RdpNegotiation.active_console_domain|e }}"
+               data-active-console-session="{{ a.RdpNegotiation.active_console_session_id if a.RdpNegotiation.active_console_session_id is not none else '' }}"
+               {{ 'checked' if selected_agent_id==a.agent_id }} {{ 'disabled' if not a.RemoteReady }}>
+        <span class="check-main"><strong>{{ a.site_code }} · {{ a.site_name or '-' }} · {{ a.agent_name or a.hostname or 'Agent' }}</strong><small>{{ a.platform or '-' }}/{{ a.architecture or '-' }} · {% if a.ReverseTunnelReady %}Agent residente y túnel inverso ONLINE{% else %}túnel inverso offline; Gideon Rx no abrirá una ruta directa{% endif %} · {% if a.RemoteAccessReady %}{{ a.RemoteProtocol }}{% if a.RemoteProfile.server %} ({{ a.RemoteProfile.server }}){% endif %} listo{% else %}servicio remoto no listo{% if a.RemoteAccessReason %}: {{ a.RemoteAccessReason }}{% endif %}{% endif %}{% if a.RemoteProfile.file_transfer %} · archivos listos{% elif a.RemoteProfile.file_transfer_reason %} · archivos no disponibles: {{ a.RemoteProfile.file_transfer_reason }}{% endif %}{% if a.RdpNegotiation.valid %} · RDP {{ a.RdpNegotiation.preferred_security|upper }} · {{ 'multi-sesión condicionada a RDS' if a.RdpNegotiation.concurrent_sessions_possible else 'una sesión interactiva' }}{% endif %}</small></span>
+        <span class="chip {{ 'success' if a.ReverseTunnelReady else 'danger' }}">{{ 'TÚNEL ONLINE' if a.ReverseTunnelReady else 'TÚNEL OFFLINE' }}</span>
+      </label>
+      {% else %}<div class="empty">No hay Agents disponibles.</div>{% endfor %}
+    </div>
+  </section>
+
+  <section class="card" data-remote-source-section="HOST">
+    <div class="card-head"><div><h2>Lista de equipos / hosts</h2><p>Equipos administrados sin Agent, tomados del inventario de sedes.</p></div></div>
+    {% if host_groups %}<div class="commandbar" style="margin:8px"><span class="muted">Lista:</span>{% for g in host_groups %}<a class="btn btn-small {{ 'btn-primary' if g.id==selected_host_group }}" href="/remote?host_group={{ g.id }}">{{ g.name }}</a>{% endfor %}</div>{% endif %}
+    <div class="checkbox-list" style="border:0;border-radius:0">
+      {% for h in host_sites %}
+      <label class="check-row remote-source-row">
+        <input type="radio" name="remote_source_pick" value="HOST|{{ h.SiteCode }}"
+               data-source-type="HOST" data-source-id="{{ h.SiteCode }}"
+               data-platform="unknown" data-source-platform="unknown"
+               data-source-ready="0" data-source-service-ready="UNKNOWN"
+               data-source-tunnel="DIRECT" data-source-status="DIRECT_UNKNOWN"
+               data-source-label="{{ h.SiteCode }} · {{ h.SiteName or '-' }} · {{ h.ServerIP or '-' }}"
+               data-target-ips='{{ ([h.ServerIP] if h.ServerIP else [])|tojson }}' {{ 'disabled' if not h.ServerIP }}>
+        <span class="check-main"><strong>{{ h.SiteCode }} · {{ h.SiteName or '-' }}</strong><small class="mono">{{ h.ServerIP or 'SIN IP' }}</small></span>
+        <span class="chip {{ 'info' if h.ServerIP else 'danger' }}">HOST</span>
+      </label>
+      {% else %}<div class="empty">La lista seleccionada no contiene hosts.</div>{% endfor %}
+    </div>
+  </section>
+</div>
+
+<div class="spacer"></div>
+<section class="card card-pad">
+  <div class="card-head">
+    <div>
+      <h2>Iniciar sesión remota</h2>
+      <p>Seleccione un destino y elija cómo desea autenticarse en el equipo remoto.</p>
+    </div>
+  </div>
+  <form method="post" action="/remote/start" id="remoteSessionForm" data-step-up-active="0" data-step-up-remaining-seconds="0" data-rdp-security="{{ rdp_security or 'nla' }}">
+    <input type="hidden" name="csrf" value="{{ identity.csrf_token }}">
+    <input type="hidden" name="step_up_client_id" id="remoteStepUpClientId" value="">
+    <input type="hidden" name="source_type" id="remoteSourceType" value="">
+    <input type="hidden" name="source_id" id="remoteSourceId" value="">
+    <input type="hidden" name="host_group" value="{{ selected_host_group }}">
+
+    <div class="alert info" id="remoteSelectedTarget">Seleccione un Agent o un host.</div>
+    <section class="remote-preflight" id="remotePreflight" hidden aria-live="polite"></section>
+
+    <section class="remote-intent-picker" id="remoteIntentPicker" aria-labelledby="remoteIntentTitle" hidden>
+      <div class="card-head remote-intent-head">
+        <div><h3 id="remoteIntentTitle">2. Elegir qué desea hacer</h3><p class="muted">Las opciones se calculan a partir del Agent y no prometen una pantalla física ni una sesión paralela cuando el equipo no la soporta.</p></div>
+      </div>
+      <div class="remote-intent-grid" role="radiogroup" aria-label="Intención de control remoto">
+        <label class="remote-intent-card" data-intent-card="PHYSICAL_CONSOLE">
+          <input type="radio" name="connection_intent" value="PHYSICAL_CONSOLE">
+          <span><strong>Controlar pantalla física</strong><small data-intent-detail>Requiere que el Agent anuncie una consola física VNC controlable.</small></span>
+        </label>
+        <label class="remote-intent-card" data-intent-card="INDEPENDENT_SESSION">
+          <input type="radio" name="connection_intent" value="INDEPENDENT_SESSION">
+          <span><strong>Abrir sesión independiente</strong><small data-intent-detail>Requiere XRDP o Windows Server/RDS reportado por el Agent.</small></span>
+        </label>
+        <label class="remote-intent-card" data-intent-card="ADMIN_CONSOLE">
+          <input type="radio" name="connection_intent" value="ADMIN_CONSOLE">
+          <span><strong>Consola administrativa</strong><small data-intent-detail>Usa la consola administrativa RDP sin afirmar que comparte el monitor físico.</small></span>
+        </label>
+        <label class="remote-intent-card remote-intent-compat" data-intent-card="STANDARD_ACCESS" hidden>
+          <input type="radio" name="connection_intent" value="STANDARD_ACCESS">
+          <span><strong>Acceso directo de compatibilidad</strong><small data-intent-detail>Host sin Agent: Gideon Rx puede probar RDP/VNC, pero no conoce usuarios, consentimiento ni impacto local.</small></span>
+        </label>
+      </div>
+      <div class="alert info" id="remoteIntentHelp">Seleccione un destino para validar sus capacidades reales.</div>
+      <label class="remote-impact-ack" id="remoteIntentAcknowledgement" hidden>
+        <input type="checkbox" name="intent_acknowledged" id="remoteIntentAcknowledged" value="1">
+        <span><strong>Autorizo esta acción con el impacto indicado.</strong><small id="remoteIntentAcknowledgementText">Gideon Rx registrará la autorización del operador. Esto no equivale a consentimiento verificable de una persona frente al equipo.</small></span>
+      </label>
+    </section>
+
+    <div class="grid-even remote-access-grid">
+      <div>
+        <span class="muted">Acceso seleccionado</span>
+        <div id="remoteAutoSummary" class="stack">
+          <strong>RDP automático</strong>
+          <span class="muted">Seleccione un equipo.</span>
+        </div>
+      </div>
+      <div>
+        <span class="muted">Autorización WebAdmin</span>
+        <div class="remote-auth-status warning" id="remoteStepUpStatus"><strong>Comprobando MFA remoto…</strong><span>La autorización remota se consulta en vivo para este navegador.</span></div>
+      </div>
+    </div>
+
+    <div class="remote-credential-panel" id="remoteDesktopKindPanel" hidden>
+      <label>Escritorio al que desea conectarse
+        <select class="select" id="remoteDesktopKind">
+          <option value="RDP">Sesión independiente (XRDP)</option>
+          <option value="VNC">Pantalla física del monitor (WayVNC)</option>
+        </select>
+      </label>
+      <div class="alert info" id="remoteDesktopKindHelp">El Agent indicará qué escritorios están realmente disponibles.</div>
+    </div>
+
+    <div class="remote-credential-panel" id="remoteSessionModePanel">
+      <label>Comportamiento de la sesión Windows
+        <select class="select" name="rdp_session_mode" id="remoteSessionMode">
+          <option value="STANDARD">Automático · acceso RDP normal</option>
+          <option value="RESUME">Continuar sesión del mismo usuario</option>
+          <option value="ADMIN">Consola administrativa</option>
+          <option value="SEPARATE">Crear sesión separada · requiere Windows Server/RDS</option>
+          <option value="SHARE" disabled>Compartir pantalla física · componente interactivo no instalado</option>
+        </select>
+      </label>
+      <div class="alert info" id="remoteSessionModeHelp">Seleccione un Agent para validar qué modos permite ese Windows.</div>
+    </div>
+
+    <div class="remote-credential-choice" role="group" aria-label="Modo de credencial">
+      <label class="remote-choice-card">
+        <input type="radio" name="credential_mode" value="VAULT" checked>
+        <span><strong>Perfil guardado en Vault</strong><small>Usa una credencial cifrada y administrada por Gideon Rx.</small></span>
+      </label>
+      <label class="remote-choice-card">
+        <input type="radio" name="credential_mode" value="INTERACTIVE">
+        <span><strong>Sesión interactiva</strong><small>Recuerda solo el usuario. Para RDP, la contraseña real de Windows se solicita antes de abrir y se descarta al finalizar el ciclo.</small></span>
+      </label>
+    </div>
+
+    <div id="remoteVaultCredentialPanel" class="remote-credential-panel">
+      <label>Perfil remoto
+        <select class="select" name="credential_id" id="remoteCredential" required>
+          <option value="">Seleccione una credencial…</option>
+          {% for c in remote_credentials %}
+          <option value="{{ c.id }}" data-protocol="{{ c.protocol }}" data-vault-username="{{ c.username|e }}" data-vault-domain="{{ c.domain|e }}">{{ c.protocol }} · {{ c.label }}{% if c.username %} · {{ c.username }}{% endif %}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+    <div id="remoteInteractivePanel" class="remote-credential-panel" hidden>
+      <div class="alert info"><strong>Sesión interactiva</strong><span>Gideon Rx recordará el usuario en este navegador. El código MFA no se guarda: se conserva únicamente una autorización revocable de 15 minutos.</span></div>
+    </div>
+
+    <details style="margin-top:12px" data-gideon-disclosure-key="remote.transport">
+      <summary>Opciones avanzadas · protocolo y servicio</summary>
+      <div class="grid-even" style="margin-top:10px">
+        <label>Protocolo<select class="select" name="protocol" id="remoteProtocol"><option value="RDP">RDP</option><option value="VNC">VNC</option></select><small class="muted" id="remoteProtocolHelp">El Agent anunciará el protocolo y puerto local disponibles.</small></label>
+        <label>Ruta disponible<select class="select" name="target_ip" id="remoteTargetIp"><option value="">Automática por túnel</option></select><small class="muted" id="remoteRouteHelp">La ruta se valida desde el inventario o por túnel inverso.</small></label>
+        <label>Servicio anunciado<input class="input" type="number" name="target_port" id="remoteTargetPort" min="1" max="65535" value="3389"><small class="muted">Para Agents, se toma del servicio firmado anunciado y no de una IP pública.</small></label>
+      </div>
+      <div class="remote-choice-grid" style="margin-top:10px">
+        <label class="remote-choice-card">
+          <input type="checkbox" name="clipboard_enabled" value="1" checked>
+          <span><strong>Portapapeles</strong><small>Habilita copiar y pegar texto durante esta sesión.</small></span>
+        </label>
+        <label class="remote-choice-card">
+          <input type="checkbox" name="file_transfer_enabled" id="remoteFileTransferEnabled" value="1">
+          <span><strong>Transferir archivos</strong><small id="remoteFileTransferHelp">Activa la unidad temporal Gideon Rx Transfer cuando el Agent anuncia RDPDR/xrdp-chansrv.</small></span>
+        </label>
+      </div>
+    </details>
+
+    <div class="flex-between wrap" style="margin-top:12px">
+      <span class="muted" id="remoteCredentialPrivacy">El secreto del perfil Vault se descifra únicamente en el servidor al establecer la sesión.</span>
+      <button class="btn btn-primary" type="submit" id="remoteOpenButton" {{ 'disabled' if not guacd_status.online or not guacamole_client.ready }}>Abrir escritorio remoto</button>
+    </div>
+
+    <dialog id="remoteCredentialDialog" class="gideon-modal" aria-labelledby="remoteCredentialDialogTitle">
+      <div class="gideon-modal-card">
+        <div class="gideon-modal-head">
+          <div><h3 id="remoteCredentialDialogTitle">Confirmar sesión remota</h3><p id="remoteCredentialDialogSubtitle">Ingrese los datos requeridos para esta conexión.</p></div>
+          <button type="button" class="btn btn-small" id="remoteDialogClose" aria-label="Cerrar">Cerrar</button>
+        </div>
+        <div id="remoteInteractiveFields" class="remote-credential-stack" hidden>
+              <label class="remote-field"><span>Usuario remoto</span><input class="input" type="text" name="interactive_username" id="remoteInteractiveUsername" autocomplete="username" maxlength="256" placeholder="WINTEST\usuario, .\usuario o MicrosoftAccount\correo"></label>
+          <details id="remoteInteractiveCompatibility" data-gideon-disclosure-key="remote.interactive.compatibility">
+            <summary>Autenticación NLA / VNC · contraseña y dominio</summary>
+            <div class="remote-credential-stack" style="margin-top:10px">
+              <label class="remote-field"><span>Contraseña de conexión <span class="muted">(obligatoria para el ciclo automático RDP o VNC; nunca se guarda)</span></span><span class="remote-password-input"><input class="input" type="password" name="interactive_password" id="remoteInteractivePassword" autocomplete="new-password" maxlength="1024" data-lpignore="true"><button type="button" class="remote-password-toggle" id="remoteInteractivePasswordToggle" aria-pressed="false" aria-label="Mostrar contraseña">Mostrar</button></span></label>
+              <label class="remote-field"><span>Dominio <span class="muted">(opcional)</span></span><input class="input" type="text" name="interactive_domain" id="remoteInteractiveDomain" autocomplete="off" maxlength="256"></label>
+            </div>
+          </details>
+          <div class="alert info"><span>El Agent informa la negociación RDP detectada y Gideon Rx prueba automáticamente los modos autorizados con la misma contraseña. El PIN de Windows Hello no funciona por RDP. Puede escribir <strong>WINTEST\usuario</strong> o <strong>.\usuario</strong> para una cuenta local y <strong>MicrosoftAccount\correo</strong> para una cuenta Microsoft. La contraseña existe sólo temporalmente en memoria.</span></div>
+        </div>
+        <div class="alert success gideon-hidden" id="remoteMfaReuseNotice"><strong>MFA ya autorizado</strong><span>Esta conexión reutilizará la autorización activa; no necesita ingresar otro código.</span></div>
+        <div id="remoteMfaFields" class="remote-credential-stack">
+          <label class="remote-field"><span>Código MFA</span><input class="input mono" type="text" name="mfa_code" id="remoteMfaCode" inputmode="numeric" autocomplete="one-time-code" maxlength="8"></label>
+          <span class="muted">No se solicita la contraseña de WebAdmin. Una validación correcta habilita 15 minutos para abrir otros servidores/listas en este mismo navegador sin volver a ingresar MFA.</span>
+        </div>
+        <div class="alert danger" id="remoteDialogError" hidden></div>
+        <div class="gideon-modal-actions">
+          <button type="button" class="btn" id="remoteDialogCancel">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="remoteDialogContinue">Continuar y abrir</button>
+        </div>
+      </div>
+    </dialog>
+  </form>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ static_url('remote_page.js') }}"></script>{% endblock %}
+

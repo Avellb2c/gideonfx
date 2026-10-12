@@ -1,0 +1,31 @@
+[Unit]
+Description=GIDEON Remote Control privileged update applicator
+After=local-fs.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/opt/gideon/web/venv/bin/python /opt/gideon/updater/gideon_product_update.py --process-inbox
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectHostname=true
+ProtectClock=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectKernelLogs=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX
+ReadWritePaths=/opt/gideon /etc/systemd/system /var/lib/gideon/updates /var/log/gideon/updater
+MemoryMax=256M
+TasksMax=64
+LimitNOFILE=1024

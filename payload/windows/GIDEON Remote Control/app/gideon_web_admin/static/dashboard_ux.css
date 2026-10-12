@@ -1,0 +1,16 @@
+/* Focused UX affordances shared by navigation, Inicio and controlled errors. */
+.gateway-pill-neutral .dot{background:var(--muted);box-shadow:none}
+.dashboard-attention{margin:0 0 16px;padding:0}
+.dashboard-attention-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px 10px}
+.dashboard-attention-head h2{margin:0;font-size:1rem}
+.dashboard-attention-head p{margin:3px 0 0;color:var(--muted);font-size:.8rem}
+.dashboard-attention-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:1px;border-top:1px solid var(--border);background:var(--border)}
+.dashboard-attention-item{display:flex;align-items:flex-start;gap:10px;padding:13px 15px;background:var(--surface);color:var(--text);min-width:0}
+.dashboard-attention-item:hover{background:var(--surface2)}
+.dashboard-attention-item>i{width:9px;height:9px;flex:0 0 auto;border-radius:50%;margin-top:5px;background:var(--info)}
+.dashboard-attention-item.warning>i{background:var(--warning)}.dashboard-attention-item.danger>i{background:var(--danger)}.dashboard-attention-item.success>i{background:var(--success)}
+.dashboard-attention-item strong,.dashboard-attention-item span{display:block}.dashboard-attention-item strong{font-size:.84rem}.dashboard-attention-item span{margin-top:2px;color:var(--muted);font-size:.76rem;line-height:1.35}
+.error-experience{max-width:720px;margin:clamp(18px,5vw,58px) auto}.error-experience .card-pad{padding:clamp(22px,4vw,38px)}
+.error-kicker{color:var(--danger);font-size:.75rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.error-actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:20px}.error-details{margin-top:16px;border:1px solid var(--border);border-radius:8px;background:var(--surface2)}
+.error-details summary{cursor:pointer;padding:10px 12px;color:var(--muted);font-size:.82rem}.error-details code{display:block;max-height:140px;overflow:auto;padding:0 12px 12px;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text);font-size:.78rem}
+@media(max-width:680px){.dashboard-attention-list{grid-template-columns:1fr}.error-actions>*{flex:1}.error-actions .btn{justify-content:center}}

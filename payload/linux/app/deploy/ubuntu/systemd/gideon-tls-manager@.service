@@ -1,0 +1,14 @@
+[Unit]
+Description=GIDEON restricted TLS request
+
+[Service]
+Type=exec
+User=root
+Group=root
+StandardInput=socket
+StandardOutput=journal
+StandardError=journal
+ExecStart=/opt/gideon/web/venv/bin/python -I -B /opt/gideon/web/app/deploy/ubuntu/gideon_tls_manager_entry.py --socket
+RuntimeMaxSec=90
+MemoryMax=192M
+TasksMax=32

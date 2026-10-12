@@ -1,0 +1,26 @@
+services:
+  guacd:
+    container_name: gideon-guacd
+    image: ${GIDEON_GUACD_IMAGE}
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+      - /home/guacd:rw,nosuid,nodev,size=16m,uid=1000,gid=1000,mode=0700
+    pids_limit: 256
+    mem_limit: 768m
+    cpus: 1.0
+    ports:
+      - "127.0.0.1:${GIDEON_GUACD_HOST_PORT:-4822}:4822"
+    networks:
+      - gideon-guacd-net
+
+networks:
+  gideon-guacd-net:
+    external: true
+    name: ${GIDEON_GUACD_NETWORK:-gideon-guacd-net}

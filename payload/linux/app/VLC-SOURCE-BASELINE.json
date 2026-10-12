@@ -1,0 +1,9 @@
+{
+  "Schema": "gideon-vlc-source-baseline/v1",
+  "SourceRoot": "third_party/vlc-offline",
+  "CatalogPath": "third_party/vlc-offline/catalog.json",
+  "CatalogVersion": "vlc-offline-2026.09.26-pilot2",
+  "CatalogSizeBytes": 1324105,
+  "CatalogSha256": "30d04dfec4102cae1ca514c13a3c498265f2dc35bbc07228869d295dd17c0ca1",
+  "ExpectedFiles": 2293
+}

@@ -1,0 +1,14 @@
+[Unit]
+Description=Actualización diaria de firmas ClamAV privadas GIDEON
+PartOf=gideon-remote-control.target
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=6h
+Persistent=true
+AccuracySec=15m
+Unit=gideon-clamav-update.service
+
+[Install]
+WantedBy=timers.target
+

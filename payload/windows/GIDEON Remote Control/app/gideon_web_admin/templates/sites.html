@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Sedes</h1>
+    <p>Catálogo central para organizar equipos y asignar la sede correcta al generar cada instalador.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-primary" href="/installers">Ir al Generador de Agents</a>
+    <a class="btn" href="/groups">Grupos</a>
+  </div>
+</div>
+
+{% if message %}<div class="alert success"><strong>Sede disponible</strong>{{ message }}</div>{% endif %}
+{% if error %}<div class="alert danger"><strong>No se pudo crear la sede</strong>{{ error }}</div>{% endif %}
+{% if gateway_error %}<div class="alert warning"><strong>Gateway temporalmente no disponible</strong>Se muestran las sedes guardadas, pero el conteo de Agents podría estar incompleto. {{ gateway_error }}</div>{% endif %}
+
+<section class="card card-pad">
+  <div class="card-head">
+    <div>
+      <h2>Crear sede</h2>
+      <p>Puede crearla antes de instalar el primer Agent. Aparecerá inmediatamente en el selector de instaladores.</p>
+    </div>
+  </div>
+  {% if identity.can('groups.manage') %}
+  <form method="post" action="/sites/create" class="form-grid">
+    <input type="hidden" name="csrf" value="{{ identity.csrf_token }}">
+    <div class="field">
+      <label for="siteCode">Código de sede</label>
+      <input class="input mono" id="siteCode" name="site_code" value="{{ site_form.get('site_code', '') }}" maxlength="32" pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,31}" placeholder="Ej. 18620" required autocomplete="off">
+      <small>Letras, números, punto, guion o guion bajo. Se guardará en mayúsculas.</small>
+    </div>
+    <div class="field">
+      <label for="siteName">Nombre de sede</label>
+      <input class="input" id="siteName" name="site_name" value="{{ site_form.get('site_name', '') }}" maxlength="120" placeholder="Ej. MIRAFLORES" required autocomplete="off">
+    </div>
+    <div class="field wide">
+      <label for="siteDescription">Descripción (opcional)</label>
+      <input class="input" id="siteDescription" name="description" value="{{ site_form.get('description', '') }}" maxlength="500" placeholder="Referencia, ciudad o uso de esta sede" autocomplete="off">
+    </div>
+    <div class="wide"><button class="btn btn-primary" type="submit">Crear sede</button></div>
+  </form>
+  {% else %}
+  <div class="alert">Su rol permite consultar sedes, pero no crear nuevas.</div>
+  {% endif %}
+</section>
+
+<div class="spacer"></div>
+<section class="card">
+  <div class="card-head card-pad">
+    <div><h2>Catálogo de sedes</h2><p>{{ sites|length }} sede(s) disponibles para asignar a instaladores.</p></div>
+  </div>
+  <div class="table-wrap" style="border:0;border-radius:0">
+    <table>
+      <thead><tr><th>Código</th><th>Sede</th><th>Descripción</th><th>Equipos</th><th>Plataformas</th><th>Origen</th><th>Estado</th></tr></thead>
+      <tbody>
+      {% for s in sites %}
+        <tr>
+          <td class="mono"><strong>{{ s.site_code }}</strong></td>
+          <td>{{ s.site_name or '—' }}</td>
+          <td class="muted">{{ s.description or '—' }}</td>
+          <td>{{ s.agents|length }}</td>
+          <td>{{ s.platforms }}</td>
+          <td><span class="chip {{ 'success' if s.managed else 'info' }}">{{ 'Catálogo WebAdmin' if s.managed else 'Detectada por Agent' }}</span></td>
+          <td>{% if s.agents %}<span class="chip info">{{ s.agents|length }} Agent(s)</span>{% else %}<span class="chip success">Disponible en instaladores</span>{% endif %}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7" class="empty"><strong>Sin sedes</strong>Cree la primera sede para poder seleccionarla al generar un instalador.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
+

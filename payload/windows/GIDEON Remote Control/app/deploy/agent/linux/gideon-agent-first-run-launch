@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+set -u
+ROOT="${GIDEON_AGENT_ROOT:-/opt/gideon-agent}"
+STATE="/var/lib/gideon-agent"
+LOG="$STATE/first-run-launch.log"
+NATIVE="$ROOT/gideon-agent-first-run-native"
+MODE="${1:---auto}"
+
+mkdir -p "$STATE" 2>/dev/null || true
+log(){ printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S%z')" "$*" >>"$LOG" 2>/dev/null || true; }
+
+if [[ "$MODE" != "--package-progress" && -s "$ROOT/agent.json" ]]; then exit 0; fi
+[ -x "$NATIVE" ] || { log "Native first-run missing: $NATIVE"; exit 0; }
+if [[ "$MODE" == "--package-progress" ]]; then
+  pgrep -f "gideon-agent-first-run-native.*--package-progress" >/dev/null 2>&1 && exit 0
+else
+  pgrep -f "gideon-agent-first-run-native.*--auto" >/dev/null 2>&1 && exit 0
+fi
+
+session=""
+user=""
+uid=""
+leader=""
+
+if command -v loginctl >/dev/null 2>&1; then
+  for sid in $(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}'); do
+    active=$(loginctl show-session "$sid" -p Active --value 2>/dev/null || true)
+    remote=$(loginctl show-session "$sid" -p Remote --value 2>/dev/null || true)
+    type=$(loginctl show-session "$sid" -p Type --value 2>/dev/null || true)
+    cls=$(loginctl show-session "$sid" -p Class --value 2>/dev/null || true)
+    case "$type" in x11|wayland) ;; *) continue;; esac
+    [ "$active" = yes ] || continue
+    [ "$remote" = no ] || continue
+    [ "$cls" = user ] || [ -z "$cls" ] || continue
+    session="$sid"
+    user=$(loginctl show-session "$sid" -p Name --value 2>/dev/null || true)
+    leader=$(loginctl show-session "$sid" -p Leader --value 2>/dev/null || true)
+    break
+  done
+fi
+
+# Fallback for desktops where logind session metadata is incomplete.
+if [ -z "$user" ]; then
+  user=$(who 2>/dev/null | awk '$2 ~ /^:/{print $1; exit}')
+  [ -n "$user" ] || user=$(who 2>/dev/null | awk '{print $1; exit}')
+fi
+[ -n "$user" ] || { log "No active local desktop user detected."; exit 0; }
+uid=$(id -u "$user" 2>/dev/null || true)
+[ -n "$uid" ] || { log "Could not resolve uid for $user"; exit 0; }
+
+env_from_pid(){
+  key="$1"
+  pid="$2"
+  if [ -n "$pid" ] && [ -r "/proc/$pid/environ" ]; then
+    tr '\0' '\n' <"/proc/$pid/environ" 2>/dev/null | sed -n "s/^${key}=//p" | head -n1
+  fi
+}
+
+display="$(env_from_pid DISPLAY "$leader")"
+wayland="$(env_from_pid WAYLAND_DISPLAY "$leader")"
+xdgrt="$(env_from_pid XDG_RUNTIME_DIR "$leader")"
+dbus="$(env_from_pid DBUS_SESSION_BUS_ADDRESS "$leader")"
+xauth="$(env_from_pid XAUTHORITY "$leader")"
+
+# Try a representative GUI process owned by the user when the session leader does
+# not contain the graphical environment (common with systemd --user).
+if [ -z "$display$wayland" ]; then
+  gui_pid="$(pgrep -u "$uid" -n -f 'gnome-shell|wayfire|labwc|lxsession|xfce4-session|plasmashell|cinnamon|mate-session|Xorg|Xwayland' 2>/dev/null || true)"
+  if [ -n "$gui_pid" ]; then
+    display="$(env_from_pid DISPLAY "$gui_pid")"
+    wayland="$(env_from_pid WAYLAND_DISPLAY "$gui_pid")"
+    xdgrt="$(env_from_pid XDG_RUNTIME_DIR "$gui_pid")"
+    dbus="$(env_from_pid DBUS_SESSION_BUS_ADDRESS "$gui_pid")"
+    xauth="$(env_from_pid XAUTHORITY "$gui_pid")"
+  fi
+fi
+
+home="$(getent passwd "$user" 2>/dev/null | cut -d: -f6)"
+[ -n "$home" ] || home="/home/$user"
+[ -n "$xdgrt" ] || xdgrt="/run/user/$uid"
+[ -n "$dbus" ] || dbus="unix:path=$xdgrt/bus"
+if [ -z "$xauth" ] && [ -f "$home/.Xauthority" ]; then xauth="$home/.Xauthority"; fi
+
+log "Launching native first-run for user=$user uid=$uid session=${session:-unknown} DISPLAY=${display:-} WAYLAND=${wayland:-}"
+
+run_env=(
+  HOME="$home"
+  USER="$user"
+  LOGNAME="$user"
+  DISPLAY="${display:-}"
+  WAYLAND_DISPLAY="${wayland:-}"
+  XDG_RUNTIME_DIR="$xdgrt"
+  DBUS_SESSION_BUS_ADDRESS="$dbus"
+  XAUTHORITY="${xauth:-}"
+)
+
+if command -v runuser >/dev/null 2>&1; then
+  # Prefer the user's systemd manager so the GUI process outlives postinst cleanly.
+  if command -v systemd-run >/dev/null 2>&1 && [ -S "$xdgrt/bus" ]; then
+    runuser -u "$user" -- env "${run_env[@]}" \
+      systemd-run --user --collect --quiet \
+      --unit="gideon-agent-first-run-$(date +%s)" \
+      /usr/local/bin/gideon-agent-first-run "$MODE" >/dev/null 2>&1 && exit 0
+  fi
+  runuser -u "$user" -- env "${run_env[@]}" \
+    nohup /usr/local/bin/gideon-agent-first-run "$MODE" >>"$STATE/first-run-session.log" 2>&1 </dev/null &
+  exit 0
+fi
+
+log "runuser unavailable; XDG autostart will retry on next login."
+exit 0

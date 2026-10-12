@@ -1,0 +1,35 @@
+[Unit]
+Description=GIDEON Agent Gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=gideongateway
+Group=gideongateway
+EnvironmentFile=/etc/gideon-agent-gateway/gateway.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/gideon-agent-gateway/venv/bin/python /opt/gideon-agent-gateway/gideon_agent_gateway.py --config /etc/gideon-agent-gateway/gateway.json
+WorkingDirectory=/opt/gideon-agent-gateway
+Restart=on-failure
+RestartSec=5
+UMask=0027
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectKernelLogs=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/gideon-agent-gateway
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+{% block extra_styles %}<link rel="stylesheet" href="{{ static_url('media_campaigns.css') }}">{% endblock %}
+{% block content %}
+{% set saved = form if form else {} %}
+{% set first_assignment = campaign.assignments[0] if campaign and campaign.assignments else {} %}
+{% set saved_screen_ids = saved.get('screen_id', []) if saved else [] %}
+{% set suggested_asset_id = saved.get('asset_id', selected_asset_id|default('', true)) if saved else selected_asset_id|default('', true) %}
+
+<div class="page-head">
+  <div>
+    <h1>{{ 'Nueva campaña' if not campaign else 'Nueva revisión' }}</h1>
+    <p>Un flujo claro para Marketing: propósito, contenido, pantallas, horario y revisión.</p>
+  </div>
+  <div class="page-actions"><a class="btn" href="{% if campaign %}/media/campaigns/{{ campaign.campaign_id }}{% else %}/media/campaigns{% endif %}">Cancelar</a></div>
+</div>
+{% include "media_tabs.html" %}
+{% if error %}<div class="alert danger"><strong>Revise la campaña</strong>{{ error }}</div>{% endif %}
+{% if gateway_error %}<div class="alert warning"><strong>Inventario parcial</strong>{{ gateway_error }}</div>{% endif %}
+
+<ol class="media-wizard-steps" aria-label="Pasos de campaña" data-campaign-progress>
+  <li data-wizard-step="1"><strong>1</strong><span>¿Qué quiere comunicar?</span></li>
+  <li data-wizard-step="2"><strong>2</strong><span>¿Qué contenido se mostrará?</span></li>
+  <li data-wizard-step="3"><strong>3</strong><span>¿En qué pantallas?</span></li>
+  <li data-wizard-step="4"><strong>4</strong><span>¿Cuándo debe reproducirse?</span></li>
+  <li data-wizard-step="5"><strong>5</strong><span>Revisar y publicar</span></li>
+</ol>
+
+<section class="card card-pad media-upload-card" aria-labelledby="uploadVideoTitle">
+  <div class="card-head">
+    <div>
+      <span class="media-step-label">Paso 2</span>
+      <h2 id="uploadVideoTitle">{{ 'Video elegido para la campaña' if selected_asset else 'Elija o cargue un video' }}</h2>
+      <p>{{ 'El video seleccionado se aplicará automáticamente a cada pantalla que añada; puede cambiarlo individualmente después.' if selected_asset else 'Puede usar un video de la Biblioteca o subir un MP4. Gideon Rx valida la seguridad y el formato en segundo plano.' }}</p>
+    </div>
+    <span class="media-format-chip">MP4 · hasta 1080p</span>
+  </div>
+  <div class="media-campaign-selected-asset" data-campaign-selected-asset {{ '' if selected_asset else 'hidden' }}>
+    <span class="media-mini-label">Video seleccionado</span>
+    <strong data-campaign-selected-asset-name>{{ selected_asset.display_name|default('Video seleccionado', true) if selected_asset else '' }}</strong>
+    <span data-campaign-selected-asset-detail>{% if selected_asset %}Listo para asignar{% if selected_asset.resolution %} · {{ selected_asset.resolution }}{% endif %}{% if selected_asset.playback_warning %} · {{ selected_asset.playback_warning }}{% endif %}{% endif %}</span>
+  </div>
+  <details class="media-upload-alternative" {{ 'open' if not selected_asset else '' }}>
+    <summary>{{ 'Usar otro video' if selected_asset else 'Cargar un video nuevo' }}</summary>
+  <form method="post" action="{{ media_upload_url|default('/media/assets/upload', true) }}" enctype="multipart/form-data" class="media-upload-form" data-media-upload-form data-media-status-url-template="/api/v1/media/assets/{asset_id}">
+    <input type="hidden" name="csrf" value="{{ identity.csrf_token }}">
+    <input type="hidden" name="campaign_id" value="{{ campaign.campaign_id if campaign else '' }}">
+    <div class="form-grid media-upload-grid">
+      <div class="field wide"><label for="mediaFile">Video MP4</label><input class="input media-file-input" id="mediaFile" type="file" name="file" accept="video/mp4,.mp4" required data-media-file><small data-media-file-name>MP4 con H.264/AVC, yuv420p y hasta 1080p. El audio es opcional; si existe, debe ser AAC-LC.</small></div>
+      <div class="field"><label for="mediaDisplayName">Nombre para Marketing</label><input class="input" id="mediaDisplayName" name="display_name" maxlength="180" autocomplete="off" placeholder="Ej. Combo familiar - almuerzo"></div>
+      <div class="field media-local-date-field"><label for="assetValidFrom">Vigente desde (opcional)</label><div class="media-local-date" data-localized-date-picker><input class="input" id="assetValidFrom" type="date" name="valid_from" data-localized-date-value></div><small>Use el calendario; Gideon Rx guarda la fecha local de la campaña.</small></div>
+      <div class="field media-local-date-field"><label for="assetValidUntil">Vigente hasta (opcional)</label><div class="media-local-date" data-localized-date-picker><input class="input" id="assetValidUntil" type="date" name="valid_until" data-localized-date-value></div><small>Déjela vacía si el video no tiene fecha de fin.</small></div>
+    </div>
+    <div class="media-upload-actions">
+      <p class="muted">La carga crea un Job seguro. El video no se distribuye ni se reproduce hasta que se publique una campaña aprobada.</p>
+      <button class="btn btn-primary" type="submit" data-media-upload-submit>Cargar y analizar</button>
+    </div>
+    <div class="media-upload-feedback" aria-live="polite" data-media-upload-feedback hidden></div>
+  </form>
+  </details>
+</section>
+
+<section class="card card-pad media-library-hint" aria-labelledby="libraryHintTitle">
+  <div class="card-head"><div><h2 id="libraryHintTitle">Videos disponibles</h2><p>Busque y elija un video listo sólo en las pantallas que seleccione. Gideon Rx no carga la biblioteca completa al abrir esta campaña.</p></div><a class="btn btn-small" href="/media/library">Abrir biblioteca</a></div>
+  <div class="media-lazy-library-note"><span aria-hidden="true">⌕</span><p>Escriba el nombre del video en una pantalla, o abra su lista para ver resultados. El mismo video se puede reutilizar sin volver a enviarlo al equipo.</p></div>
+</section>
+
+<form method="post" action="{{ form_action }}" class="media-wizard-form" data-media-campaign-form data-media-asset-catalog-url="/api/v1/media/assets" data-suggested-asset-id="{{ suggested_asset_id }}" data-suggested-asset-name="{{ selected_asset.display_name|default('', true) if selected_asset else '' }}">
+  <input type="hidden" name="csrf" value="{{ identity.csrf_token }}">
+  {% if campaign %}<input type="hidden" name="version_token" value="{{ campaign.version_token|default('', true) }}"><input type="hidden" name="expected_updated_at" value="{{ campaign.updated_at|default('', true) }}">{% endif %}
+  <section class="card card-pad media-wizard-section">
+    <div class="card-head"><div><span class="media-step-label">Paso 1</span><h2>¿Qué quiere comunicar?</h2><p>Use un nombre claro que Marketing pueda encontrar después.</p></div></div>
+    <div class="form-grid">
+      <div class="field"><label for="campaignTitle">Nombre de campaña</label><input class="input" id="campaignTitle" name="title" maxlength="160" required autocomplete="off" value="{{ saved.get('title', campaign.title if campaign else '') }}" placeholder="Ej. Combos familiares de septiembre" data-review-title></div>
+      <div class="field wide"><label for="campaignObjective">Objetivo o mensaje</label><textarea class="input" id="campaignObjective" name="objective" maxlength="1000" rows="3" placeholder="Ej. Promover la oferta durante el horario de almuerzo" data-review-objective>{{ saved.get('objective', campaign.objective if campaign else '') }}</textarea></div>
+    </div>
+  </section>
+
+  <section class="card card-pad media-wizard-section">
+    <div class="card-head"><div><span class="media-step-label">Pasos 2 y 3</span><h2>Contenido y pantallas</h2><p>Seleccione cada pantalla y el video que recibirá. Cada pantalla puede tener un video diferente.</p></div></div>
+    <div class="media-screen-catalog" data-screen-catalog data-screen-catalog-url="/api/v1/media/screens" data-screen-catalog-page-size="12">
+      <div class="media-screen-catalog-controls">
+        <div class="field media-screen-catalog-search"><label for="screenCatalogSearch">Buscar pantalla</label><input class="input" id="screenCatalogSearch" type="search" autocomplete="off" placeholder="Nombre, sede o ubicación" data-screen-catalog-search></div>
+        <div class="field"><label for="screenCatalogSite">Sede</label><select class="input" id="screenCatalogSite" data-screen-catalog-site><option value="">Todas las sedes</option>{% for site in sites %}<option value="{{ site.site_code }}">{{ site.site_code }}{% if site.site_name and site.site_name != site.site_code %} · {{ site.site_name }}{% endif %}</option>{% endfor %}</select></div>
+        <div class="field"><label for="screenCatalogState">Estado</label><select class="input" id="screenCatalogState" data-screen-catalog-state><option value="">Todas las disponibles</option><option value="READY">Lista</option><option value="OFFLINE">Sin conexión</option><option value="NEEDS_REVIEW">Requiere revisión</option><option value="DISABLED">Desactivada</option></select></div>
+        <div class="media-screen-catalog-actions"><button class="btn btn-small" type="button" data-screen-catalog-refresh>Buscar pantallas</button></div>
+      </div>
+      <p class="muted media-screen-catalog-status" aria-live="polite" data-screen-catalog-status>Busque una pantalla o abra la lista. Gideon Rx carga sólo una página del inventario.</p>
+      <div class="media-screen-catalog-results" aria-live="polite" data-screen-catalog-results></div>
+      <div class="media-screen-catalog-pagination" data-screen-catalog-pagination hidden><button class="btn btn-small" type="button" data-screen-catalog-previous>Anterior</button><span class="muted" data-screen-catalog-page></span><button class="btn btn-small" type="button" data-screen-catalog-next>Siguiente</button></div>
+    </div>
+    <div class="media-screen-selection" data-screen-selection>
+      <div class="media-screen-selection-head"><div><h3>Pantallas elegidas</h3><p>Configure una vez el video y los parámetros para varias pantallas. Use la vista individual sólo cuando una pantalla necesite una excepción.</p></div><div class="media-screen-selection-actions"><span class="chip" data-screen-selected-count>{{ selected_screens|length }} seleccionada(s)</span><div class="media-screen-group-mode" data-screen-group-mode-control role="group" aria-label="Modo de configuración"><button class="btn btn-small is-selected" type="button" data-screen-group-mode="grouped" aria-pressed="true">Agrupar por video</button><button class="btn btn-small" type="button" data-screen-group-mode="individual" aria-pressed="false">Configurar una por una</button></div></div></div>
+      <div class="media-screen-select-list" data-screen-selected-list>
+      {% for screen in selected_screens if not screen.archived %}
+        {% set previous = (campaign.assignments | selectattr('screen_id', 'equalto', screen.screen_id) | list | first) if campaign else none %}
+        {% set is_selected = screen.screen_id in saved_screen_ids or previous %}
+        {% set screen_asset_field = 'asset_id_' ~ screen.screen_id %}
+        {% set previous_asset_id = previous.asset_id|default('', true) if previous else '' %}
+        {% set selected_screen_asset_id = saved.get(screen_asset_field, previous_asset_id or suggested_asset_id) %}
+        <article class="media-screen-choice {{ 'selected' if is_selected else '' }}" data-screen-choice data-screen-id="{{ screen.screen_id }}" data-screen-name="{{ screen.commercial_name }}">
+          <label class="media-screen-choice-title"><input type="checkbox" name="screen_id" value="{{ screen.screen_id }}" {{ 'checked' if is_selected else '' }} data-screen-checkbox> <span><strong>{{ screen.commercial_name }}</strong><small>{{ screen.site_code }}{% if screen.physical_location %} · {{ screen.physical_location }}{% endif %} · {{ 'Pausa el contenido durante uso humano' if screen.playback_policy|default('DEDICATED', true)=='SHARED_PAUSE_ON_HUMAN_ACTIVITY' else 'Contenido continuo en pantalla dedicada' }}</small></span></label>
+          <div class="media-screen-content" data-screen-content>
+            <div class="field wide media-screen-asset-picker" data-screen-asset-picker>
+              <label for="asset-{{ screen.screen_id }}">Video que verá esta pantalla</label>
+              <input class="input media-screen-asset-search" id="asset-search-{{ screen.screen_id }}" type="search" placeholder="Buscar video por nombre" autocomplete="off" data-screen-asset-search aria-controls="asset-{{ screen.screen_id }}">
+              <select class="input" id="asset-{{ screen.screen_id }}" name="{{ screen_asset_field }}" data-screen-asset data-selected-asset-id="{{ selected_screen_asset_id }}" data-selected-asset-label="{{ previous.content_title|default('', true) if previous else '' }}">
+                <option value="">Buscar o abrir la lista de videos</option>
+                {% if selected_screen_asset_id %}<option value="{{ selected_screen_asset_id }}" selected data-asset-name="{{ previous.content_title|default('Video seleccionado', true) if previous else 'Video seleccionado' }}" data-asset-state="READY">Video seleccionado · cargando detalle…</option>{% endif %}
+              </select>
+              <div class="media-asset-picker-actions" data-screen-asset-actions hidden>
+                <button class="btn btn-small" type="button" data-screen-asset-previous>Anterior</button>
+                <span class="muted" data-screen-asset-page></span>
+                <button class="btn btn-small" type="button" data-screen-asset-next>Siguiente</button>
+              </div>
+              <small class="media-selection-status" data-selected-asset-status>Busque un video listo para esta pantalla.</small>
+            </div>
+            <div class="field"><label for="content-{{ screen.screen_id }}">Nombre interno del contenido</label><input class="input" id="content-{{ screen.screen_id }}" name="content_title_{{ screen.screen_id }}" maxlength="180" value="{{ saved.get('content_title_' ~ screen.screen_id, previous.content_title if previous else '') }}" placeholder="Se completa a partir del video si lo deja vacío"></div>
+            <div class="field"><label for="playlist-{{ screen.screen_id }}">Nombre de lista</label><input class="input" id="playlist-{{ screen.screen_id }}" name="playlist_name_{{ screen.screen_id }}" maxlength="120" value="{{ saved.get('playlist_name_' ~ screen.screen_id, previous.playlist_name if previous else '') }}" placeholder="Ej. Promoción principal"></div>
+            <div class="field"><label for="priority-{{ screen.screen_id }}">Prioridad en esta pantalla</label><input class="input" id="priority-{{ screen.screen_id }}" type="number" name="priority_{{ screen.screen_id }}" min="1" max="100" value="{{ saved.get('priority_' ~ screen.screen_id, previous.priority if previous and previous.priority else 50) }}"><small>Use una prioridad distinta si hay campañas coincidentes.</small></div>
+            <div class="field media-emergency-field"><label><input type="checkbox" name="emergency_{{ screen.screen_id }}" value="1" {{ 'checked' if saved.get('emergency_' ~ screen.screen_id, previous.emergency if previous else false) else '' }} data-screen-emergency> Emergencia</label><small>Da prioridad a este mensaje sobre la programación habitual de esa pantalla.</small></div>
+            <div class="field wide"><label for="note-{{ screen.screen_id }}">Nota para el equipo de Marketing (opcional)</label><input class="input" id="note-{{ screen.screen_id }}" name="content_note_{{ screen.screen_id }}" maxlength="500" value="{{ saved.get('content_note_' ~ screen.screen_id, previous.content_note if previous else '') }}" placeholder="Ej. Usar creatividad vertical"></div>
+          </div>
+        </article>
+      {% endfor %}
+      </div>
+      <p class="muted media-screen-selection-empty" data-screen-selection-empty {{ '' if selected_screens else 'hidden' }}>Aún no ha elegido una pantalla. Búsquela arriba para añadirla a la campaña.</p>
+    </div>
+  </section>
+
+  <section class="card card-pad media-wizard-section">
+    <div class="card-head"><div><span class="media-step-label">Paso 4</span><h2>¿Cuándo debe reproducirse?</h2><p>Elija el periodo y horario visualmente. Las fechas bloqueadas siempre tienen prioridad sobre una programación activa.</p></div></div>
+    {% set schedule = first_assignment.schedule if first_assignment else {} %}
+    <div class="media-schedule-designer" data-schedule-designer>
+      <input type="hidden" name="schedule_preset" value="CUSTOM" data-schedule-preset-output>
+      <input type="hidden" name="schedule_date_range" value="" data-schedule-range-output>
+      <input type="hidden" name="schedule_start_at" value="" data-schedule-start-output>
+      <input type="hidden" name="schedule_end_at" value="" data-schedule-end-output>
+      <input type="hidden" name="schedule_weekdays" value="" data-schedule-weekdays-output>
+      <div class="media-schedule-quickstart">
+        <div>
+          <strong>Empezar rápido</strong>
+          <span>Seleccione un periodo y luego el horario que mejor se ajuste a la campaña.</span>
+        </div>
+        <div class="media-schedule-preset-group" role="group" aria-label="Periodos rápidos">
+          <button class="btn btn-small" type="button" data-schedule-range="today">Hoy</button>
+          <button class="btn btn-small" type="button" data-schedule-range="week">Esta semana</button>
+          <button class="btn btn-small" type="button" data-schedule-range="next-week">Próxima semana</button>
+          <button class="btn btn-small" type="button" data-schedule-range="month">Este mes</button>
+        </div>
+      </div>
+      <div class="media-schedule-visual-grid">
+        <section class="media-calendar-card" aria-labelledby="campaignCalendarTitle" data-schedule-calendar>
+          <div class="media-calendar-head">
+            <div>
+              <span class="media-mini-label">Calendario</span>
+              <h3 id="campaignCalendarTitle" data-calendar-month>Cargando calendario</h3>
+            </div>
+            <div class="media-calendar-controls">
+              <button class="btn btn-small" type="button" aria-label="Mes anterior" data-calendar-previous>‹</button>
+              <button class="btn btn-small" type="button" aria-label="Mes siguiente" data-calendar-next>›</button>
+            </div>
+          </div>
+          <div class="media-calendar-mode" role="group" aria-label="Acción del calendario">
+            <button class="is-selected" type="button" data-calendar-mode="range" aria-pressed="true">Elegir periodo</button>
+            <button type="button" data-calendar-mode="blackout" aria-pressed="false">Bloquear fechas</button>
+          </div>
+          <div class="media-calendar-weekdays" aria-hidden="true"><span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span></div>
+          <div class="media-calendar-grid" role="grid" aria-label="Calendario de programación" data-calendar-grid></div>
+          <p class="media-calendar-help" data-calendar-help>Elija el primer y el último día de la campaña.</p>
+        </section>
+        <section class="media-clock-card" aria-labelledby="campaignClockTitle">
+          <div><span class="media-mini-label">Horario</span><h3 id="campaignClockTitle">¿A qué hora se verá?</h3></div>
+          <div class="media-time-slots" role="group" aria-label="Horarios sugeridos">
+            <button type="button" data-schedule-time="00:00|23:59"><strong>Todo el día</strong><span>00:00 – 23:59</span></button>
+            <button type="button" data-schedule-time="07:00|11:00"><strong>Mañana</strong><span>07:00 – 11:00</span></button>
+            <button type="button" data-schedule-time="11:00|16:00"><strong>Almuerzo</strong><span>11:00 – 16:00</span></button>
+            <button type="button" data-schedule-time="16:00|23:00"><strong>Tarde y noche</strong><span>16:00 – 23:00</span></button>
+          </div>
+          <p class="media-clock-help">Puede ajustar las horas exactas abajo. La campaña no se reproduce fuera de este horario.</p>
+        </section>
+      </div>
+      <div class="media-schedule-summary" aria-live="polite" data-schedule-summary>
+        <strong>Preparando la programación…</strong><span data-schedule-summary-text>Seleccione fechas y un horario para ver un resumen claro.</span>
+      </div>
+    </div>
+    <div class="form-grid">
+      <div class="field"><label for="startDate">Primer día</label><input class="input" id="startDate" type="date" name="start_date" required value="{{ saved.get('start_date', schedule.start_date if schedule else '') }}" data-review-schedule><small>También puede elegirlo desde el calendario.</small></div>
+      <div class="field"><label for="endDate">Último día</label><input class="input" id="endDate" type="date" name="end_date" required value="{{ saved.get('end_date', schedule.end_date if schedule else '') }}" data-review-schedule><small>Incluye este día.</small></div>
+      <div class="field"><label for="startTime">Comienza a las</label><input class="input" id="startTime" type="time" name="start_time" required value="{{ saved.get('start_time', schedule.start_time if schedule else '') }}" data-review-schedule></div>
+      <div class="field"><label for="endTime">Termina a las</label><input class="input" id="endTime" type="time" name="end_time" required value="{{ saved.get('end_time', schedule.end_time if schedule else '') }}" data-review-schedule></div>
+      <div class="field"><label for="timezoneDisplay">Hora oficial de la campaña</label><input class="input" id="timezoneDisplay" type="text" value="Perú · America/Lima" readonly aria-describedby="timezoneHelp"><input type="hidden" id="timezone" name="timezone" value="America/Lima" data-review-schedule><small id="timezoneHelp">Todos los horarios de publicidad se interpretan en horario de Perú (America/Lima), aunque la nube o el Agent estén en otra zona.</small></div>
+      <div class="field"><label for="priority">Prioridad predeterminada</label><input class="input" id="priority" type="number" name="priority" min="1" max="100" required value="{{ saved.get('priority', first_assignment.priority if first_assignment and first_assignment.priority else 50) }}"><small>Puede ajustarla por pantalla arriba.</small></div>
+      <div class="field wide"><label>Qué días de la semana</label><div class="media-weekdays">{% for day, label in [(0,'Lun'),(1,'Mar'),(2,'Mié'),(3,'Jue'),(4,'Vie'),(5,'Sáb'),(6,'Dom')] %}{% set selected_days = saved.get('weekday', schedule.weekdays if schedule else [0,1,2,3,4,5,6]) %}<label><input type="checkbox" name="weekday" value="{{ day }}" {{ 'checked' if day|string in selected_days or day in selected_days else '' }} data-review-schedule> <span>{{ label }}</span></label>{% endfor %}</div><small>Seleccione los días en que debe repetirse dentro del periodo elegido.</small></div>
+      <div class="field wide media-blackout-field"><label for="blackoutPicker">Fechas bloqueadas</label><div class="media-blackout-controls"><input class="input" id="blackoutPicker" type="date" data-blackout-picker><button class="btn btn-small" type="button" data-blackout-add>Bloquear esta fecha</button></div><div class="media-blackout-chips" data-blackout-chips aria-live="polite"></div><input id="blackoutDates" type="hidden" name="blackout_dates" value="{{ saved.get('blackout_dates', schedule.blackout_dates|join(', ') if schedule else '') }}" data-review-schedule data-blackout-output><small>También puede usar “Bloquear fechas” en el calendario. Esas fechas prevalecen sobre el horario.</small></div>
+    </div>
+  </section>
+
+  <section class="card card-pad media-wizard-section">
+    <div class="card-head"><div><span class="media-step-label">Paso 5</span><h2>Revise antes de publicar</h2><p>Una nueva revisión se guarda antes de cambiar el estado; la versión anterior queda intacta.</p></div></div>
+    <div class="media-review-card" data-media-review aria-live="polite"><p class="muted">Seleccione pantallas y videos para ver aquí el resumen de publicación.</p></div>
+    <div class="media-form-validation" data-wizard-validation role="alert" hidden></div>
+    <div class="form-grid">
+      <div class="field wide"><label for="changeNote">Nota de cambio</label><input class="input" id="changeNote" name="change_note" maxlength="500" value="{{ saved.get('change_note', '') }}" placeholder="Ej. Ajuste de creatividades para delivery"></div>
+      <div class="field"><label for="publicationState">Guardar como</label><select class="input" id="publicationState" name="publication_state"><option value="DRAFT" {{ 'selected' if saved.get('publication_state', campaign.state if campaign else 'DRAFT')=='DRAFT' else '' }}>Borrador</option><option value="PENDING_APPROVAL" {{ 'selected' if saved.get('publication_state', campaign.state if campaign else '')=='PENDING_APPROVAL' else '' }}>Pendiente de aprobación</option><option value="SCHEDULED" {{ 'selected' if saved.get('publication_state', campaign.state if campaign else '')=='SCHEDULED' else '' }}>Programada</option>{% if identity.can('campaigns.approve') %}<option value="ACTIVE" {{ 'selected' if saved.get('publication_state', campaign.state if campaign else '')=='ACTIVE' else '' }}>Activa ahora</option>{% endif %}</select></div>
+    </div>
+    <div class="media-submit-row"><p class="muted">Al publicar, Gideon Rx prepara las verificaciones y la distribución en segundo plano. Puede seguir trabajando.</p><button class="btn btn-primary" type="submit">{{ submit_label }}</button></div>
+  </section>
+</form>
+{% endblock %}
+{% block scripts %}<script src="{{ static_url('media_campaigns.js') }}"></script>{% endblock %}
+

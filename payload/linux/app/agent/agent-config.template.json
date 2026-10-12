@@ -1,0 +1,24 @@
+{
+  "site_code": "18600",
+  "site_name": "MIRAFLORES",
+  "data_dir": "%PROGRAMDATA%\\GIDEONAgent",
+  "poll_seconds": 5,
+  "status_seconds": 5,
+  "cancel_grace_seconds": 8,
+  "enrollment_secret_env": "GIDEON_AGENT_ENROLL_SECRET",
+  "enrollment_secret": "",
+  "control_plane": {
+    "base_url": "",
+    "require_https": true,
+    "verify_tls": true,
+    "ca_file": null,
+    "timeout_seconds": 20
+  },
+  "tray": {
+    "refresh_seconds": 5,
+    "heartbeat_stale_seconds": 75
+  },
+  "security": {
+    "job_freshness_required": true
+  }
+}

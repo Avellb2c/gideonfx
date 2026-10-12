@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block extra_styles %}<link rel="stylesheet" href="{{ static_url('media_campaigns.css') }}">{% endblock %}
+{% block content %}
+{% set asset_catalog = asset_page|default({}, true) %}
+{% set available_assets = asset_catalog.get('items', media_assets|default([], true)) %}
+{% set asset_pagination = asset_catalog.get('pagination', {}) %}
+{% set asset_query = asset_catalog.get('query', filters.query|default('', true)) %}
+{% set asset_labels = {'QUARANTINED':'En revisión', 'ANALYZING':'Analizando', 'READY':'Listo para usar', 'REJECTED':'No compatible', 'ERROR':'Requiere atención', 'ARCHIVED':'Archivado'} %}
+<div class="page-head">
+  <div><h1>Biblioteca</h1><p>El lugar único donde Marketing carga, revisa y reutiliza videos para sus campañas.</p></div>
+  {% if identity.can('media.manage') %}<div class="page-actions"><a class="btn btn-primary" href="#cargar-video">Cargar video</a><a class="btn" href="/media/campaigns/new">Nueva campaña</a></div>{% endif %}
+</div>
+{% include "media_tabs.html" %}
+{% if message %}<div class="alert success"><strong>Listo</strong>{{ message }}</div>{% endif %}
+{% if error %}<div class="alert danger"><strong>No se pudo completar la acción</strong>{{ error }}</div>{% endif %}
+{% if gateway_error %}<div class="alert warning"><strong>Inventario parcial</strong>{{ gateway_error }}</div>{% endif %}
+
+{% if identity.can('media.manage') %}
+<section class="card card-pad media-upload-card" id="cargar-video" aria-labelledby="libraryUploadTitle">
+  <div class="card-head"><div><h2 id="libraryUploadTitle">Cargar un video</h2><p>El análisis se ejecuta en segundo plano. La biblioteca seguirá disponible mientras Gideon Rx valida el archivo.</p></div><span class="media-format-chip">MP4 · hasta 1080p</span></div>
+  <form method="post" action="{{ media_upload_url|default('/media/assets/upload', true) }}" enctype="multipart/form-data" class="media-upload-form" data-media-upload-form data-media-status-url-template="/api/v1/media/assets/{asset_id}" data-media-refresh-on-terminal="true">
+    <input type="hidden" name="csrf" value="{{ identity.csrf_token }}">
+    <div class="form-grid media-upload-grid">
+      <div class="field wide"><label for="libraryMediaFile">Video MP4</label><input class="input media-file-input" id="libraryMediaFile" type="file" name="file" accept="video/mp4,.mp4" required data-media-file><small data-media-file-name>Permitido: MP4 con video H.264/AVC, color yuv420p y hasta 1080p. El audio es opcional; si existe, debe ser AAC-LC.</small></div>
+      <div class="field"><label for="libraryDisplayName">Nombre para Marketing</label><input class="input" id="libraryDisplayName" name="display_name" maxlength="180" autocomplete="off" placeholder="Ej. Pizza familiar - tarde"></div>
+      <div class="field media-local-date-field"><label for="libraryValidFrom">Vigente desde (opcional)</label><div class="media-local-date" data-localized-date-picker><input class="input" id="libraryValidFrom" type="date" name="valid_from" data-localized-date-value></div><small>Seleccione una fecha en el calendario localizado.</small></div>
+      <div class="field media-local-date-field"><label for="libraryValidUntil">Vigente hasta (opcional)</label><div class="media-local-date" data-localized-date-picker><input class="input" id="libraryValidUntil" type="date" name="valid_until" data-localized-date-value></div><small>Déjela vacía si el video no vence.</small></div>
+    </div>
+    <div class="media-upload-actions"><p class="muted">Gideon Rx conserva el archivo en cuarentena, ejecuta antivirus, confirma su integridad y valida el formato antes de permitir su publicación.</p><button class="btn btn-primary" type="submit" data-media-upload-submit>Cargar y analizar</button></div>
+    <div class="media-upload-feedback" aria-live="polite" data-media-upload-feedback hidden></div>
+  </form>
+</section>
+{% endif %}
+
+<section class="card card-pad media-library-controls" aria-label="Buscar videos">
+  <form method="get" action="/media/library" class="media-catalog-search-form">
+    {% if request.query_params.get('archived') %}<input type="hidden" name="archived" value="1">{% endif %}
+    <div class="field"><label for="mediaLibrarySearch">Buscar en biblioteca</label><input class="input" id="mediaLibrarySearch" name="q" type="search" value="{{ asset_query }}" placeholder="Buscar por nombre, estado o formato" autocomplete="off"></div>
+    <button class="btn" type="submit">Buscar</button>
+    {% if asset_query %}<a class="btn" href="/media/library{% if request.query_params.get('archived') %}?archived=1{% endif %}">Limpiar</a>{% endif %}
+  </form>
+  <p class="muted">La búsqueda se hace en el servidor. Los videos listos pueden asignarse a campañas y un archivo reutilizado no se vuelve a enviar al mismo equipo.</p>
+</section>
+
+<section class="card">
+  <div class="card-head card-pad"><div><h2>Videos de GIDEON</h2><p>{{ asset_pagination.total|default(available_assets|length, true) }} video(s){% if asset_query %} coinciden con “{{ asset_query }}”{% endif %}.</p></div><span class="muted media-page-size">Mostrando hasta {{ asset_pagination.page_size|default(available_assets|length, true) }} por página</span></div>
+  <div class="table-wrap media-table-wrap">
+    <table>
+      <thead><tr><th>Video</th><th>Estado</th><th>Formato</th><th>Vigencia</th><th>Acciones</th></tr></thead>
+      <tbody data-media-library-rows>
+      {% for asset in available_assets %}
+        {% set asset_state = asset.status|default(asset.state|default('QUARANTINED', true), true)|upper %}
+        {% set asset_name = asset.display_name|default(asset.name|default('Video GIDEON', true), true) %}
+        <tr data-media-asset-row data-media-asset-id="{{ asset.asset_id }}" data-media-asset-state="{{ asset_state }}" data-media-search="{{ asset_name }} {{ asset_labels.get(asset_state, asset_state|replace('_', ' ')|title) }} {{ asset.container|default('MP4', true) }}">
+          <td><strong>{{ asset_name }}</strong><small class="muted block">Propiedad de GIDEON{% if asset.source_type|default('', true)=='TRANSFER' %} · Disponible también desde una transferencia aprobada{% endif %}</small></td>
+          <td><span class="chip media-asset-state media-asset-status-{{ asset_state|lower }}">{{ asset_labels.get(asset_state, asset_state|replace('_', ' ')|title) }}</span>{% if asset.error_message %}<small class="muted block">{{ asset.error_message }}</small>{% endif %}</td>
+          <td>{{ asset.container|default('MP4', true) }}{% if asset.resolution %}<small class="muted block">{{ asset.resolution }}{% if asset.duration_seconds %} · {{ asset.duration_seconds }} s{% endif %}</small>{% endif %}{% if asset.playback_warning %}<small class="media-asset-warning block">{{ asset.playback_warning }}</small>{% endif %}</td>
+          <td>{% if asset.valid_from or asset.valid_until %}{{ asset.valid_from or 'Desde ahora' }}<small class="muted block">hasta {{ asset.valid_until or 'sin fecha de fin' }}</small>{% else %}<span class="muted">Sin límite de fecha</span>{% endif %}</td>
+          <td class="media-library-actions">
+            {% if asset_state=='READY' and identity.can('media.manage') %}<a class="btn btn-small btn-primary" href="/media/campaigns/new?asset={{ asset.asset_id }}">Crear campaña</a>{% endif %}
+            {% if asset_state in ['ANALYZING','QUARANTINED'] %}<span class="muted">Gideon Rx está analizando este video.</span>{% endif %}
+            {% if asset_state in ['REJECTED','ERROR'] %}<span class="muted">Revise el mensaje y cargue una versión compatible.</span>{% endif %}
+            {% if not asset.archived and identity.can('media.manage') %}
+              <a class="btn btn-small" href="/media/assets/{{ asset.asset_id }}/edit">Editar</a>
+              <form method="post" action="/media/assets/{{ asset.asset_id }}/archive"><input type="hidden" name="csrf" value="{{ identity.csrf_token }}"><button class="btn btn-small btn-danger" type="submit" title="Elimina el video de la biblioteca de forma lógica; no borra su historial.">Eliminar de biblioteca</button></form>
+            {% elif asset.archived %}<span class="muted">Archivado; el historial se conserva.</span>{% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr data-media-library-empty><td colspan="5" class="empty"><strong>La biblioteca está vacía</strong>{% if identity.can('media.manage') %}Cargue un MP4 compatible para usarlo en la próxima campaña.{% else %}Aún no hay videos disponibles para campañas.{% endif %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if asset_pagination.pages|default(0, true) > 1 %}
+  <form method="get" action="/media/library" class="media-pagination" aria-label="Páginas de la biblioteca">
+    {% if asset_query %}<input type="hidden" name="q" value="{{ asset_query }}">{% endif %}
+    {% if request.query_params.get('archived') %}<input type="hidden" name="archived" value="1">{% endif %}
+    <span class="muted">Página {{ asset_pagination.page }} de {{ asset_pagination.pages }}</span>
+    <button class="btn btn-small" type="submit" name="page" value="{{ asset_pagination.page - 1 }}" {{ 'disabled' if not asset_pagination.has_previous else '' }}>Anterior</button>
+    <button class="btn btn-small" type="submit" name="page" value="{{ asset_pagination.page + 1 }}" {{ 'disabled' if not asset_pagination.has_next else '' }}>Siguiente</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ static_url('media_campaigns.js') }}"></script>{% endblock %}
+

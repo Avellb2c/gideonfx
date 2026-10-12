@@ -1,0 +1,31 @@
+services:
+  guacd:
+    image: ${GUACD_IMAGE:-gideon/guacd:1.6.0-freerdp3}
+    container_name: gideon-guacd
+    restart: unless-stopped
+    init: true
+    ports:
+      # GIDEON WebAdmin is the only intended TCP client. Never publish 0.0.0.0:4822.
+      - "127.0.0.1:4822:4822"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+      - /home/guacd:rw,nosuid,nodev,size=16m,uid=1000,gid=1000,mode=0700
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    mem_limit: 768m
+    cpus: 1.0
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 4822 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

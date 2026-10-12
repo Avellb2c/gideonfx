@@ -1,0 +1,31 @@
+# Local state and secrets
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+*.p12
+*.sqlite
+*.sqlite3
+*.db
+secrets/
+payload/data/
+
+# Build and runtime output
+output/
+dist/
+build/
+*.tar.gz
+*.genc
+*.partial
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block extra_styles %}<link rel="stylesheet" href="{{ static_url('media_campaigns.css') }}">{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Historial</h1><p>Cada creación, edición, activación, pausa, reactivación y archivo conserva evidencia.</p></div></div>
+{% include "media_tabs.html" %}
+<section class="card"><div class="card-head card-pad"><div><h2>Actividad de campañas y pantallas</h2><p>Las revisiones anteriores no se sustituyen.</p></div></div><div class="table-wrap media-table-wrap"><table><thead><tr><th>Fecha</th><th>Acción</th><th>Elemento</th><th>Realizada por</th></tr></thead><tbody>{% for event in history %}<tr><td>{{ event.created_at }}</td><td>{{ event.action|replace('.', ' ')|replace('_', ' ')|title }}</td><td>{{ event.detail.get('title') or event.detail.get('name') or 'Campaña o pantalla' }}</td><td>{{ event.actor }}</td></tr>{% else %}<tr><td colspan="4" class="empty"><strong>Sin actividad aún</strong>La actividad aparecerá aquí una vez que se creen pantallas o campañas.</td></tr>{% endfor %}</tbody></table></div></section>
+{% endblock %}
+

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "company_name": "Gideon Rx Project",
+  "publisher_name": "Gideon Rx Contributors",
+  "product_name": "Gideon Rx",
+  "agent_product_name": "Gideon Rx Agent",
+  "product_description": "Administración remota segura y multiplataforma de código abierto",
+  "agent_description": "Agente administrado de Gideon Rx",
+  "copyright": "Copyright 2026 Gideon Rx Contributors",
+  "website_url": "",
+  "support_url": "",
+  "bundle_id": "org.gideonrx.agent",
+  "agent_package_basename": "GideonRxAgent",
+  "icon_path": "assets/gideon_agent_tray.ico",
+  "signing": {
+    "mode": "optional",
+    "provider": "auto",
+    "certificate_thumbprint": "",
+    "pfx_path": "",
+    "pfx_password_env": "GIDEON_SIGNING_PFX_PASSWORD",
+    "timestamp_url": "http://timestamp.digicert.com",
+    "digest_algorithm": "sha256",
+    "verify_after_sign": true,
+    "expected_publisher": "Gideon Rx Contributors"
+  }
+}

@@ -1,0 +1,8 @@
+<nav class="media-tabs" aria-label="Secciones de medios">
+  <a href="/media/library" class="{{ 'active' if active_path.startswith('/media/library') else '' }}">Biblioteca</a>
+  <a href="/media/campaigns" class="{{ 'active' if active_path.startswith('/media/campaigns') else '' }}">Campañas</a>
+  <a href="/media/schedule" class="{{ 'active' if active_path.startswith('/media/schedule') else '' }}">Programación</a>
+  {% if identity.can('screens.view') %}<a href="/media/screens" class="{{ 'active' if active_path.startswith('/media/screens') else '' }}">Pantallas</a>{% endif %}
+  <a href="/media/history" class="{{ 'active' if active_path.startswith('/media/history') else '' }}">Historial</a>
+</nav>
+

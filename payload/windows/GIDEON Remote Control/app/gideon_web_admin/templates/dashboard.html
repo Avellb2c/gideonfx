@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block extra_styles %}<link rel="stylesheet" href="{{ static_url('dashboard.css') }}">{% endblock %}
+{% block content %}
+{% set host = resources.get('host', {}) %}
+{% set gideon = resources.get('gideon', {}) %}
+{% set control_state = control_plane.get('state', 'FAILED')|upper %}
+{% set resource_available = resources.get('available', false) %}
+{% set job_status_labels = {
+  'QUEUED': 'En cola', 'CLAIMED': 'Asignado', 'RUNNING': 'En ejecución',
+  'REQUESTED': 'Solicitado', 'DELIVERED': 'Entregado', 'RESULT_READY': 'Completado',
+  'SUCCESS': 'Completado', 'SUCCEEDED': 'Completado', 'COMPLETED': 'Completado',
+  'FAILED': 'Falló', 'CANCELLED': 'Cancelado', 'CANCELED': 'Cancelado'
+} %}
+{% set control_state_label = {'RUNNING': 'en funcionamiento', 'DEGRADED': 'con capacidad reducida', 'FAILED': 'sin responder', 'STARTING': 'iniciando'}.get(control_state, control_state|lower) %}
+<div class="page-head dashboard-head">
+  <div>
+    <div class="dashboard-eyebrow">Resumen operativo</div>
+    <h1>Inicio</h1>
+    <p>Estado de la plataforma, actividad reciente y uso real del servidor en una sola vista.</p>
+  </div>
+  <div class="page-actions">
+    <button class="btn" type="button" data-resource-refresh aria-label="Actualizar recursos del servidor">↻ Actualizar</button>
+    {% if identity.can('jobs.execute') %}<a class="btn btn-primary" href="/execute">＋ Nueva ejecución</a>{% endif %}
+  </div>
+</div>
+
+{% if gateway_error %}<div class="alert danger"><strong>Gateway temporalmente no disponible</strong><span>Los datos operativos podrían estar desactualizados. Consulte Diagnóstico para el detalle técnico; esta pantalla no expone errores internos.</span></div>{% endif %}
+
+<section class="dashboard-status {{ 'is-healthy' if platform_healthy else 'needs-attention' }}" aria-label="Estado general de GIDEON">
+  <div class="dashboard-status-mark" aria-hidden="true">{{ '✓' if platform_healthy else '!' }}</div>
+  <div class="dashboard-status-copy">
+    <strong>{{ 'Plataforma operativa' if platform_healthy else 'La plataforma requiere revisión' }}</strong>
+    <span>{{ 'Gateway y servicios principales responden correctamente.' if platform_healthy else 'Revise el Gateway y los servicios indicados antes de ejecutar operaciones.' }}</span>
+  </div>
+  <div class="dashboard-status-signals">
+    <span class="signal"><i class="{{ 'ok' if health.get('Ok') else 'bad' }}"></i>Gateway {{ 'conectado' if health.get('Ok') else 'sin conexión' }}</span>
+    <span class="signal"><i class="{{ 'ok' if control_state == 'RUNNING' else 'warn' }}"></i>Servicios {{ control_state_label }}</span>
+    <span class="signal"><i class="{{ 'ok' if resource_available else 'warn' }}" data-resource-indicator></i><span data-resource-updated>{{ 'Métricas disponibles' if resource_available else 'Métricas pendientes' }}</span></span>
+  </div>
+</section>
+
+<section class="card dashboard-attention" aria-labelledby="dashboard-attention-title">
+  <div class="dashboard-attention-head">
+    <div><h2 id="dashboard-attention-title">Qué revisar ahora</h2><p>Prioridades operativas calculadas con el estado disponible en esta consola.</p></div>
+    <a class="btn btn-small" href="/diagnostics">Abrir diagnóstico</a>
+  </div>
+  <div class="dashboard-attention-list">
+    {% if not health.get('Ok') %}
+      <a class="dashboard-attention-item danger" href="/gateway"><i aria-hidden="true"></i><span><strong>Gateway sin conexión</strong><span>Compruebe el servicio antes de iniciar operaciones nuevas.</span></span></a>
+    {% endif %}
+    {% if control_state != 'RUNNING' %}
+      <a class="dashboard-attention-item warning" href="/diagnostics"><i aria-hidden="true"></i><span><strong>Servicios {{ control_state_label }}</strong><span>La telemetría de Gideon Rx recomienda una revisión de diagnóstico.</span></span></a>
+    {% endif %}
+    {% if metrics.incidents %}
+      <a class="dashboard-attention-item danger" href="/jobs?status=FAILED"><i aria-hidden="true"></i><span><strong>{{ metrics.incidents }} incidencia{{ '' if metrics.incidents == 1 else 's' }} reciente{{ '' if metrics.incidents == 1 else 's' }}</strong><span>Revise los Jobs con errores o cancelados antes de reintentar.</span></span></a>
+    {% endif %}
+    {% if metrics.offline_agents %}
+      <a class="dashboard-attention-item warning" href="/agents?status=offline"><i aria-hidden="true"></i><span><strong>{{ metrics.offline_agents }} equipo{{ '' if metrics.offline_agents == 1 else 's' }} sin conexión</strong><span>Verifique los Agents que no reportan dentro de su ventana normal.</span></span></a>
+    {% endif %}
+    {% if metrics.active_jobs %}
+      <a class="dashboard-attention-item" href="/jobs"><i aria-hidden="true"></i><span><strong>{{ metrics.active_jobs }} Job{{ '' if metrics.active_jobs == 1 else 's' }} en curso</strong><span>Siga su avance desde Actividad y Jobs.</span></span></a>
+    {% endif %}
+    {% if not resource_available %}
+      <a class="dashboard-attention-item warning" href="/diagnostics"><i aria-hidden="true"></i><span><strong>Métricas del host pendientes</strong><span>La consola no ha podido confirmar todavía el uso real del servidor.</span></span></a>
+    {% endif %}
+    {% if health.get('Ok') and control_state == 'RUNNING' and not metrics.incidents and not metrics.offline_agents and not metrics.active_jobs and resource_available %}
+      <a class="dashboard-attention-item success" href="/agents"><i aria-hidden="true"></i><span><strong>No hay acciones urgentes</strong><span>La plataforma y los equipos reportan dentro del estado esperado.</span></span></a>
+    {% endif %}
+  </div>
+</section>
+
+<div class="dashboard-kpis" aria-label="Indicadores principales">
+  <a class="dashboard-kpi agents" href="/agents"><span class="kpi-icon" aria-hidden="true">◉</span><span class="kpi-copy"><small>Equipos enrolados</small><strong>{{ metrics.agents }}</strong><em>{{ metrics.active_agents }} activos · {{ metrics.offline_agents }} desconectados</em></span><span class="kpi-arrow" aria-hidden="true">›</span></a>
+  <a class="dashboard-kpi jobs" href="/jobs"><span class="kpi-icon" aria-hidden="true">↻</span><span class="kpi-copy"><small>Jobs en curso</small><strong>{{ metrics.active_jobs }}</strong><em>{{ metrics.successful_jobs }} completados en el historial reciente</em></span><span class="kpi-arrow" aria-hidden="true">›</span></a>
+  <a class="dashboard-kpi releases" href="/releases"><span class="kpi-icon" aria-hidden="true">⬡</span><span class="kpi-copy"><small>Releases aprobados</small><strong>{{ metrics.approved }}</strong><em>Disponibles en el canal estable</em></span><span class="kpi-arrow" aria-hidden="true">›</span></a>
+  <a class="dashboard-kpi incidents {{ 'has-incidents' if metrics.incidents else '' }}" href="/jobs?status=FAILED"><span class="kpi-icon" aria-hidden="true">!</span><span class="kpi-copy"><small>Incidencias recientes</small><strong>{{ metrics.incidents }}</strong><em>{{ 'Requieren atención' if metrics.incidents else 'Sin fallos ni cancelaciones' }}</em></span><span class="kpi-arrow" aria-hidden="true">›</span></a>
+</div>
+
+<div class="dashboard-resource-grid" data-resource-dashboard data-endpoint="/api/dashboard/resources">
+  <section class="card resource-overview">
+    <div class="card-head dashboard-card-head"><div><div class="section-kicker">Servidor en tiempo real</div><h2>Consumo de recursos</h2><p>Gideon Rx comparado con la capacidad y el uso total del servidor.</p></div><span class="live-badge {{ 'is-degraded' if not resource_available else '' }}"><i></i><span data-resource-live-label>{{ 'En vivo' if resource_available else 'Pendiente' }}</span></span></div>
+    <div class="resource-overview-body">
+      <div class="resource-comparisons">
+        <article class="resource-row">
+          <div class="resource-row-head"><div><strong>CPU</strong><span>Uso sobre {{ host.get('cpu_logical', 1) }} procesadores lógicos</span></div><div class="resource-values"><strong data-resource-value="host-cpu">{{ 'Calculando…' if host.get('cpu_percent') is none else host.get('cpu_percent') ~ '%' }}</strong><span>Servidor</span></div></div>
+          <progress class="resource-progress host" data-resource-bar="host-cpu" max="100" value="{{ host.get('cpu_percent') or 0 }}">{{ host.get('cpu_percent') or 0 }}%</progress>
+          <div class="resource-foot"><span>Gideon Rx</span><strong data-resource-value="gideon-cpu">{{ gideon.get('cpu_percent', 0) }}%</strong><span class="resource-share">de la capacidad total</span></div>
+        </article>
+        <article class="resource-row">
+          <div class="resource-row-head"><div><strong>Memoria RAM</strong><span data-resource-value="host-memory-summary">{{ host.get('memory_used_display', '-') }} usados de {{ host.get('memory_total_display', '-') }}</span></div><div class="resource-values"><strong data-resource-value="host-memory-percent">{{ host.get('memory_percent', 0) }}%</strong><span>Servidor</span></div></div>
+          <progress class="resource-progress memory" data-resource-bar="host-memory" max="100" value="{{ host.get('memory_percent', 0) }}">{{ host.get('memory_percent', 0) }}%</progress>
+          <div class="resource-foot"><span>Gideon Rx</span><strong data-resource-value="gideon-memory">{{ gideon.get('memory_display', '-') }}</strong><span class="resource-share"><b data-resource-value="gideon-memory-percent">{{ gideon.get('memory_percent', 0) }}%</b> de la RAM instalada</span></div>
+        </article>
+        <article class="resource-row">
+          <div class="resource-row-head"><div><strong>Almacenamiento</strong><span data-resource-value="host-disk-summary">{{ host.get('disk_used_display', '-') }} usados · {{ host.get('disk_free_display', '-') }} libres</span></div><div class="resource-values"><strong data-resource-value="host-disk-percent">{{ host.get('disk_percent', 0) }}%</strong><span>Servidor</span></div></div>
+          <progress class="resource-progress disk" data-resource-bar="host-disk" max="100" value="{{ host.get('disk_percent', 0) }}">{{ host.get('disk_percent', 0) }}%</progress>
+          <div class="resource-foot"><span>Capacidad</span><strong data-resource-value="host-disk-total">{{ host.get('disk_total_display', '-') }}</strong><span class="resource-share">volumen donde está instalado GIDEON</span></div>
+        </article>
+      </div>
+      <div class="gideon-footprint">
+        <div class="footprint-number"><strong data-resource-value="gideon-memory-large">{{ gideon.get('memory_display', '-') }}</strong><span>RAM usada por GIDEON</span></div>
+        <div class="footprint-meta"><div><small>CPU GIDEON</small><strong data-resource-value="gideon-cpu-large">{{ gideon.get('cpu_percent', 0) }}%</strong></div><div><small>Tareas reportadas</small><strong data-resource-value="gideon-tasks">{{ gideon.get('tasks', 0) }}</strong></div><div><small>Servicios activos</small><strong data-resource-value="gideon-services">{{ gideon.get('active_services', 0) }}/{{ gideon.get('total_services', 0) }}</strong></div></div>
+        <p>Incluye WebAdmin, Gateway, Coordinator, diagnóstico y el motor antimalware administrados por Gideon Rx.</p>
+      </div>
+    </div>
+  </section>
+
+  <aside class="card host-profile">
+    <div class="card-head dashboard-card-head"><div><div class="section-kicker">Capacidad disponible</div><h2>Características del servidor</h2><p>Hardware y sistema detectados en este host.</p></div></div>
+    <div class="host-profile-body">
+      <div class="host-name"><span class="server-glyph" aria-hidden="true">▤</span><div><strong data-resource-value="host-name">{{ host.get('hostname', '-') }}</strong><span data-resource-value="host-vendor">{{ host.get('vendor', '-') }}</span></div></div>
+      <dl class="host-specs"><div><dt>Sistema operativo</dt><dd data-resource-value="host-os">{{ host.get('os', '-') }}</dd></div><div><dt>CPU</dt><dd data-resource-value="host-cpu-model">{{ host.get('cpu_model', '-') }}</dd></div><div><dt>Núcleos lógicos</dt><dd data-resource-value="host-cpu-count">{{ host.get('cpu_logical', '-') }}</dd></div><div><dt>Memoria instalada</dt><dd data-resource-value="host-memory-total">{{ host.get('memory_total_display', '-') }}</dd></div><div><dt>Disco disponible</dt><dd data-resource-value="host-disk-free">{{ host.get('disk_free_display', '-') }}</dd></div><div><dt>Tiempo activo</dt><dd data-resource-value="host-uptime">{{ host.get('uptime_display', '-') }}</dd></div></dl>
+    </div>
+  </aside>
+</div>
+
+<div class="dashboard-detail-grid">
+  <section class="card service-card">
+    <div class="card-head dashboard-card-head"><div><div class="section-kicker">Desglose</div><h2>Servicios GIDEON</h2><p>Consumo individual medido por el sistema operativo.</p></div><a class="btn btn-small" href="/diagnostics">Diagnóstico</a></div>
+    <div class="service-list" data-resource-services>{% for service in gideon.get('services', []) %}<div class="service-item"><span class="service-state {{ 'online' if service.get('active') else 'offline' }}"></span><div class="service-name"><strong>{{ service.get('label', service.get('component', '-')) }}</strong><span>{{ service.get('substate', '-') }}</span></div><div class="service-stat"><small>CPU</small><strong>{{ service.get('cpu_percent', 0) }}%</strong></div><div class="service-stat"><small>RAM</small><strong>{{ service.get('memory_display', '-') }}</strong></div></div>{% else %}<div class="empty compact"><strong>Métricas en preparación</strong>Los servicios aparecerán en la próxima actualización.</div>{% endfor %}</div>
+  </section>
+  <section class="card activity-card">
+    <div class="card-head dashboard-card-head"><div><div class="section-kicker">Operaciones</div><h2>Actividad reciente</h2><p>Últimos destinos registrados por el Gateway.</p></div><a class="btn btn-small" href="/jobs">Ver todos</a></div>
+    {% if jobs %}<div class="table-wrap dashboard-table"><table><thead><tr><th>Job</th><th>Estado</th><th>Sede</th><th>Actualización</th></tr></thead><tbody>{% for j in jobs %}{% set job_status = (j.status or '')|upper %}<tr><td><a class="link mono" href="/jobs/{{ j.job_id }}">{{ j.job_id }}</a><span class="table-agent mono">{{ (j.agent_id or '')[:18] }}</span></td><td><span class="chip {{ 'success' if job_status in ['RESULT_READY','SUCCESS','SUCCEEDED','COMPLETED'] else 'danger' if job_status in ['FAILED','CANCELLED','CANCELED'] else 'warning' if job_status in ['QUEUED','CLAIMED','RUNNING','REQUESTED','DELIVERED'] else 'info' }}"><span class="mini-dot"></span>{{ job_status_labels.get(job_status, job_status|replace('_', ' ')|title) }}</span></td><td>{{ j.site_code }} · {{ j.site_name or '-' }}</td><td class="muted">{{ j.updated_at or j.created_at }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="empty"><strong>Sin actividad todavía</strong>Los Jobs aparecerán aquí al distribuirse a los Agents.</div>{% endif %}
+  </section>
+</div>
+
+<section class="card infrastructure-summary">
+  <div class="card-head dashboard-card-head"><div><div class="section-kicker">Control plane</div><h2>Infraestructura</h2><p>Estado funcional informado por Gideon Rx Diagnostics.</p></div><a class="btn btn-small" href="/gateway">Ver Gateway</a></div>
+  <div class="infrastructure-body"><div class="infrastructure-main"><span class="chip {{ 'success' if health.get('Ok') else 'danger' }}"><span class="mini-dot"></span>{{ 'Operativo' if health.get('Ok') else 'Sin conexión' }}</span><strong>Gateway {{ health.get('Version') or '-' }}</strong><span>Protocolo {{ health.get('ProtocolVersion') or '-' }}</span></div><div class="infrastructure-facts"><div><small>Schema</small><strong>{{ 'Listo' if health.get('Schema',{}).get('Ready') else 'No disponible' if not health.get('Schema',{}) else 'Requiere atención' }}</strong></div><div><small>API Releases</small><strong>{{ 'Disponible' if health.get('Capabilities',{}).get('ReleaseApproval') else 'No disponible' }}</strong></div><div><small>Snapshot</small><strong>{{ 'Vigente' if control_plane.get('fresh') else 'Revisar' }}</strong></div><div><small>Hora Gateway</small><strong>{{ health.get('Time') or '-' }}</strong></div></div></div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ static_url('dashboard.js') }}"></script>{% endblock %}
+

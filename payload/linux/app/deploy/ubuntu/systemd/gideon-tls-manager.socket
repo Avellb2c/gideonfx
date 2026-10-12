@@ -1,0 +1,16 @@
+[Unit]
+Description=GIDEON restricted TLS management socket
+
+[Socket]
+ListenStream=/run/gideon-tls-manager/control.sock
+Accept=yes
+SocketUser=root
+SocketGroup=gideonweb
+SocketMode=0660
+DirectoryMode=0755
+MaxConnections=4
+Backlog=8
+RemoveOnStop=true
+
+[Install]
+WantedBy=sockets.target

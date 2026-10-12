@@ -1,0 +1,400 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="${GIDEON_AGENT_ROOT:-/opt/gideon-agent}"
+CONFIG="$ROOT/agent.json"
+TEMPLATE="$ROOT/agent.template.json"
+BOOTSTRAP="$ROOT/bootstrap.enrollment"
+SITES="$ROOT/site-catalog.csv"
+STATE="/var/lib/gideon-agent"
+LOG="$STATE/first-run-native.log"
+PACKAGE_UI_STATE="$STATE/package-ui.state"
+AUTO=0
+PACKAGE_PROGRESS=0
+case "${1:-}" in
+  --auto) AUTO=1 ;;
+  --package-progress) PACKAGE_PROGRESS=1 ;;
+esac
+
+mkdir -p "$STATE" 2>/dev/null || true
+log(){ printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S%z')" "$*" >>"$LOG" 2>/dev/null || true; }
+
+if [[ "$PACKAGE_PROGRESS" -eq 0 && -s "$CONFIG" ]]; then exit 0; fi
+[[ -f "$TEMPLATE" ]] || { log "template missing"; exit 3; }
+
+# We must run inside a user graphical session, not from the package manager's root session.
+if [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
+  log "No graphical DISPLAY/WAYLAND in current session."
+  if [[ "$AUTO" -eq 1 ]]; then exit 0; fi
+  printf '%s\n' "No hay una sesión gráfica disponible. Use: sudo gideon-agent-setup" >&2
+  exit 4
+fi
+
+PY="$ROOT/venv/bin/python"
+[[ -x "$PY" ]] || PY="$(command -v python3 || true)"
+[[ -n "$PY" ]] || { log "python3 missing"; exit 5; }
+
+UI=""
+if command -v zenity >/dev/null 2>&1; then
+  UI="zenity"
+elif command -v kdialog >/dev/null 2>&1; then
+  UI="kdialog"
+fi
+
+if [[ -z "$UI" ]]; then
+  log "No native GTK/KDE dialog backend found."
+  if command -v notify-send >/dev/null 2>&1; then
+    notify-send "Gideon Rx Agent" "Falta Zenity/KDialog. Ejecute sudo gideon-agent-setup para configurar el Agent." >/dev/null 2>&1 || true
+  fi
+  if [[ "$AUTO" -eq 1 ]]; then exit 0; fi
+  printf '%s\n' "No se encontró Zenity/KDialog. Ejecute: sudo gideon-agent-setup" >&2
+  exit 6
+fi
+
+if [[ "$PACKAGE_PROGRESS" -eq 1 ]]; then
+  # The package manager runs as root. This process runs in the logged-in desktop
+  # and mirrors the repair state without taking package-manager locks.
+  if [[ "$UI" == "zenity" ]]; then
+    (
+      pct=8
+      while true; do
+        state="$(cat "$PACKAGE_UI_STATE" 2>/dev/null || true)"
+        kind="${state%%|*}"
+        msg="${state#*|}"
+        [[ "$msg" == "$state" ]] && msg="Preparando Gideon Rx Agent…"
+        case "$kind" in
+          SUCCESS)
+            echo "100"
+            echo "# $msg"
+            break
+            ;;
+          ERROR)
+            echo "100"
+            echo "# La reparación terminó con errores."
+            break
+            ;;
+          *)
+            pct=$((pct+7)); [[ "$pct" -gt 88 ]] && pct=20
+            echo "$pct"
+            echo "# $msg"
+            ;;
+        esac
+        sleep 0.7
+      done
+    ) | zenity --progress \
+        --title="Gideon Rx Agent · Instalación / reparación" \
+        --width=560 \
+        --text="Preparando…" \
+        --percentage=5 \
+        --no-cancel \
+        --auto-close 2>/dev/null || true
+  else
+    kdialog --title "Gideon Rx Agent" \
+      --passivepopup "Instalando / reparando Gideon Rx Agent…" 5 2>/dev/null || true
+    while true; do
+      state="$(cat "$PACKAGE_UI_STATE" 2>/dev/null || true)"
+      case "${state%%|*}" in SUCCESS|ERROR) break;; esac
+      sleep 0.8
+    done
+  fi
+
+  state="$(cat "$PACKAGE_UI_STATE" 2>/dev/null || true)"
+  kind="${state%%|*}"
+  msg="${state#*|}"
+  if [[ "$kind" == "SUCCESS" ]]; then
+    if [[ "$UI" == "zenity" ]]; then
+      zenity --info --title="Gideon Rx Agent" --width=540 \
+        --text="$msg" --ok-label="Cerrar" 2>/dev/null || true
+    else
+      kdialog --title "Gideon Rx Agent" --msgbox "$msg" 2>/dev/null || true
+    fi
+    exit 0
+  fi
+
+  if [[ "$kind" == "ERROR" ]]; then
+    diag="${msg#*DIAG=}"
+    if [[ -r "$diag" ]]; then
+      if [[ "$UI" == "zenity" ]]; then
+        zenity --text-info --title="Gideon Rx Agent · Error completo" \
+          --width=920 --height=680 --filename="$diag" --ok-label="Cerrar" 2>/dev/null || true
+      else
+        kdialog --title "Gideon Rx Agent · Error completo" --textbox "$diag" 920 680 2>/dev/null || true
+      fi
+    else
+      if [[ "$UI" == "zenity" ]]; then
+        zenity --error --title="Gideon Rx Agent" --width=560 --text="$msg" 2>/dev/null || true
+      else
+        kdialog --title "Gideon Rx Agent" --error "$msg" 2>/dev/null || true
+      fi
+    fi
+    exit 1
+  fi
+  exit 0
+fi
+
+py_json_get(){
+  "$PY" - "$TEMPLATE" "$1" <<'PY'
+import json,sys,socket
+p,key=sys.argv[1],sys.argv[2]
+try:
+    d=json.load(open(p,encoding="utf-8-sig"))
+except Exception:
+    d={}
+if key=="agent_name":
+    print(str(d.get("agent_name") or socket.gethostname()))
+elif key=="site_code":
+    print(str(d.get("site_code") or ""))
+elif key=="site_name":
+    print(str(d.get("site_name") or ""))
+elif key=="gateway":
+    cp=d.get("control_plane") if isinstance(d.get("control_plane"),dict) else {}
+    print(str(cp.get("base_url") or ""))
+PY
+}
+
+site_rows(){
+  "$PY" - "$SITES" <<'PY'
+import csv,sys
+from pathlib import Path
+p=Path(sys.argv[1])
+if not p.is_file():
+    raise SystemExit(0)
+text=p.read_text(encoding="utf-8-sig",errors="replace")
+if not text.strip():
+    raise SystemExit(0)
+try:
+    dialect=csv.Sniffer().sniff(text[:4096],delimiters=",;|\t")
+except Exception:
+    dialect=csv.excel
+rows=[]
+reader=csv.reader(text.splitlines(),dialect=dialect)
+for r in reader:
+    if len(r)<2: continue
+    code,name=str(r[0]).strip(),str(r[1]).strip()
+    if not code or not name: continue
+    if code.casefold() in {"sitecode","site_code","codigo","código","code"}: continue
+    rows.append((code,name))
+seen=set()
+for code,name in rows:
+    k=(code.casefold(),name.casefold())
+    if k in seen: continue
+    seen.add(k)
+    print(f"{code}\t{name}")
+PY
+}
+
+agent_name="$(py_json_get agent_name)"
+default_code="$(py_json_get site_code)"
+default_name="$(py_json_get site_name)"
+gateway="$(py_json_get gateway)"
+site_code=""
+site_name=""
+secret=""
+
+ui_error(){
+  local msg="$1"
+  log "ERROR: $msg"
+  if [[ "$UI" == "zenity" ]]; then
+    zenity --error --title="Gideon Rx Agent" --width=520 --text="$msg" || true
+  else
+    kdialog --title "Gideon Rx Agent" --error "$msg" || true
+  fi
+}
+
+ui_info(){
+  local msg="$1"
+  if [[ "$UI" == "zenity" ]]; then
+    zenity --info --title="Gideon Rx Agent" --width=500 --text="$msg" || true
+  else
+    kdialog --title "Gideon Rx Agent" --msgbox "$msg" || true
+  fi
+}
+
+ui_entry(){
+  local title="$1" prompt="$2" value="${3:-}"
+  if [[ "$UI" == "zenity" ]]; then
+    zenity --entry --title="$title" --width=520 --text="$prompt" --entry-text="$value"
+  else
+    kdialog --title "$title" --inputbox "$prompt" "$value"
+  fi
+}
+
+ui_password(){
+  local title="$1" prompt="$2"
+  if [[ "$UI" == "zenity" ]]; then
+    zenity --password --title="$title" --text="$prompt"
+  else
+    kdialog --title "$title" --password "$prompt"
+  fi
+}
+
+ui_confirm(){
+  local msg="$1"
+  if [[ "$UI" == "zenity" ]]; then
+    zenity --question --title="Gideon Rx Agent" --width=560 --ok-label="Configurar y enrolar" --cancel-label="Cancelar" --text="$msg"
+  else
+    kdialog --title "Gideon Rx Agent" --yesno "$msg" --yes-label "Configurar y enrolar" --no-label "Cancelar"
+  fi
+}
+
+# 1. Agent name
+agent_name="$(ui_entry "Gideon Rx Agent" "Nombre con el que este equipo aparecerá en WebAdmin:" "$agent_name")" || exit 0
+agent_name="${agent_name//$'\n'/ }"
+[[ -n "${agent_name// /}" ]] || { ui_error "El nombre del Agent es obligatorio."; exit 10; }
+
+# 2. Site selection using native list where possible.
+mapfile -t ROWS < <(site_rows)
+if [[ "${#ROWS[@]}" -gt 0 ]]; then
+  if [[ "$UI" == "zenity" ]]; then
+    args=()
+    for row in "${ROWS[@]}"; do
+      code="${row%%$'\t'*}"; name="${row#*$'\t'}"
+      args+=("$code" "$name")
+    done
+    selected="$(zenity --list --title="Gideon Rx Agent · Sede" --width=680 --height=520 \
+      --text="Seleccione la sede que identificará este equipo." \
+      --column="Código" --column="Sede" --print-column=1 "${args[@]}")" || exit 0
+    site_code="$selected"
+  else
+    args=()
+    for row in "${ROWS[@]}"; do
+      code="${row%%$'\t'*}"; name="${row#*$'\t'}"
+      args+=("$code" "$code · $name")
+    done
+    site_code="$(kdialog --title "Gideon Rx Agent · Sede" --menu "Seleccione la sede:" "${args[@]}")" || exit 0
+  fi
+  for row in "${ROWS[@]}"; do
+    code="${row%%$'\t'*}"; name="${row#*$'\t'}"
+    if [[ "$code" == "$site_code" ]]; then site_name="$name"; break; fi
+  done
+fi
+
+if [[ -z "$site_code" || -z "$site_name" ]]; then
+  site_code="$(ui_entry "Gideon Rx Agent" "Código de sede:" "$default_code")" || exit 0
+  site_name="$(ui_entry "Gideon Rx Agent" "Nombre de sede:" "$default_name")" || exit 0
+fi
+[[ -n "${site_code// /}" && -n "${site_name// /}" ]] || { ui_error "Código y nombre de sede son obligatorios."; exit 11; }
+
+# 3. Gateway
+gateway="$(ui_entry "Gideon Rx Agent" "Gateway HTTPS:" "$gateway")" || exit 0
+case "$gateway" in
+  https://*) ;;
+  *) ui_error "El Gateway debe comenzar por https://"; exit 12;;
+esac
+
+# 4. Secret only when the package does not carry bootstrap.enrollment.
+if [[ ! -s "$BOOTSTRAP" ]]; then
+  secret="$(ui_password "Gideon Rx Agent" "Credencial temporal de enrolamiento:")" || exit 0
+  [[ -n "$secret" ]] || { ui_error "Se requiere una credencial temporal de enrolamiento."; exit 13; }
+fi
+
+summary="Nombre del Agent: $agent_name
+Sede: $site_code · $site_name
+Gateway: $gateway
+
+El instalador preparará el servicio remoto correspondiente al sistema y enrolará el Agent."
+ui_confirm "$summary" || exit 0
+
+if ! command -v pkexec >/dev/null 2>&1; then
+  ui_error "No se encontró pkexec/Polkit. Instale Polkit o use: sudo gideon-agent-setup"
+  exit 14
+fi
+
+tmp_secret=""
+if [[ -n "$secret" ]]; then
+  old_umask="$(umask)"
+  umask 077
+  tmp_secret="$(mktemp "${TMPDIR:-/tmp}/gideon-agent-enroll.XXXXXX")"
+  printf '%s' "$secret" >"$tmp_secret"
+  umask "$old_umask"
+fi
+
+out="$(mktemp "${TMPDIR:-/tmp}/gideon-agent-first-run.XXXXXX.log")"
+cleanup(){
+  rm -f "$tmp_secret" "$out" 2>/dev/null || true
+}
+trap cleanup EXIT
+
+cmd=(/usr/local/bin/gideon-agent-setup
+  --site-code "$site_code"
+  --site-name "$site_name"
+  --agent-name "$agent_name"
+  --gateway "$gateway"
+  --non-interactive
+)
+[[ -n "$tmp_secret" ]] && cmd+=(--enrollment-secret-file "$tmp_secret")
+
+log "Launching privileged setup through pkexec. site=$site_code ui=$UI"
+set +e
+pkexec "${cmd[@]}" >"$out" 2>&1
+rc=$?
+set -e
+
+full_output="$(cat "$out" 2>/dev/null || true)"
+if [[ "$rc" -eq 0 && -s "$CONFIG" && "$full_output" == *"FINAL_ACCEPTANCE PASS"* ]]; then
+  ui_info "Gideon Rx Agent quedó configurado, enrolado y validado correctamente.
+
+$site_code · $site_name
+$agent_name
+
+Validación final:
+✓ Runtime
+✓ Identidad
+✓ Enrolamiento / heartbeat
+✓ systemd
+✓ proceso Agent
+✓ xrdp
+✓ 127.0.0.1:3389"
+  log "SUCCESS site=$site_code agent=$agent_name FINAL_ACCEPTANCE=PASS"
+  exit 0
+fi
+
+diag_source="$(printf '%s\n' "$full_output" | sed -n 's/^GIDEON_DIAGNOSTIC_FILE=//p' | tail -n1)"
+report="$HOME/GIDEON-Agent-ERROR-$(date +%Y%m%d_%H%M%S).txt"
+{
+  echo "============================================================"
+  echo "GIDEON AGENT - ERROR DE INSTALACIÓN / ENROLAMIENTO"
+  echo "============================================================"
+  echo "Fecha: $(date --iso-8601=seconds 2>/dev/null || date)"
+  echo "Código de salida: $rc"
+  echo "Equipo: $(hostname)"
+  echo "Sede: $site_code · $site_name"
+  echo "Agent: $agent_name"
+  echo "Gateway: $gateway"
+  echo
+  echo "=== SALIDA COMPLETA DEL INSTALADOR ==="
+  printf '%s\n' "$full_output"
+  if [[ -n "$diag_source" && -r "$diag_source" ]]; then
+    echo
+    echo "=== DIAGNÓSTICO AUTOMÁTICO COMPLETO ==="
+    cat "$diag_source"
+  fi
+  echo
+  echo "============================================================"
+  echo "COPIE TODO ESTE TEXTO Y ENVÍELO PARA DIAGNÓSTICO."
+  echo "Archivo: $report"
+  echo "============================================================"
+} >"$report"
+chmod 0600 "$report" 2>/dev/null || true
+
+if [[ "$UI" == "zenity" ]]; then
+  zenity --text-info \
+    --title="Gideon Rx Agent · Error completo" \
+    --width=920 --height=680 \
+    --filename="$report" \
+    --ok-label="Cerrar" 2>/dev/null || true
+else
+  kdialog --title "Gideon Rx Agent · Error completo" \
+    --textbox "$report" 920 680 2>/dev/null || true
+fi
+
+ui_error "La instalación no terminó correctamente.
+
+Código: $rc
+
+Se generó un diagnóstico COMPLETO y copiable:
+$report
+
+Abra el archivo, use Ctrl+A / Ctrl+C y envíelo completo."
+exit "${rc:-1}"
+

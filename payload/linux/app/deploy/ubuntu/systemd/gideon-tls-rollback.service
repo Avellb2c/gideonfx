@@ -1,0 +1,11 @@
+[Unit]
+Description=GIDEON recover unconfirmed TLS configuration
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/opt/gideon/web/venv/bin/python -I -B /opt/gideon/web/app/deploy/ubuntu/gideon_tls_manager_entry.py --recover
+TimeoutStartSec=1000
+MemoryMax=192M
+TasksMax=32
