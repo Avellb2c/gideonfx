@@ -76,6 +76,7 @@
 
       {% if identity and identity.can('settings.view') %}<a class="nav-link {{ 'active' if active_path.startswith('/settings') else '' }}" href="/settings" title="Configuración" aria-label="Configuración"><img src="{{ static_url('icons/settings.svg') }}" alt=""><span class="gideon-nav-label">Configuración</span></a>{% endif %}
       {% if identity and identity.can('system_updates.manage') %}<a class="nav-link {{ 'active' if active_path.startswith('/system-updates') else '' }}" href="/system-updates" title="Actualización del sistema" aria-label="Actualización del sistema"><img src="{{ static_url('icons/files.svg') }}" alt=""><span class="gideon-nav-label">Actualización del sistema</span></a>{% endif %}
+      {% if identity and identity.can('dashboard.view') %}<a class="nav-link {{ 'active' if active_path.startswith('/guide') else '' }}" href="/guide/installation" title="Guía de instalación" aria-label="Guía de instalación"><img src="{{ static_url('icons/infrastructure.svg') }}" alt=""><span class="gideon-nav-label">Guía de instalación</span></a>{% endif %}
     </nav>
 
     <div class="sidebar-foot">Producto {{ product_version }}<br>Agent {{ agent_version }} · Gateway {{ gateway_version }}</div>

@@ -13,8 +13,8 @@ agentes multiplataforma y campañas para pantallas físicas.
 
 ## Inicio rápido
 
-Consulta [ONECLICK-INSTALL.md](ONECLICK-INSTALL.md) y la documentación de cada
-plataforma antes de instalar. Las credenciales, certificados, secretos y datos
+Consulta [ONECLICK-INSTALL.md](ONECLICK-INSTALL.md) y la [guía de instalación
+por plataforma y nube](docs/INSTALLATION-GUIDE.md) antes de instalar. Las credenciales, certificados, secretos y datos
 de producción deben proporcionarse mediante variables o archivos locales; no
 se guardan en este repositorio.
 

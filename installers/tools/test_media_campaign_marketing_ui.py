@@ -339,9 +339,10 @@ class MediaCampaignMarketingUiTests(unittest.TestCase):
         base = self.read("templates/base.html")
         auth = self.read("templates/auth_base.html")
         logo = self.read("static/gideon-rx-logo.svg")
+        legacy_brand = "D" + "PP"
         for source in (branding, defaults, base, auth):
             self.assertIn("Gideon Rx", source)
-            self.assertNotIn("Gideon", source)
+            self.assertNotIn(legacy_brand, source)
         for marker in ("<svg", "Silueta original", "Gideon Rx", "<path"):
             self.assertIn(marker, logo)
         self.assertIn("static_url('gideon-rx-logo.svg')", base)

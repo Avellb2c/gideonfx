@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block extra_styles %}<link rel="stylesheet" href="{{ static_url('installation_guide.css') }}">{% endblock %}
+{% block content %}
+<section class="page-head guide-head">
+  <div>
+    <p class="eyebrow">Puesta en marcha segura</p>
+    <h1>Guía de instalación y configuración</h1>
+    <p>Instala Gideon Rx en Windows Server o Ubuntu y conecta el control plane a AWS o Azure sin publicar puertos de Agents ni registrar secretos en la consola.</p>
+  </div>
+  <div class="page-actions"><a class="btn btn-primary" href="#checklist">Ver checklist final</a><a class="btn" href="https://github.com/Avellb2c/gideonfx/blob/main/ONECLICK-INSTALL.md" target="_blank" rel="noopener">Documentación completa</a></div>
+</section>
+
+<div class="alert info guide-notice"><strong>Antes de empezar</strong><span>Necesitas una cuenta administrativa, un nombre DNS para WebAdmin, hora sincronizada (UTC) y un respaldo del directorio de datos. Sustituye los valores entre <code>&lt;ángulos&gt;</code>; nunca pegues claves privadas, tokens ni contraseñas en esta página.</span></div>
+
+<div class="guide-grid" aria-label="Rutas de instalación">
+  <a class="guide-choice" href="#windows"><span class="guide-choice-icon">▣</span><span><strong>Windows Server</strong><small>Instalador OneClick y servicios Windows</small></span></a>
+  <a class="guide-choice" href="#ubuntu"><span class="guide-choice-icon">◆</span><span><strong>Ubuntu</strong><small>Instalador firmado y systemd</small></span></a>
+  <a class="guide-choice" href="#aws"><span class="guide-choice-icon">☁</span><span><strong>AWS</strong><small>EC2, VPC, seguridad y DNS</small></span></a>
+  <a class="guide-choice" href="#azure"><span class="guide-choice-icon">◇</span><span><strong>Azure</strong><small>VM, NSG, identidad y DNS</small></span></a>
+</div>
+
+<article class="guide-card" id="windows">
+  <div class="guide-card-head"><div><p class="eyebrow">Ruta 1</p><h2>Windows Server</h2><p>Recomendado para un control plane administrado por el equipo de TI.</p></div><span class="chip info">Server 2019/2022 · 64-bit</span></div>
+  <div class="guide-steps">
+    <section><span class="guide-step-number">1</span><div><h3>Prepara el servidor</h3><p>Usa una cuenta local o de dominio con permisos de administrador, 8&nbsp;GB de RAM, 4 vCPU y al menos 20&nbsp;GB libres. Configura una IP estable y sincronización de hora.</p><pre class="codebox"><code>tzutil /s "SA Pacific Standard Time"
+w32tm /resync</code></pre></div></section>
+    <section><span class="guide-step-number">2</span><div><h3>Ejecuta OneClick</h3><p>Extrae el paquete en una carpeta local, abre PowerShell como administrador y ejecuta el instalador. El modo <code>fresh</code> crea un entorno nuevo; usa <code>clone</code> sólo con un respaldo validado.</p><pre class="codebox"><code>cd C:\Gideon\installers\WINDOWS
+.\INSTALL_GIDEON_MASTER_WINDOWS.cmd -InstallMode fresh</code></pre></div></section>
+    <section><span class="guide-step-number">3</span><div><h3>Configura TLS y WebAdmin</h3><p>Abre <strong>Acceso externo y TLS</strong>, registra el nombre DNS y carga un certificado válido. Mantén WebAdmin en HTTPS; Guacamole/guacd debe escuchar sólo en la red interna o loopback.</p></div></section>
+    <section><span class="guide-step-number">4</span><div><h3>Protege la administración</h3><p>Cambia la contraseña inicial, activa MFA, crea roles mínimos y valida el registro en <strong>Auditoría</strong>. Genera Agents desde <strong>Crear instalador</strong> para cada sede.</p></div></section>
+  </div>
+</article>
+
+<article class="guide-card" id="ubuntu">
+  <div class="guide-card-head"><div><p class="eyebrow">Ruta 2</p><h2>Ubuntu Server</h2><p>Ubuntu 22.04/24.04 LTS con systemd, Python 3.11+ y contenedores para Guacamole.</p></div><span class="chip success">LTS · systemd</span></div>
+  <div class="guide-steps">
+    <section><span class="guide-step-number">1</span><div><h3>Prepara el sistema</h3><p>Asigna IP/DNS estables, actualiza el reloj y usa un usuario con <code>sudo</code>. Abre únicamente HTTPS desde el exterior.</p><pre class="codebox"><code>sudo timedatectl set-timezone America/Lima
+sudo timedatectl set-ntp true
+sudo apt update</code></pre></div></section>
+    <section><span class="guide-step-number">2</span><div><h3>Instala con el paquete</h3><p>Desde la raíz del bundle, ejecuta el instalador Linux. Para un entorno completamente offline define <code>GIDEON_ALLOW_ONLINE_INSTALL=0</code> y conserva el caché firmado junto al paquete.</p><pre class="codebox"><code>cd ~/gideonfx
+bash installers/LINUX/INSTALL_GIDEON_MASTER_LINUX.sh</code></pre></div></section>
+    <section><span class="guide-step-number">3</span><div><h3>Comprueba servicios</h3><pre class="codebox"><code>sudo systemctl status gideon-web-admin
+sudo systemctl status gideon-agent-gateway
+sudo docker compose -f payload/linux/app/deploy/guacamole/docker-compose.yml ps</code></pre><p>Si un servicio aparece degradado, revisa <strong>Diagnóstico y salud</strong> antes de reiniciar producción.</p></div></section>
+  </div>
+</article>
+
+<article class="guide-card" id="aws">
+  <div class="guide-card-head"><div><p class="eyebrow">Ruta 3</p><h2>AWS · EC2</h2><p>Arquitectura recomendada: una VPC, subred privada para el control plane y un único punto HTTPS.</p></div><span class="chip info">EC2 · VPC · IAM</span></div>
+  <div class="guide-columns"><div><h3>Orden recomendado</h3><ol class="guide-list"><li>Crea una VPC y subred privada; asigna un security group que permita sólo <strong>443/TCP</strong> desde el proxy o balanceador.</li><li>Usa una instancia Ubuntu LTS con rol IAM mínimo para SSM, métricas y backups. Evita guardar access keys en el servidor.</li><li>Asocia un DNS como <code>admin.example.com</code> mediante Route&nbsp;53 y termina TLS en el balanceador o en Gideon.</li><li>Instala el bundle Ubuntu y configura el Gateway. Los Agents salen por túnel inverso mTLS; no abras 3389, 5900 ni el puerto de guacd a Internet.</li><li>Activa snapshots cifrados de EBS y prueba una restauración antes de registrar sedes.</li></ol></div><div class="guide-side-note"><strong>Regla de seguridad</strong><p>El security group no debe permitir “0.0.0.0/0” en puertos de Agent. Para soporte usa SSM Session Manager o una VPN administrativa.</p><a class="link" href="https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager.html" target="_blank" rel="noopener">Referencia AWS SSM ↗</a></div></div>
+</article>
+
+<article class="guide-card" id="azure">
+  <div class="guide-card-head"><div><p class="eyebrow">Ruta 4</p><h2>Azure · VM</h2><p>VM Ubuntu o Windows Server protegida por NSG, identidad administrada y DNS controlado.</p></div><span class="chip info">VM · NSG · Managed Identity</span></div>
+  <div class="guide-columns"><div><h3>Orden recomendado</h3><ol class="guide-list"><li>Crea una VNet y una subnet dedicada. En el NSG permite sólo <strong>443/TCP</strong> desde el Application Gateway, VPN o rangos administrativos.</li><li>Activa Managed Identity y Azure Monitor; no dejes client secrets en <code>.env</code> ni en imágenes de VM.</li><li>Publica un nombre DNS estable y usa certificado válido. Si usas Application Gateway, conserva TLS hasta WebAdmin cuando la política lo requiera.</li><li>Ejecuta el instalador Windows o Ubuntu según la VM. Valida servicios, auditoría y un Agent de prueba antes de incorporar más sedes.</li><li>Configura Azure Backup para datos, certificados y configuración; documenta el procedimiento de recuperación.</li></ol></div><div class="guide-side-note"><strong>Acceso administrativo</strong><p>Prioriza Azure Bastion o Just-In-Time VM access. El túnel inverso de Agents evita abrir puertos públicos por sede.</p><a class="link" href="https://learn.microsoft.com/azure/virtual-network/network-security-groups-overview" target="_blank" rel="noopener">Referencia Azure NSG ↗</a></div></div>
+</article>
+
+<article class="guide-card" id="checklist">
+  <div class="guide-card-head"><div><p class="eyebrow">Después de instalar</p><h2>Checklist de validación</h2><p>Completa estas comprobaciones antes de registrar la operación diaria.</p></div><span class="chip success">Listo para piloto</span></div>
+  <div class="checklist-grid"><label><input type="checkbox"> HTTPS y certificado válidos</label><label><input type="checkbox"> Hora en America/Lima o UTC documentado</label><label><input type="checkbox"> MFA y roles mínimos activos</label><label><input type="checkbox"> Backups y restauración probados</label><label><input type="checkbox"> Gateway mTLS operativo</label><label><input type="checkbox"> Agent de prueba visible y actualizado</label><label><input type="checkbox"> Guacamole sólo interno</label><label><input type="checkbox"> Auditoría registra altas y cambios</label></div>
+  <div class="alert warning"><strong>Si algo falla</strong><span>Consulta <a class="link" href="/diagnostics">Diagnóstico y salud</a>, exporta el reporte sin secretos y revisa los logs del servicio correspondiente. No borres la base de datos ni regeneres certificados como primer intento.</span></div>
+</article>
+{% endblock %}
