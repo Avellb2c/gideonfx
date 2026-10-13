@@ -133,19 +133,17 @@ function Repair-GideonDiagnosticsAccess {
   # reparamos ese árbol GIDEON, sin tocar DPP ni otros directorios.
   $diagDir=Join-Path $DataRoot 'diagnostics'
   New-GideonDirectory $diagDir
-  $grant=@($diagDir,'/grant:r','*S-1-5-18:(OI)(CI)F','*S-1-5-32-544:(OI)(CI)F','/T','/C','/Q')
+  $grant=@($diagDir,'/inheritance:r','/grant:r','*S-1-5-18:(OI)(CI)F','*S-1-5-32-544:(OI)(CI)F','/T','/C','/Q')
   try{
+    # Se ejecuta siempre: icacls puede devolver 0 aun cuando no pudo procesar
+    # entradas protegidas. El alcance queda limitado al árbol de diagnóstico.
+    & takeown.exe '/F' $diagDir '/R' '/D' 'Y' | Out-Null
+    $takeRc=$LASTEXITCODE
+    if($takeRc -ne 0){Write-GideonWarn "TAKEOWN diagnostics rc=$takeRc; se continúa con la ACL explícita."}
     & icacls.exe @grant | Out-Null
-    if($LASTEXITCODE -ge 1){
-      Write-GideonWarn "ACL de diagnostics restringida (rc=$LASTEXITCODE); se toma posesión sólo de ese árbol GIDEON."
-      & takeown.exe '/F' $diagDir '/R' '/D' 'Y' | Out-Null
-      & icacls.exe @grant | Out-Null
-    }
+    $aclRc=$LASTEXITCODE
+    if($aclRc -ne 0){Write-GideonWarn "ACL de diagnostics rc=$aclRc; se intentará escribir igualmente."}
   }catch{Write-GideonWarn "No se pudo ajustar ACL de diagnostics: $($_.Exception.Message)"}
-  foreach($file in @('effective-master.config.json','resource-profile.json')){
-    $target=Join-Path $diagDir $file
-    try{& icacls.exe $target '/grant:r' '*S-1-5-18:F' '*S-1-5-32-544:F' '/C' '/Q' | Out-Null}catch{}
-  }
 }
 function Set-GideonAdaptiveResourceProfile {
   $computer=Get-CimInstance Win32_ComputerSystem -ErrorAction Stop
