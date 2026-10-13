@@ -1400,8 +1400,8 @@ try{
   New-GideonDirectory $backupRoot
   $backup=Join-Path $backupRoot ('pre-master-'+(Get-Date -Format 'yyyyMMdd-HHmmss'))
   New-GideonDirectory $backup
-  if(Test-Path $InstallRoot){Invoke-GideonRetry -Label 'backup app' -Script {Robocopy-OrFail $InstallRoot (Join-Path $backup 'app') @('/MIR')}}
-  if(Test-Path $DataRoot){Invoke-GideonRetry -Label 'backup data' -Script {Robocopy-OrFail $DataRoot (Join-Path $backup 'data') @('/XD',(Join-Path $DataRoot 'backups'))}}
+  if(Test-Path $InstallRoot){Invoke-GideonRetry -Label 'backup app' -Script {Robocopy-OrFail $InstallRoot (Join-Path $backup 'app') @('/MIR','/ZB')}}
+  if(Test-Path $DataRoot){Invoke-GideonRetry -Label 'backup data' -Script {Robocopy-OrFail $DataRoot (Join-Path $backup 'data') @('/ZB','/XD',(Join-Path $DataRoot 'backups'))}}
 
   $stage='DEPLOY';Write-GideonStep 6 15 "Desplegar payload exacto de producción (modo $InstallMode)"
   $srcApp=Join-Path $BundleRoot 'payload\windows\GIDEON Remote Control';if(-not(Test-Path $srcApp)){Fail 'Payload Windows ausente.' 20}
