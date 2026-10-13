@@ -15,7 +15,7 @@ $ManifestPath=Join-Path $BundleRoot 'deployment.manifest.json'
 $ConfigPath=Join-Path $BundleRoot 'master.config.json'
 $manifest=Read-GideonJson $ManifestPath
 $cfg=Read-GideonJson $ConfigPath
-$InstallerRevision='20261013-backup-zb-05496db'
+$InstallerRevision='20261013-deploy-zb-20261013'
 $stage='INIT';$backup=$null;$mutex=$null;$transcriptStarted=$false;$credFile=$null
 $machineIdentity='';$bootstrapMarker='';$newMachine=$false
 $guacdBackend='none';$resumeTaskName='GIDEON Remote Control Master Installer Resume'
@@ -1405,7 +1405,12 @@ try{
 
   $stage='DEPLOY';Write-GideonStep 6 15 "Desplegar payload exacto de producción (modo $InstallMode)"
   $srcApp=Join-Path $BundleRoot 'payload\windows\GIDEON Remote Control';if(-not(Test-Path $srcApp)){Fail 'Payload Windows ausente.' 20}
-  Robocopy-OrFail $srcApp $InstallRoot @('/MIR')
+  # Un intento anterior puede haber dejado ACL restrictivas en Program Files
+  # (por ejemplo, tras un rollback de servicios). Reparamos sólo el árbol de
+  # instalación de GIDEON antes de copiar; nunca se modifican carpetas DPP ni
+  # otros programas instalados.
+  Repair-GideonWritableTree $InstallRoot
+  Robocopy-OrFail $srcApp $InstallRoot @('/MIR','/ZB')
   $srcData=Join-Path $BundleRoot 'payload\data\GIDEON Remote Control'
 
   $stage='RUNTIME';Write-GideonStep 7 15 'Validar runtime Python privado y evitar mezcla de intérpretes'
