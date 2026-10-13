@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$InstallRoot = "C:\Program Files\GIDEONAgent",
     [string]$SiteCode = "",
     [string]$SiteName = "",
