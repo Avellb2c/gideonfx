@@ -551,10 +551,19 @@ function Restore-GideonFirewallRules {
 
     $params=@{
       DisplayName=$name
-      DisplayGroup='GIDEON Remote Control'
       Direction=[string]$rule.direction
       Action=[string]$rule.action
       Profile=[string]$rule.profile
+    }
+
+    # DisplayGroup no está expuesto por algunas versiones de NetSecurity
+    # (por ejemplo, Windows Home con el módulo reducido). Es metadato; la
+    # regla debe seguir creándose aunque el parámetro no exista.
+    $fwCommand=Get-Command New-NetFirewallRule -ErrorAction Stop
+    if($fwCommand.Parameters.ContainsKey('DisplayGroup')){
+      $params['DisplayGroup']='GIDEON Remote Control'
+    }elseif($fwCommand.Parameters.ContainsKey('Group')){
+      $params['Group']='GIDEON Remote Control'
     }
 
     if([string]$rule.enabled -eq 'False'){$params['Enabled']='False'}
