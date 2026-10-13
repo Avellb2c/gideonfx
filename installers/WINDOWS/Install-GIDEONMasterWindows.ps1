@@ -133,14 +133,18 @@ function Repair-GideonDiagnosticsAccess {
   # reparamos ese árbol GIDEON, sin tocar DPP ni otros directorios.
   $diagDir=Join-Path $DataRoot 'diagnostics'
   New-GideonDirectory $diagDir
-  $grant=@($diagDir,'/grant:r','*S-1-5-18:(OI)(CI)F','*S-1-5-32-544:(OI)(CI)F','/C','/Q')
+  $grant=@($diagDir,'/grant:r','*S-1-5-18:(OI)(CI)F','*S-1-5-32-544:(OI)(CI)F','/T','/C','/Q')
   try{
     & icacls.exe @grant | Out-Null
-    if($LASTEXITCODE -ge 1){Write-GideonWarn "No se pudo ajustar ACL de diagnostics rc=$LASTEXITCODE; se intentará escribir igualmente."}
+    if($LASTEXITCODE -ge 1){
+      Write-GideonWarn "ACL de diagnostics restringida (rc=$LASTEXITCODE); se toma posesión sólo de ese árbol GIDEON."
+      & takeown.exe '/F' $diagDir '/R' '/D' 'Y' | Out-Null
+      & icacls.exe @grant | Out-Null
+    }
   }catch{Write-GideonWarn "No se pudo ajustar ACL de diagnostics: $($_.Exception.Message)"}
-  $effective=Join-Path $diagDir 'effective-master.config.json'
-  if(Test-Path -LiteralPath $effective){
-    try{& icacls.exe $effective '/grant:r' '*S-1-5-18:F' '*S-1-5-32-544:F' '/C' '/Q' | Out-Null}catch{}
+  foreach($file in @('effective-master.config.json','resource-profile.json')){
+    $target=Join-Path $diagDir $file
+    try{& icacls.exe $target '/grant:r' '*S-1-5-18:F' '*S-1-5-32-544:F' '/C' '/Q' | Out-Null}catch{}
   }
 }
 function Set-GideonAdaptiveResourceProfile {
