@@ -146,23 +146,25 @@ function Write-GideonDiagnosticJson {
     return $fallback
   }
 }
-function Repair-GideonDiagnosticsAccess {
-  # Un rollback anterior puede dejar diagnostics con una ACL exclusiva del
-  # Service SID. El preflight necesita escribir sólo su configuración efectiva;
-  # reparamos ese árbol GIDEON, sin tocar DPP ni otros directorios.
-  $diagDir=Join-Path $DataRoot 'diagnostics'
-  New-GideonDirectory $diagDir
-  $grant=@($diagDir,'/inheritance:r','/grant:r','*S-1-5-18:(OI)(CI)F','*S-1-5-32-544:(OI)(CI)F','/T','/C','/Q')
+function Repair-GideonWritableTree {
+  param([Parameter(Mandatory=$true)][string]$Root)
+  New-GideonDirectory $Root
+  $grant=@($Root,'/inheritance:r','/grant:r','*S-1-5-18:(OI)(CI)F','*S-1-5-32-544:(OI)(CI)F','/T','/C','/Q')
   try{
     # Se ejecuta siempre: icacls puede devolver 0 aun cuando no pudo procesar
-    # entradas protegidas. El alcance queda limitado al árbol de diagnóstico.
-    & takeown.exe '/F' $diagDir '/R' '/D' 'Y' | Out-Null
+    # entradas protegidas. El alcance queda limitado al árbol solicitado.
+    & takeown.exe '/F' $Root '/R' '/D' 'Y' | Out-Null
     $takeRc=$LASTEXITCODE
-    if($takeRc -ne 0){Write-GideonWarn "TAKEOWN diagnostics rc=$takeRc; se continúa con la ACL explícita."}
+    if($takeRc -ne 0){Write-GideonWarn "TAKEOWN GIDEON tree rc=$takeRc; se continúa con la ACL explícita."}
     & icacls.exe @grant | Out-Null
     $aclRc=$LASTEXITCODE
-    if($aclRc -ne 0){Write-GideonWarn "ACL de diagnostics rc=$aclRc; se intentará escribir igualmente."}
-  }catch{Write-GideonWarn "No se pudo ajustar ACL de diagnostics: $($_.Exception.Message)"}
+    if($aclRc -ne 0){Write-GideonWarn "ACL de GIDEON tree rc=$aclRc; se intentará escribir igualmente."}
+  }catch{Write-GideonWarn "No se pudo ajustar ACL del árbol GIDEON: $($_.Exception.Message)"}
+}
+function Repair-GideonDiagnosticsAccess {
+  # Un rollback anterior puede dejar diagnostics con una ACL exclusiva del
+  # Service SID. Reparamos sólo ese árbol GIDEON, sin tocar DPP.
+  Repair-GideonWritableTree (Join-Path $DataRoot 'diagnostics')
 }
 function Set-GideonAdaptiveResourceProfile {
   $computer=Get-CimInstance Win32_ComputerSystem -ErrorAction Stop
@@ -412,6 +414,7 @@ function Install-GideonYara {
 
   $version=[string]$artifact.version
   $installDir=Join-Path $DataRoot ("security\tools\yara\{0}" -f $version)
+  Repair-GideonWritableTree $installDir
   $installedExe=Join-Path $installDir ([string]$artifact.executable)
   $installedCompiler=Join-Path $installDir ([string]$artifact.compiler)
   $expectedExeSha=([string]$artifact.executable_sha256).ToLowerInvariant()
