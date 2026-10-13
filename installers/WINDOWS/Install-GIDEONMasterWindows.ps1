@@ -1343,7 +1343,7 @@ try{
   $webPort=Resolve-InternalPort ([int]$cfg.windows.webadmin_internal_port)
   $gatewayPort=Resolve-InternalPort ([int]$cfg.windows.gateway_internal_port)
   $external=[ordered]@{admin_port=[int]$cfg.windows.admin_external_port;admin_port_free=(Test-GideonTcpPortFree ([int]$cfg.windows.admin_external_port));agent_port=[int]$cfg.windows.agent_external_port;agent_port_free=(Test-GideonTcpPortFree ([int]$cfg.windows.agent_external_port));policy=[string]$cfg.windows.external_access_profile;note='Admin debe quedar VPN/ZTNA o restringido; Agents pueden exponerse por 443 mediante WAF/LB/reverse proxy mTLS. El instalador no secuestra puertos de terceros.'}
-  Write-GideonJson $external (Join-Path $DataRoot 'config\external-access-plan.json') 8
+  [void](Write-GideonDiagnosticJson $external (Join-Path $DataRoot 'config\external-access-plan.json') 8)
 
   $stage='SECURITY_GATE';Write-GideonStep 3 15 'Instalar YARA, validar antimalware y preparar el backend guacd seleccionado para este Windows'
   $sourcePayload=Join-Path $BundleRoot 'payload\windows\GIDEON Remote Control'
