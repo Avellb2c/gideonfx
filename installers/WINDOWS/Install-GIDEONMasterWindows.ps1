@@ -15,7 +15,7 @@ $ManifestPath=Join-Path $BundleRoot 'deployment.manifest.json'
 $ConfigPath=Join-Path $BundleRoot 'master.config.json'
 $manifest=Read-GideonJson $ManifestPath
 $cfg=Read-GideonJson $ConfigPath
-$InstallerRevision='20261013-yara-diagnostics-c54bc06'
+$InstallerRevision='20261013-backup-zb-05496db'
 $stage='INIT';$backup=$null;$mutex=$null;$transcriptStarted=$false;$credFile=$null
 $machineIdentity='';$bootstrapMarker='';$newMachine=$false
 $guacdBackend='none';$resumeTaskName='GIDEON Remote Control Master Installer Resume'
