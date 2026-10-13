@@ -259,20 +259,35 @@ function Configure-GideonService($svc){
     if($obj -eq 'LocalService'){$obj='NT AUTHORITY\LocalService'}
     if($obj -eq 'NetworkService'){$obj='NT AUTHORITY\NetworkService'}
 
-    & sc.exe create $name `
-      'binPath=' $bin `
-      'DisplayName=' ([string]$svc.display_name) `
-      'obj=' $obj `
-      'start=' 'demand' | Out-Null
-
-    if($LASTEXITCODE -ne 0){Fail "sc create $name rc=$LASTEXITCODE" 71}
+    # New-Service recibe BinaryPathName como una cadena única y evita que
+    # PowerShell 5/7 reinterprete las comillas de rutas con espacios al
+    # invocar sc.exe (que producía ERROR_INVALID_COMMAND_LINE=1639).
+    $newService=@{
+      Name=$name
+      BinaryPathName=$bin
+      DisplayName=([string]$svc.display_name)
+      StartupType='Manual'
+      ErrorAction='Stop'
+    }
+    if($obj -eq 'LocalSystem'){
+      New-Service @newService | Out-Null
+    }else{
+      # Las cuentas integradas no requieren una contraseña interactiva. Se
+      # mantiene la validación de cuentas permitidas y se crea con la misma
+      # identidad que declaraba el manifiesto.
+      $emptyPassword=New-Object System.Security.SecureString
+      $newService.Credential=New-Object System.Management.Automation.PSCredential($obj,$emptyPassword)
+      New-Service @newService | Out-Null
+    }
   }
   else {
-    & sc.exe config $name `
-      'binPath=' $bin `
-      'DisplayName=' ([string]$svc.display_name) | Out-Null
-
-    if($LASTEXITCODE -ne 0){Fail "sc config $name rc=$LASTEXITCODE" 72}
+    # Actualización idempotente sin volver a serializar binPath mediante
+    # sc.exe. El Service Control Manager lee estos valores del registro al
+    # iniciar el servicio y se conservan los locks/servicios existentes.
+    $svcKey="HKLM:\SYSTEM\CurrentControlSet\Services\$name"
+    if(-not (Test-Path -LiteralPath $svcKey)){Fail "Registro del servicio $name no encontrado" 72}
+    Set-ItemProperty -LiteralPath $svcKey -Name ImagePath -Value $bin -ErrorAction Stop
+    Set-ItemProperty -LiteralPath $svcKey -Name DisplayName -Value ([string]$svc.display_name) -ErrorAction Stop
   }
 
   $mode=[string]$svc.start_mode
