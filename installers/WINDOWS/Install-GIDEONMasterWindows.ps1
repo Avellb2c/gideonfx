@@ -127,6 +127,22 @@ function Cleanup-GideonOrphans {
 function Set-JsonPropertyIfPresent($Object,[string]$Name,$Value){if($Object.PSObject.Properties.Name -contains $Name){$Object.$Name=$Value;return $true};return $false}
 function Get-JsonPropertyOrDefault($Object,[string]$Name,$DefaultValue){$p=$Object.PSObject.Properties[$Name];if($p -and $null -ne $p.Value){return $p.Value};return $DefaultValue}
 function Save-Json($obj,[string]$path){Write-GideonJson $obj $path 30}
+function Repair-GideonDiagnosticsAccess {
+  # Un rollback anterior puede dejar diagnostics con una ACL exclusiva del
+  # Service SID. El preflight necesita escribir sólo su configuración efectiva;
+  # reparamos ese árbol GIDEON, sin tocar DPP ni otros directorios.
+  $diagDir=Join-Path $DataRoot 'diagnostics'
+  New-GideonDirectory $diagDir
+  $grant=@($diagDir,'/grant:r','*S-1-5-18:(OI)(CI)F','*S-1-5-32-544:(OI)(CI)F','/C','/Q')
+  try{
+    & icacls.exe @grant | Out-Null
+    if($LASTEXITCODE -ge 1){Write-GideonWarn "No se pudo ajustar ACL de diagnostics rc=$LASTEXITCODE; se intentará escribir igualmente."}
+  }catch{Write-GideonWarn "No se pudo ajustar ACL de diagnostics: $($_.Exception.Message)"}
+  $effective=Join-Path $diagDir 'effective-master.config.json'
+  if(Test-Path -LiteralPath $effective){
+    try{& icacls.exe $effective '/grant:r' '*S-1-5-18:F' '*S-1-5-32-544:F' '/C' '/Q' | Out-Null}catch{}
+  }
+}
 function Set-GideonAdaptiveResourceProfile {
   $computer=Get-CimInstance Win32_ComputerSystem -ErrorAction Stop
   $memory=[uint64]$computer.TotalPhysicalMemory
@@ -1293,6 +1309,7 @@ try{
 
   $stage='PREFLIGHT';Write-GideonStep 1 15 'Preflight Windows/edición/recursos/tiempo'
   if(-not(Test-GideonAdministrator)){Fail 'Administrator requerido.' 13}
+  Repair-GideonDiagnosticsAccess
   Remove-GideonOneClickResume
   $os=Get-CimInstance Win32_OperatingSystem
   $guacdBackend=Resolve-GideonGuacdBackend $os
