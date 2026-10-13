@@ -91,7 +91,14 @@ function Set-GideonRelocatedVenvBinding([string]$Root){
   $privatePython=Join-Path $privateBase 'python.exe'
   if(-not(Test-Path -LiteralPath $cfgPath -PathType Leaf)){return}
   if(-not(Test-Path -LiteralPath $privatePython -PathType Leaf)){Fail "Runtime Python base ausente: $privatePython" 21}
-  $lines=@(Get-Content -LiteralPath $cfgPath)
+  # El archivo existente puede conservar una ACL individual o estar protegido
+  # por una política que bloquea File.WriteAllText aunque el árbol ya haya
+  # sido normalizado. Se toma como plantilla el archivo del bundle y se
+  # reemplaza mediante Robocopy /ZB, que es el mismo canal protegido usado en
+  # el despliegue y el backup.
+  $templateCfg=Join-Path $BundleRoot 'payload\windows\GIDEON Remote Control\venv\pyvenv.cfg'
+  if(-not(Test-Path -LiteralPath $templateCfg -PathType Leaf)){Fail "Plantilla pyvenv.cfg ausente: $templateCfg" 21}
+  $lines=@(Get-Content -LiteralPath $templateCfg)
   $seenHome=$false;$seenExecutable=$false;$seenCommand=$false
   $updated=@(
     foreach($line in $lines){
@@ -104,7 +111,15 @@ function Set-GideonRelocatedVenvBinding([string]$Root){
   if(-not $seenHome){$updated += "home = $privateBase"}
   if(-not $seenExecutable){$updated += "executable = $privatePython"}
   if(-not $seenCommand){$updated += "command = $privatePython -m venv $venvRoot"}
-  Write-GideonUtf8NoBom -Path $cfgPath -Text ($updated -join [Environment]::NewLine)
+  Repair-GideonWritableFile $cfgPath
+  $cfgStage=Join-Path ([IO.Path]::GetTempPath()) ('gideon-pyvenv-'+[guid]::NewGuid().ToString('N'))
+  try{
+    New-GideonDirectory $cfgStage
+    Write-GideonUtf8NoBom -Path (Join-Path $cfgStage 'pyvenv.cfg') -Text ($updated -join [Environment]::NewLine)
+    Robocopy-OrFail $cfgStage $venvRoot @('/ZB','/IS','/IT')
+  }finally{
+    Remove-Item -LiteralPath $cfgStage -Recurse -Force -ErrorAction SilentlyContinue
+  }
   $basePrefix=(& $venvPython -c "import os,sys; print(os.path.abspath(sys.base_prefix))"|Out-String).Trim()
   if($LASTEXITCODE -ne 0 -or -not $basePrefix.Equals([IO.Path]::GetFullPath($privateBase),[StringComparison]::OrdinalIgnoreCase)){
     Fail "El venv no quedó ligado al runtime privado. Esperado=$privateBase Actual=$basePrefix" 21
@@ -186,6 +201,21 @@ function Repair-GideonWritableTree {
     $aclRc=$LASTEXITCODE
     if($aclRc -ne 0){Write-GideonWarn "ACL de GIDEON tree rc=$aclRc; se intentará escribir igualmente."}
   }catch{Write-GideonWarn "No se pudo ajustar ACL del árbol GIDEON: $($_.Exception.Message)"}
+}
+function Repair-GideonWritableFile {
+  param([Parameter(Mandatory=$true)][string]$Path)
+  if(-not(Test-Path -LiteralPath $Path -PathType Leaf)){return}
+  try{
+    & takeown.exe '/F' $Path '/A' | Out-Null
+    $takeRc=$LASTEXITCODE
+    if($takeRc -ne 0){Write-GideonWarn "TAKEOWN GIDEON file rc=$takeRc path=$Path"}
+    & icacls.exe $Path '/reset' '/C' '/Q' | Out-Null
+    $resetRc=$LASTEXITCODE
+    if($resetRc -ne 0){Write-GideonWarn "RESET ACL GIDEON file rc=$resetRc path=$Path"}
+    & icacls.exe $Path '/inheritance:r' '/grant:r' '*S-1-5-18:F' '*S-1-5-32-544:F' '/C' '/Q' | Out-Null
+    $aclRc=$LASTEXITCODE
+    if($aclRc -ne 0){Write-GideonWarn "ACL GIDEON file rc=$aclRc path=$Path"}
+  }catch{Write-GideonWarn "No se pudo ajustar ACL del archivo GIDEON $Path`: $($_.Exception.Message)"}
 }
 function Repair-GideonDiagnosticsAccess {
   # Un rollback anterior puede dejar diagnostics con una ACL exclusiva del
