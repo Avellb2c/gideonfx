@@ -16,6 +16,54 @@ no se deben publicar RDP, VNC, guacd ni puertos de Agent en Internet.
    guía.
 5. Configura backups cifrados del directorio de datos y prueba una restauración.
 
+## Capacidad y dimensionamiento
+
+La siguiente matriz describe el alcance operativo recomendado para una sola
+instancia de WebAdmin/Gateway. Son objetivos de dimensionamiento, no un SLA:
+la capacidad real depende del tamaño de los videos, latencia, tipo de RDP/VNC,
+frecuencia de Jobs y almacenamiento disponible. Antes de producción, valida el
+perfil con métricas de CPU, RAM, disco, latencia y errores.
+
+| Nivel | Servidor de control | Agents conectados de forma sostenida | Sesiones remotas simultáneas objetivo | Jobs simultáneos objetivo | `guacd` |
+| --- | --- | ---: | ---: | ---: | --- |
+| Mínimo / `compact` | 4 vCPU, 8–15 GiB RAM, 20 GiB libres en Windows o 8 GiB libres en Linux | 1–25 | 1–2 | 5 | 768 MiB, 1 CPU |
+| Intermedio / `standard` | 4–8 vCPU, 16–31 GiB RAM, 40 GiB libres más biblioteca multimedia | 25–100 | 2–4 | 10–20 | 1 GiB, 1 CPU |
+| Recomendado / `performance` | 8+ vCPU, 32+ GiB RAM, 80 GiB o más más biblioteca y backups | 100–200 | 4–8 | 20 | 1,5 GiB, 2 CPU |
+
+### Límites actuales del software
+
+- El Gateway reserva hasta **256 conexiones** simultáneas por defecto. La guía
+  considera 200 Agents sostenidos como límite operativo prudente; por encima de
+  200 se debe validar `gateway_max_connections`, almacenamiento y una posible
+  base de datos externa o arquitectura de alta disponibilidad.
+- La política remota permite por defecto **10 sesiones activas globales**, **3
+  por usuario** y **1 por destino**. Por eso la cifra de la tabla es un objetivo
+  de operación y no un aumento automático de esos límites.
+- Cada Agent puede reclamar hasta **20 Jobs activos** (`fleet_max_active_jobs`).
+  El orquestador de fan-out parte de **6 envíos** y **8 consultas** simultáneas
+  para no saturar la red; la cola conserva los trabajos pendientes.
+- Transferencias y análisis usan por defecto **2 workers** y una cola persistida
+  de **32 trabajos**. Se pueden elevar de forma controlada hasta 4 workers y
+  500 pendientes, vigilando CPU, disco y antivirus.
+- La generación pesada de instaladores se serializa por defecto (**1 build**),
+  con un máximo acotado de 4; solicitudes idénticas se deduplican.
+- El análisis antivirus paralelo parte de **2 exploraciones**, con máximo 4.
+- La capacidad de campañas está limitada principalmente por almacenamiento:
+  reserva espacio para el archivo original, cuarentena, temporales, Jobs y
+  backups. La caché de cada Agent se calcula aparte y crece con sus videos.
+
+### Lectura práctica
+
+- Para una sede pequeña o laboratorio, usa `compact` y evita cargas masivas
+  mientras se ejecutan sesiones remotas.
+- Para varias sedes y campañas diarias, `standard` es el punto de partida
+  equilibrado.
+- Para 100–200 Agents, campañas, transferencias y varias sesiones, usa
+  `performance`, almacenamiento separado para medios y monitorización continua.
+- Si se necesita superar 200 Agents, 10 sesiones remotas o 20 Jobs de forma
+  sostenida, no basta con aumentar RAM: hay que probar un Gateway escalado,
+  persistencia externa y una política de sesiones/Jobs revisada.
+
 ## Windows Server
 
 Requisitos sugeridos: Windows Server 2019/2022 x64, 4 vCPU, 8 GB RAM, 20 GB

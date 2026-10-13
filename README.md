@@ -63,6 +63,21 @@ instalación y manifiestos del repositorio. El clone público no contiene datos
 de producción, claves privadas, campañas, bases de datos ni registros de una
 nube concreta.
 
+## Capacidad de referencia
+
+La instalación actual selecciona perfiles `compact`, `standard` o
+`performance` según los recursos del servidor. Como referencia operativa:
+
+| Perfil | Host | Agents sostenidos | Sesiones remotas objetivo | Jobs objetivo |
+| --- | --- | ---: | ---: | ---: |
+| `compact` | 4 vCPU · 8–15 GiB RAM | 1–25 | 1–2 | 5 |
+| `standard` | 4–8 vCPU · 16–31 GiB RAM | 25–100 | 2–4 | 10–20 |
+| `performance` | 8+ vCPU · 32+ GiB RAM | 100–200 | 4–8 | 20 |
+
+Son objetivos de dimensionamiento, no garantías de rendimiento. El detalle de
+los límites de Gateway, sesiones, Jobs, transferencias, builds y almacenamiento
+está en la [guía de capacidad e instalación](docs/INSTALLATION-GUIDE.md).
+
 ## Inicio rápido
 
 Consulta [ONECLICK-INSTALL.md](ONECLICK-INSTALL.md) y la [guía de instalación
