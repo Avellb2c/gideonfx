@@ -15,7 +15,7 @@ $ManifestPath=Join-Path $BundleRoot 'deployment.manifest.json'
 $ConfigPath=Join-Path $BundleRoot 'master.config.json'
 $manifest=Read-GideonJson $ManifestPath
 $cfg=Read-GideonJson $ConfigPath
-$InstallerRevision='20261013-deploy-zb-20261013'
+$InstallerRevision='20261013-deploy-acl-reset-20261013'
 $stage='INIT';$backup=$null;$mutex=$null;$transcriptStarted=$false;$credFile=$null
 $machineIdentity='';$bootstrapMarker='';$newMachine=$false
 $guacdBackend='none';$resumeTaskName='GIDEON Remote Control Master Installer Resume'
@@ -167,11 +167,21 @@ function Repair-GideonWritableTree {
   New-GideonDirectory $Root
   $grant=@($Root,'/inheritance:r','/grant:r','*S-1-5-18:(OI)(CI)F','*S-1-5-32-544:(OI)(CI)F','/T','/C','/Q')
   try{
-    # Se ejecuta siempre: icacls puede devolver 0 aun cuando no pudo procesar
-    # entradas protegidas. El alcance queda limitado al árbol solicitado.
+    # Tomar posesión antes del reset permite reparar archivos que quedaron
+    # bajo un propietario o ACL de un servicio eliminado.
     & takeown.exe '/F' $Root '/R' '/D' 'Y' | Out-Null
     $takeRc=$LASTEXITCODE
     if($takeRc -ne 0){Write-GideonWarn "TAKEOWN GIDEON tree rc=$takeRc; se continúa con la ACL explícita."}
+    # Robocopy preserva las ACL existentes en archivos que ya están en el
+    # destino. Un rollback puede haber dejado DENY explícitos que /grant:r no
+    # elimina; resetear primero el árbol Gideon evita que el runtime quede
+    # bloqueado antes de que Apply-Acls vuelva a aplicar las identidades de
+    # servicio en el paso 10.
+    & icacls.exe $Root '/reset' '/T' '/C' '/Q' | Out-Null
+    $resetRc=$LASTEXITCODE
+    if($resetRc -ne 0){Write-GideonWarn "RESET ACL GIDEON tree rc=$resetRc; se continuará con la ACL explícita."}
+    # Se ejecuta siempre: icacls puede devolver 0 aun cuando no pudo procesar
+    # entradas protegidas. El alcance queda limitado al árbol solicitado.
     & icacls.exe @grant | Out-Null
     $aclRc=$LASTEXITCODE
     if($aclRc -ne 0){Write-GideonWarn "ACL de GIDEON tree rc=$aclRc; se intentará escribir igualmente."}
