@@ -419,12 +419,18 @@ function Install-GideonYara {
   $installedCompiler=Join-Path $installDir ([string]$artifact.compiler)
   $expectedExeSha=([string]$artifact.executable_sha256).ToLowerInvariant()
   $expectedCompilerSha=([string]$artifact.compiler_sha256).ToLowerInvariant()
-  $installedValid=(
-    (Test-Path -LiteralPath $installedExe) -and
-    (Test-Path -LiteralPath $installedCompiler) -and
-    ((Get-GideonSha256 $installedExe) -eq $expectedExeSha) -and
-    ((Get-GideonSha256 $installedCompiler) -eq $expectedCompilerSha)
-  )
+  $installedValid=$false
+  try{
+    $installedValid=(
+      (Test-Path -LiteralPath $installedExe) -and
+      (Test-Path -LiteralPath $installedCompiler) -and
+      ((Get-GideonSha256 $installedExe) -eq $expectedExeSha) -and
+      ((Get-GideonSha256 $installedCompiler) -eq $expectedCompilerSha)
+    )
+  }catch{
+    Write-GideonWarn "YARA existente no es legible; se volverá a validar desde la caché offline."
+    $installedValid=$false
+  }
 
   if(-not $installedValid){
     $tempRoot=Join-Path ([IO.Path]::GetTempPath()) ('gideon-yara-install-'+[guid]::NewGuid().ToString('N'))
@@ -437,9 +443,23 @@ function Install-GideonYara {
       if(-not(Test-Path -LiteralPath $stagedCompiler)){Fail "El ZIP YARA no contiene $($artifact.compiler)" 74}
       if((Get-GideonSha256 $stagedExe) -ne $expectedExeSha){Fail 'yara64.exe no coincide con el hash fijado.' 74}
       if((Get-GideonSha256 $stagedCompiler) -ne $expectedCompilerSha){Fail 'yarac64.exe no coincide con el hash fijado.' 74}
-      New-GideonDirectory $installDir
-      Copy-Item -LiteralPath $stagedExe -Destination $installedExe -Force
-      Copy-Item -LiteralPath $stagedCompiler -Destination $installedCompiler -Force
+      try{
+        New-GideonDirectory $installDir
+        Copy-Item -LiteralPath $stagedExe -Destination $installedExe -Force
+        Copy-Item -LiteralPath $stagedCompiler -Destination $installedCompiler -Force
+      }catch{
+        if($_.Exception.Message -notmatch '(?i)access.*denied|denied.*access|unauthorized') {throw}
+        # Un rollback puede conservar un archivo protegido aun después de
+        # reparar la ACL. YARA se usa aquí para validar el payload; una ruta
+        # temporal íntegra permite continuar sin relajar permisos ajenos.
+        $installDir=Join-Path ([IO.Path]::GetTempPath()) ('gideon-yara-runtime-'+$version+'-'+[guid]::NewGuid().ToString('N'))
+        New-GideonDirectory $installDir
+        $installedExe=Join-Path $installDir ([string]$artifact.executable)
+        $installedCompiler=Join-Path $installDir ([string]$artifact.compiler)
+        Copy-Item -LiteralPath $stagedExe -Destination $installedExe -Force
+        Copy-Item -LiteralPath $stagedCompiler -Destination $installedCompiler -Force
+        Write-GideonWarn "YARA persistente no escribible; se usará temporalmente $installDir."
+      }
     }finally{
       if(Test-Path -LiteralPath $tempRoot){Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue}
     }
