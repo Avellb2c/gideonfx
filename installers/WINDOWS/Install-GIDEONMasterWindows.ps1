@@ -1409,7 +1409,9 @@ try{
   # (por ejemplo, tras un rollback de servicios). Reparamos sólo el árbol de
   # instalación de GIDEON antes de copiar; nunca se modifican carpetas DPP ni
   # otros programas instalados.
+  Write-GideonInfo "Normalizando ACL del árbol de instalación GIDEON: $InstallRoot"
   Repair-GideonWritableTree $InstallRoot
+  Write-GideonInfo 'Copiando payload GIDEON con Robocopy en modo protegido; puede tardar si hay muchos archivos.'
   Robocopy-OrFail $srcApp $InstallRoot @('/MIR','/ZB')
   $srcData=Join-Path $BundleRoot 'payload\data\GIDEON Remote Control'
 
