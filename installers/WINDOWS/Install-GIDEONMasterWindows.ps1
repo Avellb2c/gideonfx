@@ -146,6 +146,21 @@ function Write-GideonDiagnosticJson {
     return $fallback
   }
 }
+function Resolve-GideonDiagnosticDirectory {
+  $preferred=Join-Path $DataRoot 'diagnostics'
+  $probe=Join-Path $preferred ('.write-probe-'+[guid]::NewGuid().ToString('N'))
+  try{
+    New-GideonDirectory $preferred
+    [IO.File]::WriteAllText($probe,'ok',(New-Object System.Text.UTF8Encoding($false)))
+    Remove-Item -LiteralPath $probe -Force -ErrorAction Stop
+    return $preferred
+  }catch{
+    $fallback=Join-Path ([IO.Path]::GetTempPath()) ('GIDEON-diagnostics-runtime-'+[guid]::NewGuid().ToString('N'))
+    New-GideonDirectory $fallback
+    Write-GideonWarn "Diagnostics no escribible en $preferred; se usarán archivos temporales en $fallback."
+    return $fallback
+  }
+}
 function Repair-GideonWritableTree {
   param([Parameter(Mandatory=$true)][string]$Root)
   New-GideonDirectory $Root
@@ -491,8 +506,7 @@ function Install-GideonYara {
 function Test-GideonPayloadSecurity {
   param([Parameter(Mandatory=$true)][string]$PayloadRoot)
 
-  $diag=Join-Path $DataRoot 'diagnostics'
-  New-GideonDirectory $diag
+  $diag=Resolve-GideonDiagnosticDirectory
 
   $rules=@(
     Get-ChildItem `
@@ -509,8 +523,9 @@ function Test-GideonPayloadSecurity {
     if(-not [bool]$cfg.security.yara_auto_install){Fail 'YARA es obligatorio pero yara_auto_install está deshabilitado.' 74}
     $yara=Install-GideonYara
 
-    $report=Join-Path $diag 'yara-install.txt'
-    $scanList=Join-Path $diag 'yara-scan-list.txt'
+    $runId=[guid]::NewGuid().ToString('N')
+    $report=Join-Path $diag ("yara-install-$runId.txt")
+    $scanList=Join-Path $diag ("yara-scan-list-$runId.txt")
     $scanFiles=@(
       Get-ChildItem -LiteralPath $PayloadRoot -Recurse -File -ErrorAction Stop |
       Where-Object {$_.Extension -notin @('.yar','.yara')}
