@@ -127,6 +127,25 @@ function Cleanup-GideonOrphans {
 function Set-JsonPropertyIfPresent($Object,[string]$Name,$Value){if($Object.PSObject.Properties.Name -contains $Name){$Object.$Name=$Value;return $true};return $false}
 function Get-JsonPropertyOrDefault($Object,[string]$Name,$DefaultValue){$p=$Object.PSObject.Properties[$Name];if($p -and $null -ne $p.Value){return $p.Value};return $DefaultValue}
 function Save-Json($obj,[string]$path){Write-GideonJson $obj $path 30}
+function Write-GideonDiagnosticJson {
+  param(
+    [Parameter(Mandatory=$true)]$Object,
+    [Parameter(Mandatory=$true)][string]$Path,
+    [int]$Depth=20
+  )
+  try{
+    Write-GideonJson $Object $Path $Depth
+    return $Path
+  }catch{
+    # Los diagnósticos no deben bloquear una instalación tras un rollback que
+    # dejó un archivo protegido. Se conserva una copia temporal local; no se
+    # relajan permisos de DPP ni se ignora un error de configuración funcional.
+    $fallback=Join-Path ([IO.Path]::GetTempPath()) ('GIDEON-diagnostics-'+[guid]::NewGuid().ToString('N')+'-'+[IO.Path]::GetFileName($Path))
+    Write-GideonJson $Object $fallback $Depth
+    Write-GideonWarn "Diagnóstico no escribible en $Path; se guardó temporalmente en $fallback."
+    return $fallback
+  }
+}
 function Repair-GideonDiagnosticsAccess {
   # Un rollback anterior puede dejar diagnostics con una ACL exclusiva del
   # Service SID. El preflight necesita escribir sólo su configuración efectiva;
@@ -195,9 +214,8 @@ function Set-GideonAdaptiveResourceProfile {
 
   $script:resourceProfile=$selected
   $script:EffectiveConfigPath=Join-Path $DataRoot 'diagnostics\effective-master.config.json'
-  New-GideonDirectory (Split-Path -Parent $script:EffectiveConfigPath)
-  Write-GideonJson $cfg $script:EffectiveConfigPath 30
-  Write-GideonJson `
+  $script:EffectiveConfigPath=Write-GideonDiagnosticJson $cfg $script:EffectiveConfigPath 30
+  [void](Write-GideonDiagnosticJson `
     ([ordered]@{
       schema_version=1
       selected=$selected
@@ -215,7 +233,7 @@ function Set-GideonAdaptiveResourceProfile {
       generated_utc=[DateTime]::UtcNow.ToString('o')
     }) `
     (Join-Path $DataRoot 'diagnostics\resource-profile.json') `
-    10
+    10)
   Write-GideonPass "RESOURCE_PROFILE=PASS selected=$selected source=$selectionSource hyperv=$([int]$settings.vm_min_mb)/$([int]$settings.vm_start_mb)/$([int]$settings.vm_max_mb)MB guacd=$([string]$settings.container_memory)/$([string]$settings.container_cpus)CPU"
 }
 function Build-GideonOptimizedServiceHost {
@@ -689,8 +707,7 @@ function Write-GideonPlatformSelection($Os,[string]$Backend) {
   $editionId=''
   try{$editionId=[string](Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name EditionID -ErrorAction Stop).EditionID}catch{}
   $path=Join-Path $DataRoot 'diagnostics\platform-selection.json'
-  New-GideonDirectory (Split-Path -Parent $path)
-  Write-GideonJson `
+  [void](Write-GideonDiagnosticJson `
     ([ordered]@{
       schema_version=1
       os=[string]$Os.Caption
@@ -705,7 +722,7 @@ function Write-GideonPlatformSelection($Os,[string]$Backend) {
       generated_utc=[DateTime]::UtcNow.ToString('o')
     }) `
     $path `
-    8
+    8)
   Write-GideonPass "OS_BACKEND_SELECTION=PASS os=$([string]$Os.Caption) guacd=$Backend"
 }
 
