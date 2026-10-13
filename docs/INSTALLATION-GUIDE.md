@@ -64,6 +64,31 @@ perfil con métricas de CPU, RAM, disco, latencia y errores.
   sostenida, no basta con aumentar RAM: hay que probar un Gateway escalado,
   persistencia externa y una política de sesiones/Jobs revisada.
 
+### Consumo normal de referencia
+
+Estas mediciones corresponden a una instalación validada en reposo; sirven para
+estimar el consumo base, no para prometer el consumo durante una campaña o una
+sesión de video. El consumo de Linux puede variar según el kernel, Docker y el
+controlador gráfico.
+
+| Componente | Reposo observado | Qué lo incrementa |
+| --- | ---: | --- |
+| Árbol de procesos Gideon | ≈222,8 MB de working set | WebAdmin, auditoría, Jobs, análisis y consultas activas |
+| Contenedor `guacd` | ≈13,73 MiB y 0 % CPU en la muestra | Sesiones RDP/VNC, resolución, movimiento y redirecciones |
+| Docker Desktop + `vmmem` en Windows Home | ≈1,41 GB de working set | WSL2, imágenes, sesiones y otros contenedores |
+| Incremento total del host Windows Home | ≈1,65 GB en reposo | Todo lo anterior; no incluye VLC en los Agents |
+
+En la red, el heartbeat y el polling de Agents generan tráfico bajo. Como
+presupuesto orientativo por sesión RDP/VNC: reposo ≈0,3 Kbps, oficina
+0,5–1 Mbps, web/gráficos 2–5 Mbps y video hasta 10 Mbps. Para diez sesiones
+normales conviene reservar 20–50 Mbps, además de Agents, Jobs y transferencias.
+
+La reproducción VLC ocurre en cada Agent y no en el servidor central: su CPU,
+RAM, aceleración gráfica y disco dependen de la resolución y del video local.
+Para sostener 5–10 sesiones remotas se recomienda asignar 2–4 vCPU y 2–4 GiB
+específicos a `guacd` y ejecutar una prueba de carga antes de ampliar el
+límite.
+
 ## Windows Server
 
 Requisitos sugeridos: Windows Server 2019/2022 x64, 4 vCPU, 8 GB RAM, 20 GB

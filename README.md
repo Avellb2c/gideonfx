@@ -78,6 +78,13 @@ Son objetivos de dimensionamiento, no garantías de rendimiento. El detalle de
 los límites de Gateway, sesiones, Jobs, transferencias, builds y almacenamiento
 está en la [guía de capacidad e instalación](docs/INSTALLATION-GUIDE.md).
 
+El consumo base observado en reposo es de aproximadamente **222,8 MB** para los
+procesos Gideon y **13,73 MiB** para `guacd`. En Windows Home, Docker Desktop y
+`vmmem` añadieron aproximadamente **1,41 GB**, para un incremento total cercano
+a **1,65 GB** en reposo. Las sesiones remotas, análisis, transferencias, videos
+y VLC en cada Agent aumentan ese consumo; la guía incluye los presupuestos de
+red y las condiciones de medición.
+
 ## Inicio rápido
 
 Consulta [ONECLICK-INSTALL.md](ONECLICK-INSTALL.md) y la [guía de instalación
