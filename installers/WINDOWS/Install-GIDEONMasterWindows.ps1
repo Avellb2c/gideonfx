@@ -15,6 +15,7 @@ $ManifestPath=Join-Path $BundleRoot 'deployment.manifest.json'
 $ConfigPath=Join-Path $BundleRoot 'master.config.json'
 $manifest=Read-GideonJson $ManifestPath
 $cfg=Read-GideonJson $ConfigPath
+$InstallerRevision='20261013-yara-diagnostics-c54bc06'
 $stage='INIT';$backup=$null;$mutex=$null;$transcriptStarted=$false;$credFile=$null
 $machineIdentity='';$bootstrapMarker='';$newMachine=$false
 $guacdBackend='none';$resumeTaskName='GIDEON Remote Control Master Installer Resume'
@@ -1358,6 +1359,7 @@ function Rollback {
 }
 
 try{
+  Write-GideonInfo "INSTALLER_REVISION=$InstallerRevision"
   $mutex=New-Object Threading.Mutex($false,'Global\GIDEONRemoteControlMasterInstall')
   if(-not $mutex.WaitOne(0)){Fail 'Otra instalación GIDEON está en curso.' 12}
   New-GideonDirectory (Join-Path $DataRoot 'logs\installer')
