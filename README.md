@@ -1,7 +1,7 @@
 # Gideon Rx
 
 Gideon Rx es una plataforma AGPLv3 para gestión remota, transferencia segura,
-agentes multiplataforma y campañas para pantallas físicas.
+agentes multiplataforma y campañas para pantallas publicitarias.
 
 ## Alcance
 
