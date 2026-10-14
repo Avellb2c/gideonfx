@@ -1,0 +1,322 @@
+{
+  "schema_version": 1,
+  "default_profile": "linux_generic",
+  "profiles": {
+    "windows_server_2016_pulse": {
+      "label": "Windows Server 2016 · Pulse",
+      "platform": "windows",
+      "architectures": [
+        "x86_64",
+        "amd64"
+      ],
+      "executor_policy": "windows_powershell",
+      "preferred_executors": [
+        "powershell.exe",
+        "pwsh",
+        "python"
+      ],
+      "allowed_extensions": [
+        ".ps1",
+        ".py"
+      ],
+      "data_dir": "C:\\ProgramData\\GIDEONAgent",
+      "resource_profile": "balanced",
+      "tags": [
+        "windows",
+        "pulse",
+        "store",
+        "legacy-powershell"
+      ],
+      "notes": "Compatibilidad con Windows PowerShell 5.1 y Gideon Rx Pulse.",
+      "agentless": {
+        "supported": true,
+        "remote_job_root": "C:\\ProgramData\\GIDEONSSH\\jobs",
+        "powershell_executable": "powershell.exe",
+        "transport": "openssh_sftp",
+        "notes": "Usa OpenSSH Server + SFTP + Scheduled Tasks."
+      },
+      "builtin": true
+    },
+    "windows_server_2022_pulse": {
+      "label": "Windows Server 2022 · Pulse",
+      "platform": "windows",
+      "architectures": [
+        "x86_64",
+        "amd64"
+      ],
+      "executor_policy": "windows_powershell",
+      "preferred_executors": [
+        "powershell.exe",
+        "pwsh",
+        "python"
+      ],
+      "allowed_extensions": [
+        ".ps1",
+        ".py"
+      ],
+      "data_dir": "C:\\ProgramData\\GIDEONAgent",
+      "resource_profile": "balanced",
+      "tags": [
+        "windows",
+        "pulse",
+        "store"
+      ],
+      "notes": "Perfil recomendado para servidores de tienda Windows Server 2022.",
+      "agentless": {
+        "supported": true,
+        "remote_job_root": "C:\\ProgramData\\GIDEONSSH\\jobs",
+        "powershell_executable": "powershell.exe",
+        "transport": "openssh_sftp",
+        "notes": "Usa OpenSSH Server + SFTP + Scheduled Tasks."
+      },
+      "builtin": true
+    },
+    "windows_generic": {
+      "label": "Windows · Genérico",
+      "platform": "windows",
+      "architectures": [
+        "x86_64",
+        "amd64",
+        "arm64"
+      ],
+      "executor_policy": "auto",
+      "preferred_executors": [
+        "pwsh",
+        "powershell.exe",
+        "python"
+      ],
+      "allowed_extensions": [
+        ".ps1",
+        ".py",
+        ".cmd",
+        ".bat"
+      ],
+      "data_dir": "C:\\ProgramData\\GIDEONAgent",
+      "resource_profile": "balanced",
+      "tags": [
+        "windows",
+        "generic"
+      ],
+      "notes": "Windows sin dependencia específica de Pulse.",
+      "agentless": {
+        "supported": true,
+        "remote_job_root": "C:\\ProgramData\\GIDEONSSH\\jobs",
+        "powershell_executable": "powershell.exe",
+        "transport": "openssh_sftp",
+        "notes": "Usa OpenSSH Server + SFTP + Scheduled Tasks."
+      },
+      "builtin": true
+    },
+    "linux_aws_x64": {
+      "label": "Linux AWS · x64",
+      "platform": "linux",
+      "architectures": [
+        "x86_64",
+        "amd64"
+      ],
+      "executor_policy": "posix",
+      "preferred_executors": [
+        "bash",
+        "python3",
+        "pwsh"
+      ],
+      "allowed_extensions": [
+        ".sh",
+        ".py",
+        ".ps1"
+      ],
+      "data_dir": "/var/lib/gideon-agent",
+      "resource_profile": "balanced",
+      "tags": [
+        "linux",
+        "aws",
+        "server"
+      ],
+      "notes": "Servidor Linux en AWS. .ps1 requiere PowerShell Core (pwsh).",
+      "agentless": {
+        "supported": false,
+        "remote_job_root": null,
+        "transport": null,
+        "notes": "El FAN-OUT agentless actual usa bootstrap PowerShell Windows; para este perfil use AGENTE HTTPS/PULL."
+      },
+      "builtin": true
+    },
+    "linux_generic": {
+      "label": "Linux · Genérico",
+      "platform": "linux",
+      "architectures": [
+        "x86_64",
+        "amd64",
+        "arm64",
+        "aarch64"
+      ],
+      "executor_policy": "posix",
+      "preferred_executors": [
+        "bash",
+        "python3",
+        "pwsh"
+      ],
+      "allowed_extensions": [
+        ".sh",
+        ".py",
+        ".ps1"
+      ],
+      "data_dir": "/var/lib/gideon-agent",
+      "resource_profile": "balanced",
+      "tags": [
+        "linux",
+        "generic"
+      ],
+      "notes": "Linux genérico con systemd cuando esté disponible.",
+      "agentless": {
+        "supported": false,
+        "remote_job_root": null,
+        "transport": null,
+        "notes": "El FAN-OUT agentless actual usa bootstrap PowerShell Windows; para este perfil use AGENTE HTTPS/PULL."
+      },
+      "builtin": true
+    },
+    "raspberry_pi_64": {
+      "label": "Raspberry Pi · 64-bit",
+      "platform": "linux",
+      "architectures": [
+        "arm64",
+        "aarch64"
+      ],
+      "executor_policy": "posix",
+      "preferred_executors": [
+        "bash",
+        "python3",
+        "pwsh"
+      ],
+      "allowed_extensions": [
+        ".sh",
+        ".py",
+        ".ps1"
+      ],
+      "data_dir": "/var/lib/gideon-agent",
+      "resource_profile": "eco",
+      "tags": [
+        "linux",
+        "raspberrypi",
+        "arm64",
+        "edge"
+      ],
+      "notes": "Perfil de bajo consumo; limita concurrencia y prioriza Bash/Python.",
+      "agentless": {
+        "supported": false,
+        "remote_job_root": null,
+        "transport": null,
+        "notes": "El FAN-OUT agentless actual usa bootstrap PowerShell Windows; para este perfil use AGENTE HTTPS/PULL."
+      },
+      "builtin": true
+    },
+    "macos_arm64": {
+      "label": "macOS · Apple Silicon",
+      "platform": "darwin",
+      "architectures": [
+        "arm64"
+      ],
+      "executor_policy": "posix",
+      "preferred_executors": [
+        "zsh",
+        "bash",
+        "python3",
+        "pwsh"
+      ],
+      "allowed_extensions": [
+        ".sh",
+        ".command",
+        ".py",
+        ".ps1"
+      ],
+      "data_dir": "/Library/Application Support/GIDEONAgent",
+      "resource_profile": "balanced",
+      "tags": [
+        "macos",
+        "arm64"
+      ],
+      "notes": "macOS Apple Silicon. .ps1 requiere PowerShell Core.",
+      "agentless": {
+        "supported": false,
+        "remote_job_root": null,
+        "transport": null,
+        "notes": "El FAN-OUT agentless actual usa bootstrap PowerShell Windows; para este perfil use AGENTE HTTPS/PULL."
+      },
+      "builtin": true
+    },
+    "macos_x64": {
+      "label": "macOS · Intel",
+      "platform": "darwin",
+      "architectures": [
+        "x86_64",
+        "amd64"
+      ],
+      "executor_policy": "posix",
+      "preferred_executors": [
+        "zsh",
+        "bash",
+        "python3",
+        "pwsh"
+      ],
+      "allowed_extensions": [
+        ".sh",
+        ".command",
+        ".py",
+        ".ps1"
+      ],
+      "data_dir": "/Library/Application Support/GIDEONAgent",
+      "resource_profile": "balanced",
+      "tags": [
+        "macos",
+        "x64"
+      ],
+      "notes": "macOS Intel. .ps1 requiere PowerShell Core.",
+      "agentless": {
+        "supported": false,
+        "remote_job_root": null,
+        "transport": null,
+        "notes": "El FAN-OUT agentless actual usa bootstrap PowerShell Windows; para este perfil use AGENTE HTTPS/PULL."
+      },
+      "builtin": true
+    },
+    "raspberry_pi_32": {
+      "label": "Raspberry Pi · 32-bit",
+      "platform": "linux",
+      "architectures": [
+        "armv7l",
+        "armv7",
+        "armhf"
+      ],
+      "executor_policy": "posix",
+      "preferred_executors": [
+        "bash",
+        "python3",
+        "pwsh"
+      ],
+      "allowed_extensions": [
+        ".sh",
+        ".py",
+        ".ps1"
+      ],
+      "data_dir": "/var/lib/gideon-agent",
+      "resource_profile": "eco",
+      "tags": [
+        "linux",
+        "raspberrypi",
+        "arm32",
+        "armhf",
+        "edge"
+      ],
+      "notes": "Raspberry Pi OS 32-bit. Perfil de bajo consumo; prioriza Bash/Python.",
+      "agentless": {
+        "supported": false,
+        "remote_job_root": null,
+        "transport": null,
+        "notes": "Use AGENTE HTTPS/PULL."
+      },
+      "builtin": true
+    }
+  },
+  "assignments": {}
+}
