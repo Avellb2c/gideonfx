@@ -15,7 +15,7 @@ $ManifestPath=Join-Path $BundleRoot 'deployment.manifest.json'
 $ConfigPath=Join-Path $BundleRoot 'master.config.json'
 $manifest=Read-GideonJson $ManifestPath
 $cfg=Read-GideonJson $ConfigPath
-$InstallerRevision='20261014-guacd-host-20261014'
+$InstallerRevision='20261014-guacd-null-config-20261014'
 $stage='INIT';$backup=$null;$mutex=$null;$transcriptStarted=$false;$credFile=$null
 $machineIdentity='';$bootstrapMarker='';$newMachine=$false
 $guacdBackend='none';$resumeTaskName='GIDEON Remote Control Master Installer Resume'
@@ -1377,14 +1377,32 @@ function Patch-ConfigPorts([int]$WebPort,[int]$GatewayPort){
 function Patch-Guacd([string]$GuacdHost,[int]$Port){
   $web=Join-Path $DataRoot 'config\web_admin.json';if(-not(Test-Path $web)){return}
   $o=Read-GideonJson $web
-  if(-not($o.PSObject.Properties.Name -contains 'remote_sessions')){$o|Add-Member -NotePropertyName remote_sessions -NotePropertyValue ([pscustomobject]@{})}
+  # Fresh payloads may contain remote_sessions/guacd as JSON null.  Checking
+  # Properties.Name on a null value raises under PowerShell 5.1, so normalize
+  # each object through the property indexer before reading its members.
+  $remoteProp=$o.PSObject.Properties['remote_sessions']
+  if(-not $remoteProp -or $null -eq $remoteProp.Value){
+    $o|Add-Member -Force -NotePropertyName remote_sessions -NotePropertyValue ([pscustomobject]@{})
+  }
+  $remote=$o.remote_sessions
   $remoteDefaults=@{clipboard_enabled=$true;file_transfer_enabled=$true;max_clipboard_bytes=1048576;max_file_transfer_bytes=104857600}
-  foreach($key in $remoteDefaults.Keys){if(-not($o.remote_sessions.PSObject.Properties.Name -contains $key)){$o.remote_sessions|Add-Member -NotePropertyName $key -NotePropertyValue $remoteDefaults[$key]}}
-  if(-not($o.remote_sessions.PSObject.Properties.Name -contains 'guacd')){$o.remote_sessions|Add-Member -NotePropertyName guacd -NotePropertyValue ([pscustomobject]@{})}
-  $g=$o.remote_sessions.guacd
-  if($g.PSObject.Properties.Name -contains 'host'){$g.host=$GuacdHost}else{$g|Add-Member -NotePropertyName host -NotePropertyValue $GuacdHost}
-  if($g.PSObject.Properties.Name -contains 'port'){$g.port=$Port}else{$g|Add-Member -NotePropertyName port -NotePropertyValue $Port}
-  if($g.PSObject.Properties.Name -contains 'vnc_enabled'){$g.vnc_enabled=$true}else{$g|Add-Member -NotePropertyName vnc_enabled -NotePropertyValue $true}
+  foreach($key in $remoteDefaults.Keys){
+    $prop=$remote.PSObject.Properties[$key]
+    if(-not $prop){$remote|Add-Member -Force -NotePropertyName $key -NotePropertyValue $remoteDefaults[$key]}
+  }
+  $guacdProp=$remote.PSObject.Properties['guacd']
+  if(-not $guacdProp -or $null -eq $guacdProp.Value){
+    $remote|Add-Member -Force -NotePropertyName guacd -NotePropertyValue ([pscustomobject]@{})
+  }
+  $g=$remote.guacd
+  foreach($entry in @(
+    @{Name='host';Value=$GuacdHost},
+    @{Name='port';Value=$Port},
+    @{Name='vnc_enabled';Value=$true}
+  )){
+    $prop=$g.PSObject.Properties[$entry.Name]
+    if($prop){$prop.Value=$entry.Value}else{$g|Add-Member -Force -NotePropertyName $entry.Name -NotePropertyValue $entry.Value}
+  }
   Save-Json $o $web
 }
 function Start-GideonServices {
