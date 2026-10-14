@@ -15,7 +15,7 @@ $ManifestPath=Join-Path $BundleRoot 'deployment.manifest.json'
 $ConfigPath=Join-Path $BundleRoot 'master.config.json'
 $manifest=Read-GideonJson $ManifestPath
 $cfg=Read-GideonJson $ConfigPath
-$InstallerRevision='20261014-acl-inheritance-root-20261014'
+$InstallerRevision='20261014-guacd-host-20261014'
 $stage='INIT';$backup=$null;$mutex=$null;$transcriptStarted=$false;$credFile=$null
 $machineIdentity='';$bootstrapMarker='';$newMachine=$false
 $guacdBackend='none';$resumeTaskName='GIDEON Remote Control Master Installer Resume'
@@ -1374,7 +1374,7 @@ function Patch-ConfigPorts([int]$WebPort,[int]$GatewayPort){
   if(Test-Path $web){$o=Read-GideonJson $web;Set-JsonPropertyIfPresent $o 'listen_port' $WebPort|Out-Null;if($o.PSObject.Properties.Name -contains 'gateway_base_url'){$o.gateway_base_url="https://127.0.0.1:$GatewayPort"};Save-Json $o $web}
   if(Test-Path $gw){$g=Read-GideonJson $gw;$changed=$false;foreach($k in @('listen_port','port','bind_port')){if(Set-JsonPropertyIfPresent $g $k $GatewayPort){$changed=$true;break}};if($changed){Save-Json $g $gw}}
 }
-function Patch-Guacd([string]$Host,[int]$Port){
+function Patch-Guacd([string]$GuacdHost,[int]$Port){
   $web=Join-Path $DataRoot 'config\web_admin.json';if(-not(Test-Path $web)){return}
   $o=Read-GideonJson $web
   if(-not($o.PSObject.Properties.Name -contains 'remote_sessions')){$o|Add-Member -NotePropertyName remote_sessions -NotePropertyValue ([pscustomobject]@{})}
@@ -1382,7 +1382,7 @@ function Patch-Guacd([string]$Host,[int]$Port){
   foreach($key in $remoteDefaults.Keys){if(-not($o.remote_sessions.PSObject.Properties.Name -contains $key)){$o.remote_sessions|Add-Member -NotePropertyName $key -NotePropertyValue $remoteDefaults[$key]}}
   if(-not($o.remote_sessions.PSObject.Properties.Name -contains 'guacd')){$o.remote_sessions|Add-Member -NotePropertyName guacd -NotePropertyValue ([pscustomobject]@{})}
   $g=$o.remote_sessions.guacd
-  if($g.PSObject.Properties.Name -contains 'host'){$g.host=$Host}else{$g|Add-Member -NotePropertyName host -NotePropertyValue $Host}
+  if($g.PSObject.Properties.Name -contains 'host'){$g.host=$GuacdHost}else{$g|Add-Member -NotePropertyName host -NotePropertyValue $GuacdHost}
   if($g.PSObject.Properties.Name -contains 'port'){$g.port=$Port}else{$g|Add-Member -NotePropertyName port -NotePropertyValue $Port}
   if($g.PSObject.Properties.Name -contains 'vnc_enabled'){$g.vnc_enabled=$true}else{$g|Add-Member -NotePropertyName vnc_enabled -NotePropertyValue $true}
   Save-Json $o $web
