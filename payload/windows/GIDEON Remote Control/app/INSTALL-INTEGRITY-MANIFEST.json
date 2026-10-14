@@ -1366,13 +1366,18 @@
     },
     {
       "path": "gideon_web_admin/static/app.css",
-      "size_bytes": 43616,
-      "sha256": "429b340ff9895ce7fec1336b49e68d3df32dfddcf14adccbd595fc36ae8d50e5"
+      "size_bytes": 44881,
+      "sha256": "824f32649924b7cdc7dd35987c6fc1666138d0fdb4ecd3feb8eb28660fa75722"
     },
     {
       "path": "gideon_web_admin/static/app.js",
       "size_bytes": 38164,
       "sha256": "8e1c96e65fe7d477d29a0402fe782f4ae35e40d4d694ae5f25d8a1b706ae9204"
+    },
+    {
+      "path": "gideon_web_admin/static/configuration_initial.css",
+      "size_bytes": 453,
+      "sha256": "8dce0228b86abed806fc8453a6a3bf2e9bc0dcbac76ae299ba7df1eb777e65a8"
     },
     {
       "path": "gideon_web_admin/static/dashboard.css",
@@ -1505,6 +1510,11 @@
       "sha256": "f7d81f2643cc85446e84d0559e0175eb4b4b7f70ce78373e643ff8da9db18583"
     },
     {
+      "path": "gideon_web_admin/static/navigation_groups.js",
+      "size_bytes": 1269,
+      "sha256": "977dabdad3095f1b5cf8cb7f786eede029cc5c26a4a42b460347c8f94bbac954"
+    },
+    {
       "path": "gideon_web_admin/static/remote_page.js",
       "size_bytes": 46258,
       "sha256": "d8bfb5d08514a42c563470a98658a3fc3a8dfaf85aa67bd69c6df9b00a8d551e"
@@ -1611,8 +1621,8 @@
     },
     {
       "path": "gideon_web_admin/templates/base.html",
-      "size_bytes": 13903,
-      "sha256": "0a3d56dcb725e35e56d450d2e418f75f896c0de17c51201b2356308e58afec3c"
+      "size_bytes": 15702,
+      "sha256": "1e5c3b701b3e4b6ea67f099eaa33e1df5486decb8a1450403566f8fdc0ce08c6"
     },
     {
       "path": "gideon_web_admin/templates/bootstrap.html",
@@ -1656,8 +1666,8 @@
     },
     {
       "path": "gideon_web_admin/templates/installation_guide.html",
-      "size_bytes": 9170,
-      "sha256": "dfeef5085a18f2e6547ef57456100a887bfa632d0fd46cc9c422dc326b3f579f"
+      "size_bytes": 11428,
+      "sha256": "208b4451a202ed38d5c3615b1192d1a4f6dde84494af7f46487595a15ad7eb56"
     },
     {
       "path": "gideon_web_admin/templates/installers.html",

@@ -1,0 +1,7 @@
+/* Visual helpers for the manual initial-configuration landing page. */
+.guide-config-grid{margin:0;padding:20px;grid-template-columns:repeat(3,minmax(0,1fr))}
+.guide-config-grid .guide-choice{min-height:76px}
+.guide-manual-note{margin:0 20px 20px!important}
+.guide-manual-note strong{margin-right:6px}
+@media(max-width:1000px){.guide-config-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.guide-config-grid{padding:14px}}

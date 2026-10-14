@@ -150,6 +150,20 @@ html[data-theme="dark"]{
   }
 }
 
+/* GIDEON navigation organization: collapsible groups without changing routes or permissions. */
+.nav-group{margin:4px 0 0;border-top:1px solid rgba(255,255,255,.055)}
+.nav-group:first-of-type{border-top:0}
+.nav-group>summary{display:flex;align-items:center;justify-content:space-between;gap:8px;list-style:none;cursor:pointer;user-select:none}
+.nav-group>summary::-webkit-details-marker{display:none}
+.nav-section-chevron{font-size:15px;line-height:1;color:#9cc9da;transition:transform .16s ease}
+.nav-group:not([open]) .nav-section-chevron{transform:rotate(-90deg)}
+.nav-group-links{display:flex;flex-direction:column;gap:3px;padding:0 0 3px}
+.nav-group-links .nav-link{margin:0}
+.nav-subsection{margin:9px 12px 3px;padding-top:8px;border-top:1px solid rgba(255,255,255,.07);color:#8db8c9;font-size:9px;font-weight:800;letter-spacing:.8px;text-transform:uppercase}
+.nav-subsection:first-child{margin-top:1px;padding-top:2px;border-top:0}
+.nav-link-setup{margin-bottom:4px!important;background:linear-gradient(90deg,rgba(33,183,232,.16),rgba(255,255,255,.04));border-color:rgba(33,183,232,.24)}
+.nav-link-setup:hover{border-color:rgba(33,183,232,.45)}
+html.gideon-sidebar-compact .nav-subsection{display:none!important}
 
 
 /* ==========================================================================
@@ -921,3 +935,4 @@ html,body{
     scroll-behavior:auto !important;
   }
 }
+/* End of GIDEON WebAdmin visual styles. */

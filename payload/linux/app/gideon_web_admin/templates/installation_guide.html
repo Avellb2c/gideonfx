@@ -1,16 +1,29 @@
 {% extends "base.html" %}
-{% block extra_styles %}<link rel="stylesheet" href="{{ static_url('installation_guide.css') }}">{% endblock %}
+{% block extra_styles %}<link rel="stylesheet" href="{{ static_url('installation_guide.css') }}"><link rel="stylesheet" href="{{ static_url('configuration_initial.css') }}">{% endblock %}
 {% block content %}
 <section class="page-head guide-head">
   <div>
     <p class="eyebrow">Puesta en marcha segura</p>
-    <h1>Guía de instalación y configuración</h1>
-    <p>Instala Gideon Rx en Windows Server o Ubuntu y conecta el control plane a AWS o Azure sin publicar puertos de Agents ni registrar secretos en la consola.</p>
+    <h1>Configuración inicial</h1>
+    <p>Organiza la configuración base de Gideon Rx y abre cada pantalla para completar los parámetros manualmente. No se ejecutan cambios automáticos desde esta vista.</p>
   </div>
-  <div class="page-actions"><a class="btn btn-primary" href="#checklist">Ver checklist final</a><a class="btn" href="https://github.com/Avellb2c/gideonfx/blob/main/ONECLICK-INSTALL.md" target="_blank" rel="noopener">Documentación completa</a></div>
+  <div class="page-actions"><a class="btn btn-primary" href="#checklist">Ver checklist final</a><a class="btn" href="https://github.com/Avellb2c/gideonrx/blob/main/ONECLICK-INSTALL.md" target="_blank" rel="noopener">Documentación completa</a></div>
 </section>
 
 <div class="alert info guide-notice"><strong>Antes de empezar</strong><span>Necesitas una cuenta administrativa, un nombre DNS para WebAdmin, hora sincronizada (UTC) y un respaldo del directorio de datos. Sustituye los valores entre <code>&lt;ángulos&gt;</code>; nunca pegues claves privadas, tokens ni contraseñas en esta página.</span></div>
+
+<section class="guide-card guide-initial-config" id="initial-config">
+  <div class="guide-card-head"><div><p class="eyebrow">Orden recomendado</p><h2>Parámetros base</h2><p>Abre una tarjeta, guarda la configuración en su pantalla y vuelve aquí para continuar con el siguiente bloque.</p></div><span class="chip info">Configuración manual</span></div>
+  <div class="guide-grid guide-config-grid">
+    {% if identity and identity.can('settings.view') %}<a class="guide-choice" href="/settings"><span class="guide-choice-icon">⚙</span><span><strong>Configuración general</strong><small>Nombre del sistema, zona horaria y preferencias</small></span></a>{% endif %}
+    {% if identity and identity.role == 'SUPERADMIN' %}<a class="guide-choice" href="/infrastructure/tls"><span class="guide-choice-icon">🔒</span><span><strong>TLS y acceso externo</strong><small>HTTPS, URL pública y certificados</small></span></a>{% endif %}
+    {% if identity and identity.can('gateway.view') %}<a class="guide-choice" href="/gateway"><span class="guide-choice-icon">⇄</span><span><strong>Gateway</strong><small>Conectividad y endpoints de Agents</small></span></a>{% endif %}
+    {% if identity and identity.can('agents.view') %}<a class="guide-choice" href="/agents"><span class="guide-choice-icon">▣</span><span><strong>Equipos y sedes</strong><small>Registra la flota y sus ubicaciones</small></span></a>{% endif %}
+    {% if identity and identity.can('screens.view') %}<a class="guide-choice" href="/media/screens"><span class="guide-choice-icon">▤</span><span><strong>Pantallas</strong><small>Asocia salidas físicas y resoluciones</small></span></a>{% endif %}
+    {% if identity and identity.can('media.view') %}<a class="guide-choice" href="/media/campaigns"><span class="guide-choice-icon">▶</span><span><strong>Contenido y programación</strong><small>Biblioteca, campañas y horarios</small></span></a>{% endif %}
+  </div>
+  <div class="alert info guide-manual-note"><strong>Sin asistente automático</strong><span>Esta pestaña sólo organiza accesos existentes. Cada cambio continúa requiriendo el clic, revisión y guardado manual correspondiente.</span></div>
+</section>
 
 <div class="guide-grid" aria-label="Rutas de instalación">
   <a class="guide-choice" href="#windows"><span class="guide-choice-icon">▣</span><span><strong>Windows Server</strong><small>Instalador OneClick y servicios Windows</small></span></a>
