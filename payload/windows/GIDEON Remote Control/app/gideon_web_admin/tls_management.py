@@ -6,6 +6,7 @@ import base64
 import datetime as dt
 import hashlib
 import json
+import re
 import secrets
 import socket
 import ssl
@@ -17,6 +18,11 @@ from fastapi.responses import JSONResponse, Response
 
 SOCKET_PATH = '/run/gideon-tls-manager/control.sock'
 MAX_BODY = 8 * 1024 * 1024
+WINDOWS_PLAN_NAME = "windows-letsencrypt-plan.json"
+WINDOWS_FQDN = re.compile(
+    r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+    r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$"
+)
 
 
 def _windows_file_status(value):
@@ -39,6 +45,87 @@ def _windows_file_status(value):
     except Exception as exc:
         result["error"] = "No se pudo leer el certificado local: " + type(exc).__name__
     return result
+
+
+def _windows_data_root(config):
+    gateway_path = Path(str(config.get("gateway_config_file") or ""))
+    if gateway_path.parent.name and gateway_path.parent.parent:
+        return gateway_path.parent.parent
+    return Path(str(config.get("data_dir") or "")).expanduser()
+
+
+def _windows_plan_status(config):
+    """Read the optional future ACME plan without exposing secrets or applying it."""
+    path = _windows_data_root(config) / "config" / WINDOWS_PLAN_NAME
+    empty = {
+        "configured": False,
+        "web_host": "",
+        "gateway_host": "",
+        "email": "",
+        "environment": "production",
+        "saved_utc": "",
+    }
+    try:
+        value = json.loads(path.read_text(encoding="utf-8-sig"))
+        if not isinstance(value, dict):
+            return empty
+        return {
+            "configured": True,
+            "web_host": str(value.get("web_host") or ""),
+            "gateway_host": str(value.get("gateway_host") or ""),
+            "email": str(value.get("email") or ""),
+            "environment": str(value.get("environment") or "production"),
+            "saved_utc": str(value.get("saved_utc") or ""),
+        }
+    except (OSError, ValueError, TypeError):
+        return empty
+
+
+def _validate_windows_plan(params):
+    if not isinstance(params, dict):
+        raise ValueError("La configuración Let’s Encrypt debe ser un objeto.")
+
+    def host(value, label, required=True):
+        text = str(value or "").strip().rstrip(".").lower()
+        if not text and not required:
+            return ""
+        if (
+            not text
+            or text in {"localhost", "127.0.0.1", "::1"}
+            or not WINDOWS_FQDN.fullmatch(text)
+        ):
+            raise ValueError(f"{label} debe ser un dominio público completo, por ejemplo {label}.example.com.")
+        return text
+
+    web_host = host(params.get("web_host"), "WebAdmin")
+    gateway_host = host(params.get("gateway_host"), "Gateway", required=False)
+    email = str(params.get("email") or "").strip()
+    if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email):
+        raise ValueError("El correo ACME no es válido.")
+    environment = str(params.get("environment") or "production").strip().lower()
+    if environment not in {"production", "staging"}:
+        raise ValueError("El entorno ACME debe ser production o staging.")
+    if not bool(params.get("agree_acme_tos")):
+        raise ValueError("Confirme los términos de Let’s Encrypt para guardar el plan.")
+    return {
+        "schema_version": 1,
+        "web_host": web_host,
+        "gateway_host": gateway_host,
+        "email": email,
+        "environment": environment,
+        "saved_utc": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+    }
+
+
+def _windows_save_plan(config, params):
+    """Persist a future OneClick plan only; never downloads or requests a certificate."""
+    value = _validate_windows_plan(params)
+    path = _windows_data_root(config) / "config" / WINDOWS_PLAN_NAME
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_name(f".{path.name}.tmp")
+    temp.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temp.replace(path)
+    return _windows_plan_status(config)
 
 
 def _windows_config_status(config):
@@ -72,6 +159,7 @@ def _windows_config_status(config):
     except Exception as exc:
         acme["error"] = "No se pudo consultar el estado ACME: " + type(exc).__name__
     acme_enabled = bool(acme.get("enabled"))
+    planned = _windows_plan_status(config)
     current = {
         "web_url": f"https://127.0.0.1:{web_port}",
         "agent_url": str(config.get("gateway_public_url") or config.get("gateway_base_url") or f"https://127.0.0.1:{gateway_port}"),
@@ -95,7 +183,8 @@ def _windows_config_status(config):
         "acme_client_installed": bool(acme.get("client_installed")),
         "renewal_timer_active": bool(acme.get("renewal_task", {}).get("present")),
         "renewal_task_active": bool(acme.get("renewal_task", {}).get("present")),
-        "actions_supported": ["status", "download-ca"],
+        "actions_supported": ["status", "download-ca", "save-plan"],
+        "planned": planned,
         "ca_path": str(config.get("gateway_ca_file") or gateway.get("ca_file") or ""),
         "tls_transport": "HTTPS local verificado; renovación automática con win-acme." if acme_enabled else "HTTPS local verificado; configuración externa mediante OneClick.",
     }
@@ -148,6 +237,8 @@ def register_tls_routes(app, *, config, require, security, template, call=broker
                 return _windows_config_status(config)
             if action == "download-ca":
                 return _windows_ca_result(config)
+            if action == "save-plan":
+                return _windows_save_plan(config, payload.get("params"))
             raise ValueError("En Windows TLS se administra mediante el OneClick; esta acción no requiere el broker de Ubuntu.")
         if not enabled():
             raise ValueError('Gestor TLS disponible en Ubuntu con el OneClick actualizado. No se elevan privilegios desde la web.')
@@ -190,7 +281,7 @@ def register_tls_routes(app, *, config, require, security, template, call=broker
         identity = authorize(request)
         if request.url.scheme != 'https':
             raise HTTPException(400, 'La administración de certificados requiere HTTPS.')
-        if action not in {'prepare', 'apply', 'confirm', 'cancel'}:
+        if action not in {'prepare', 'apply', 'confirm', 'cancel', 'save-plan'}:
             raise HTTPException(404, 'Acción TLS no disponible.')
         token = request.headers.get('x-csrf-token', '')
         if not token or not secrets.compare_digest(token, identity.csrf_token):
@@ -221,6 +312,8 @@ def register_tls_routes(app, *, config, require, security, template, call=broker
             if action == 'prepare':
                 payload.update(params=data.get('params'), uploads=data.get('uploads', {}), passwords=data.get('passwords', {}),
                                client_ip=str(request.client.host if request.client else ''))
+            elif action == 'save-plan':
+                payload['params'] = data.get('params')
             else:
                 payload['id'] = data.get('id')
             if action == 'confirm':

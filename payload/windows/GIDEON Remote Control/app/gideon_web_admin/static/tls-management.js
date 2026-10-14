@@ -4,12 +4,16 @@
   if (!root) return;
   const prepare = document.getElementById('tls-prepare');
   const actionForm = document.getElementById('tls-action');
+  const windowsPlan = document.getElementById('tls-windows-plan');
   const feedback = document.getElementById('tls-feedback');
   const jobs = document.getElementById('tls-jobs');
+  const windowsPlanStatus = document.getElementById('windows-plan-status');
   let timer;
   function message(text, bad = false) {
-    feedback.className = bad ? 'alert danger' : 'alert';
-    feedback.textContent = text;
+    const target = feedback || windowsPlanStatus;
+    if (!target) return;
+    target.className = bad ? 'alert danger' : 'alert';
+    target.textContent = text;
   }
   function modeChanged() {
     const mode = prepare.elements.mode.value;
@@ -18,8 +22,10 @@
       section.querySelectorAll('input').forEach(input => { input.disabled = section.hidden; });
     });
   }
-  prepare.elements.mode.addEventListener('change', modeChanged);
-  modeChanged();
+  if (prepare) {
+    prepare.elements.mode.addEventListener('change', modeChanged);
+    modeChanged();
+  }
   async function post(action, payload) {
     const response = await fetch('/infrastructure/tls/' + action, {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': root.dataset.csrf },
@@ -36,6 +42,7 @@
     AWAITING_CONFIRMATION: 'Confirme acceso por la nueva URL', CONFIRMED: 'Confirmada', ROLLED_BACK: 'Configuración anterior restaurada',
     FAILED: 'No aplicada', EXPIRED: 'Preparación caducada', CANCELLED: 'Preparación cancelada' };
   function renderJobs(rows) {
+    if (!jobs) return;
     jobs.replaceChildren();
     if (!rows.length) { jobs.textContent = 'No hay solicitudes recientes.'; return; }
     rows.forEach(job => {
@@ -72,7 +79,7 @@
       const response = await fetch('/infrastructure/tls/status', { credentials: 'same-origin', cache: 'no-store' });
       const data = await response.json();
       if (!response.ok || !data.ok) throw new Error(data.error || 'Estado no disponible.');
-      renderJobs(data.result.jobs);
+      renderJobs(data.result.jobs || []);
       const current = data.result.current;
       const box = document.getElementById('tls-current'); box.replaceChildren();
       [['WebAdmin', current.web_url], ['Agentes', current.agent_url], ['Modo', current.mode]].forEach(([key, value]) => {
@@ -86,11 +93,17 @@
       document.getElementById('tls-renewal').textContent = acme.enabled
         ? 'Let’s Encrypt: win-acme instalado · tarea de renovación: ' + (task.status || 'no comprobada') + '. La clave privada permanece local.'
         : 'Let’s Encrypt: no configurado · TLS local de GIDEON activo. Configure el dominio mediante OneClick cuando TCP/80 y DNS estén listos.';
-      if (data.result.jobs.some(job => ['APPLYING', 'AWAITING_CONFIRMATION'].includes(job.state))) timer = setTimeout(refresh, 5000);
+      if (windowsPlanStatus) {
+        const plan = data.result.planned || {};
+        windowsPlanStatus.textContent = plan.configured
+          ? 'Borrador guardado el ' + (plan.saved_utc || '—') + ' para ' + (plan.web_host || '—') + '.'
+          : 'No hay una configuración futura guardada.';
+      }
+      if ((data.result.jobs || []).some(job => ['APPLYING', 'AWAITING_CONFIRMATION'].includes(job.state))) timer = setTimeout(refresh, 5000);
     } catch (_) { message('No se pudo consultar el estado. Si acaba de aplicar, abra la nueva URL para confirmar; si no puede acceder, espere la restauración automática.', true); }
   }
   document.getElementById('tls-refresh').addEventListener('click', refresh);
-  prepare.addEventListener('submit', async event => {
+  if (prepare) prepare.addEventListener('submit', async event => {
     event.preventDefault(); const button = event.submitter; button.disabled = true;
     const fields = new FormData(prepare); const uploads = {};
     try {
@@ -116,7 +129,7 @@
     } catch (error) { message(error.message, true); }
     finally { button.disabled = false; prepare.querySelectorAll('input[type=password],input[type=file],input[name=mfa_code]').forEach(input => { input.value = ''; }); }
   });
-  actionForm.addEventListener('submit', async event => {
+  if (actionForm) actionForm.addEventListener('submit', async event => {
     event.preventDefault(); const button = event.submitter; button.disabled = true;
     try {
       const action = button.value;
@@ -126,6 +139,21 @@
       await refresh();
     } catch (error) { message(error.message, true); }
     finally { button.disabled = false; actionForm.elements.current_password.value = ''; actionForm.elements.mfa_code.value = ''; }
+  });
+  if (windowsPlan) windowsPlan.addEventListener('submit', async event => {
+    event.preventDefault(); const button = event.submitter; button.disabled = true;
+    const fields = new FormData(windowsPlan);
+    try {
+      message('Guardando configuración futura…');
+      await post('save-plan', {
+        params: {web_host: fields.get('web_host'), gateway_host: fields.get('gateway_host') || '',
+          email: fields.get('email'), environment: fields.get('environment'), agree_acme_tos: fields.has('agree_acme_tos')},
+        current_password: fields.get('current_password'), mfa_code: fields.get('mfa_code')
+      });
+      message('Configuración futura guardada. No se solicitó ningún certificado.');
+      await refresh();
+    } catch (error) { message(error.message, true); }
+    finally { button.disabled = false; windowsPlan.querySelectorAll('input[type=password],input[name=mfa_code]').forEach(input => { input.value = ''; }); }
   });
   refresh();
 })();
