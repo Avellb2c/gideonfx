@@ -15,7 +15,7 @@ $ManifestPath=Join-Path $BundleRoot 'deployment.manifest.json'
 $ConfigPath=Join-Path $BundleRoot 'master.config.json'
 $manifest=Read-GideonJson $ManifestPath
 $cfg=Read-GideonJson $ConfigPath
-$InstallerRevision='20261014-venv-exe-acl-20261014'
+$InstallerRevision='20261014-venv-probe-diagnostics-20261014'
 $stage='INIT';$backup=$null;$mutex=$null;$transcriptStarted=$false;$credFile=$null
 $machineIdentity='';$bootstrapMarker='';$newMachine=$false
 $guacdBackend='none';$resumeTaskName='GIDEON Remote Control Master Installer Resume'
@@ -126,9 +126,11 @@ function Set-GideonRelocatedVenvBinding([string]$Root){
   # corregido.
   Repair-GideonWritableFile $venvPython
   Repair-GideonWritableFile $privatePython
-  $basePrefix=(& $venvPython -c "import os,sys; print(os.path.abspath(sys.base_prefix))"|Out-String).Trim()
-  if($LASTEXITCODE -ne 0 -or -not $basePrefix.Equals([IO.Path]::GetFullPath($privateBase),[StringComparison]::OrdinalIgnoreCase)){
-    Fail "El venv no quedó ligado al runtime privado. Esperado=$privateBase Actual=$basePrefix" 21
+  $probeOutput=(& $venvPython -c "import os,sys; print(os.path.abspath(sys.base_prefix))" 2>&1|Out-String).Trim()
+  $probeRc=$LASTEXITCODE
+  $basePrefix=$probeOutput
+  if($probeRc -ne 0 -or -not $basePrefix.Equals([IO.Path]::GetFullPath($privateBase),[StringComparison]::OrdinalIgnoreCase)){
+    Fail "El venv no quedó ligado al runtime privado. rc=$probeRc Esperado=$privateBase Actual=$basePrefix" 21
   }
   Write-GideonPass "VENV_RELOCATION=PASS base=$basePrefix"
 }
