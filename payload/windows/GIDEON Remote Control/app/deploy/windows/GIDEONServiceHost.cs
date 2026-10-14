@@ -381,7 +381,21 @@ namespace GIDEON.RemoteControl.WindowsServiceHost
                 }
             }
 
-            ProcessStartInfo psi = BuildChildStartInfo();
+            ProcessStartInfo psi = null;
+            try
+            {
+                // Keep failures that happen while resolving the private Python
+                // runtime/configuration inside the service log.  Previously this
+                // call happened outside the guarded startup block, so a service
+                // could terminate after only "SCM start requested" and leave the
+                // installer with no actionable reason for a failed health check.
+                psi = BuildChildStartInfo();
+            }
+            catch (Exception ex)
+            {
+                Log("START FAILURE (build child): " + ex.GetType().Name + ": " + ex.Message);
+                throw;
+            }
             child = new Process();
             child.StartInfo = psi;
             child.EnableRaisingEvents = true;

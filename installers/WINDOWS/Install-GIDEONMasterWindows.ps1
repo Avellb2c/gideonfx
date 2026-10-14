@@ -15,7 +15,7 @@ $ManifestPath=Join-Path $BundleRoot 'deployment.manifest.json'
 $ConfigPath=Join-Path $BundleRoot 'master.config.json'
 $manifest=Read-GideonJson $ManifestPath
 $cfg=Read-GideonJson $ConfigPath
-$InstallerRevision='20261014-health-retry-20261014'
+$InstallerRevision='20261014-child-diagnostics-20261014'
 $stage='INIT';$backup=$null;$mutex=$null;$transcriptStarted=$false;$credFile=$null
 $machineIdentity='';$bootstrapMarker='';$newMachine=$false
 $guacdBackend='none';$resumeTaskName='GIDEON Remote Control Master Installer Resume'
@@ -1741,7 +1741,19 @@ try{
     $webOk=(Test-Web "https://127.0.0.1:$webPort/healthz") -or (Test-Web "https://127.0.0.1:$webPort/")
     if(-not $webOk -and $attempt -lt 12){Start-Sleep -Seconds 2}
   }
-  if(-not $webOk){Fail "WebAdmin no responde en $webPort" 40}
+  if(-not $webOk){
+    # Keep the child-process reason in the elevated installer transcript before
+    # rollback restores the previous tree. This is especially useful when SCM
+    # reports RUNNING but the service host could not build/start Python.
+    foreach($n in @('GIDEONRemoteControlWebAdmin','GIDEONRemoteControlGateway','GIDEONRemoteControl')){
+      $lp=Join-Path $DataRoot ("logs\services\{0}\service-host.log" -f $n)
+      if(Test-Path -LiteralPath $lp){
+        Write-GideonWarn "SERVICE_DIAGNOSTIC $n (health failure before rollback)"
+        try{Get-Content -LiteralPath $lp -Tail 80 -ErrorAction Stop | ForEach-Object {Write-Host ("[SERVICE $n] "+$_)}}catch{Write-GideonWarn "No se pudo leer diagnóstico de $n`: $($_.Exception.Message)"}
+      }
+    }
+    Fail "WebAdmin no responde en $webPort" 40
+  }
   $gwOk=(Test-Web "https://127.0.0.1:$gatewayPort/health") -or (Test-Web "https://127.0.0.1:$gatewayPort/healthz")
   if(-not $gwOk){Write-GideonWarn "Gateway health no confirmado por HTTP en $gatewayPort; Verify final revisará servicios."}
 
