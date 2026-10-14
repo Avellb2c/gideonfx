@@ -50,6 +50,26 @@ C:\ProgramData\GIDEON Remote Control\diagnostics\platform-selection.json
 `hyperv` and `docker-desktop` are available for controlled deployments, but an
 incompatible choice fails closed.
 
+### HTTPS público con Let’s Encrypt
+
+Windows puede habilitar HTTPS público durante el OneClick con el cliente ACME
+`win-acme`, sin cambiar el flujo de Ubuntu. Por ejemplo:
+
+```powershell
+& .\installers\WINDOWS\Install-GIDEONMasterWindows.ps1 `
+  -LetsEncryptWebHost admin.example.com `
+  -LetsEncryptGatewayHost agents.example.com `
+  -LetsEncryptEmail ops@example.com
+```
+
+El DNS y TCP/80 deben ser accesibles desde Internet. El instalador fija y
+verifica el SHA-256 del cliente, guarda PEM y backups dentro de
+`C:\ProgramData\GIDEON Remote Control\acme`, y deja la renovación en la tarea
+programada de win-acme. El hook actualiza de forma atómica WebAdmin/Gateway y
+reinicia sólo esos servicios. Para preparar sin emitir use
+`-SkipLetsEncryptIssue`; para pruebas use `-LetsEncryptEnvironment staging`.
+La guía completa está en [Windows Let’s Encrypt](installers/WINDOWS/LETSENCRYPT.md).
+
 ## Linux
 
 Run:

@@ -4,7 +4,13 @@ param(
   [string]$DataRoot='C:\ProgramData\GIDEON Remote Control',
   [ValidateSet('fresh','clone')][string]$InstallMode='fresh',
   [bool]$EnableHyperVIfMissing=$true,
-  [switch]$SkipGuacd
+  [switch]$SkipGuacd,
+  [string]$LetsEncryptWebHost='',
+  [string]$LetsEncryptGatewayHost='',
+  [string]$LetsEncryptEmail='',
+  [ValidateSet('production','staging')][string]$LetsEncryptEnvironment='production',
+  [string]$WinAcmeZipPath='',
+  [switch]$SkipLetsEncryptIssue
 )
 
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
@@ -15,7 +21,7 @@ $ManifestPath=Join-Path $BundleRoot 'deployment.manifest.json'
 $ConfigPath=Join-Path $BundleRoot 'master.config.json'
 $manifest=Read-GideonJson $ManifestPath
 $cfg=Read-GideonJson $ConfigPath
-$InstallerRevision='20261014-child-diagnostics-20261014'
+$InstallerRevision='20261014-windows-acme-20261014'
 $stage='INIT';$backup=$null;$mutex=$null;$transcriptStarted=$false;$credFile=$null
 $machineIdentity='';$bootstrapMarker='';$newMachine=$false
 $guacdBackend='none';$resumeTaskName='GIDEON Remote Control Master Installer Resume'
@@ -532,7 +538,7 @@ function Apply-Acls {
   & icacls.exe $InstallRoot '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' '/C' '/Q'|Out-Null
   & icacls.exe $DataRoot '/reset' '/T' '/C' '/Q'|Out-Null
   & icacls.exe $DataRoot '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '/C' '/Q'|Out-Null
-  $dirs=@('config','data','logs','security','security\yara','secrets','web','updates','uploads','quarantine','remote_sessions','remote-client','backups','diagnostics','hyperv')
+  $dirs=@('config','data','logs','security','security\yara','secrets','web','updates','uploads','quarantine','remote_sessions','remote-client','backups','diagnostics','hyperv','acme','acme\certs','acme\cache','acme\logs','acme\backups')
   foreach($d in $dirs){New-GideonDirectory (Join-Path $DataRoot $d)}
   foreach($svc in @($manifest.services)){
     $n=[string]$svc.name
@@ -544,6 +550,13 @@ function Apply-Acls {
   & icacls.exe $secret '/reset' '/T' '/C' '/Q'|Out-Null
   & icacls.exe $secret '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '/C' '/Q'|Out-Null
   foreach($svc in @($manifest.services|Where-Object{([string]$_.name -match '(?i)WebAdmin|Gateway')})){try{& icacls.exe $secret '/grant' ("NT SERVICE\{0}:(OI)(CI)M" -f ([string]$svc.name)) '/C' '/Q'|Out-Null}catch{}}
+  # win-acme executes its scheduled renewal task as SYSTEM. WebAdmin and
+  # Gateway only need to read the issued PEM files, never the ACME cache.
+  $acmeCerts=Join-Path $DataRoot 'acme\certs'
+  & icacls.exe $acmeCerts '/reset' '/T' '/C' '/Q'|Out-Null
+  & icacls.exe $acmeCerts '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '/C' '/Q'|Out-Null
+  try{& icacls.exe $acmeCerts '/grant' 'NT SERVICE\GIDEONRemoteControlWebAdmin:(OI)(CI)RX' '/C' '/Q'|Out-Null}catch{}
+  try{& icacls.exe $acmeCerts '/grant' 'NT SERVICE\GIDEONRemoteControlGateway:(OI)(CI)RX' '/C' '/Q'|Out-Null}catch{}
 }
 
 function Get-GideonLockedArtifact {
@@ -830,6 +843,12 @@ function Register-GideonOneClickResume {
   $enableLiteral=if($EnableHyperVIfMissing){'$true'}else{'$false'}
   $command="& '$scriptPath' -InstallRoot '$installPath' -DataRoot '$dataPath' -InstallMode '$modeLiteral' -EnableHyperVIfMissing $enableLiteral"
   if($SkipGuacd){$command+=' -SkipGuacd'}
+  if(-not [string]::IsNullOrWhiteSpace($LetsEncryptWebHost)){$v=& $escape $LetsEncryptWebHost;$command+=" -LetsEncryptWebHost '$v'"}
+  if(-not [string]::IsNullOrWhiteSpace($LetsEncryptGatewayHost)){$v=& $escape $LetsEncryptGatewayHost;$command+=" -LetsEncryptGatewayHost '$v'"}
+  if(-not [string]::IsNullOrWhiteSpace($LetsEncryptEmail)){$v=& $escape $LetsEncryptEmail;$command+=" -LetsEncryptEmail '$v'"}
+  if($LetsEncryptEnvironment -eq 'staging'){$command+=' -LetsEncryptEnvironment staging'}
+  if(-not [string]::IsNullOrWhiteSpace($WinAcmeZipPath)){$v=& $escape $WinAcmeZipPath;$command+=" -WinAcmeZipPath '$v'"}
+  if($SkipLetsEncryptIssue){$command+=' -SkipLetsEncryptIssue'}
   $encoded=[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command))
   $powerShellExe=Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
   $action=New-ScheduledTaskAction `
@@ -1291,7 +1310,7 @@ function Initialize-GideonFreshState([string]$PythonExe,[int]$WebPort,[int]$Gate
     'updates\archive\success','updates\archive\failed','updates\rollback','updates\transactions',
     'updates\trust','updates\trust\update-signing','pki','pki\root','pki\web','pki\gateway',
     'pki\agent-ca','security','security\yara','releases','uploads','quarantine','secrets',
-    'remote_sessions','hyperv'
+    'remote_sessions','hyperv','acme','acme\certs','acme\cache','acme\logs','acme\backups'
   )){New-GideonDirectory (Join-Path $DataRoot $sub)}
 
   $pkiScript=Join-Path $InstallRoot 'app\deploy\windows\gideon_install_pki.py'
@@ -1524,6 +1543,20 @@ function Wait-GideonServices {
     }
   }
   Fail 'Uno o más servicios automáticos no llegaron a RUNNING.' 100
+}
+function Configure-GideonWindowsLetsEncrypt {
+  if([string]::IsNullOrWhiteSpace($LetsEncryptWebHost)){return}
+  if([string]::IsNullOrWhiteSpace($LetsEncryptEmail)){Fail 'LetsEncryptEmail es obligatorio cuando se configura Lets Encrypt en Windows.' 101}
+  $scriptPath=Join-Path $InstallRoot 'app\deploy\windows\Configure-GIDEONWindowsLetsEncrypt.ps1'
+  if(-not(Test-Path -LiteralPath $scriptPath -PathType Leaf)){Fail "Integrador Lets Encrypt ausente: $scriptPath" 102}
+  $args=@('-NoProfile','-ExecutionPolicy','Bypass','-File',$scriptPath,'-InstallRoot',$InstallRoot,'-DataRoot',$DataRoot,
+          '-WebHost',$LetsEncryptWebHost,'-Email',$LetsEncryptEmail,'-Environment',$LetsEncryptEnvironment)
+  if(-not [string]::IsNullOrWhiteSpace($LetsEncryptGatewayHost)){$args += @('-GatewayHost',$LetsEncryptGatewayHost)}
+  if(-not [string]::IsNullOrWhiteSpace($WinAcmeZipPath)){$args += @('-WinAcmeZipPath',$WinAcmeZipPath)}
+  if($SkipLetsEncryptIssue){$args += '-SkipIssue'}
+  Write-GideonInfo "Windows ACME configuracion solicitada para $LetsEncryptWebHost (entorno=$LetsEncryptEnvironment)."
+  & (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe') @args
+  if($LASTEXITCODE -ne 0){Fail "Configuración Lets Encrypt en Windows falló rc=$LASTEXITCODE." 103}
 }
 function Rollback {
   if(-not $backup -or -not(Test-Path $backup)){return}
@@ -1791,6 +1824,18 @@ try{
   $gwOk=(Test-Web "https://127.0.0.1:$gatewayPort/health") -or (Test-Web "https://127.0.0.1:$gatewayPort/healthz")
   if(-not $gwOk){Write-GideonWarn "Gateway health no confirmado por HTTP en $gatewayPort; Verify final revisará servicios."}
 
+  if(-not [string]::IsNullOrWhiteSpace($LetsEncryptWebHost)){
+    Configure-GideonWindowsLetsEncrypt
+    # The ACME post-renewal hook restarts only WebAdmin/Gateway. Confirm the
+    # local listener again before promoting this OneClick installation.
+    $webOk=$false
+    for($attempt=1;$attempt -le 12 -and -not $webOk;$attempt++){
+      $webOk=(Test-Web "https://127.0.0.1:$webPort/healthz") -or (Test-Web "https://127.0.0.1:$webPort/")
+      if(-not $webOk -and $attempt -lt 12){Start-Sleep -Seconds 2}
+    }
+    if(-not $webOk){Fail "WebAdmin no volvió a responder después de activar Lets Encrypt en $webPort" 104}
+  }
+
   $stage='VERIFY';Write-GideonStep 15 15 'Verificación final y reporte'
   & (Join-Path $PSScriptRoot 'Verify-GIDEONMasterWindows.ps1') -InstallRoot $InstallRoot -DataRoot $DataRoot
   if($LASTEXITCODE -ne 0){Fail 'Verify final falló.' 41}
@@ -1804,6 +1849,10 @@ try{
   Write-Host "GATEWAY_INTERNAL=https://127.0.0.1`:$gatewayPort"
   Write-Host "GUACD_BACKEND=$guacdBackend"
   Write-Host "EXTERNAL_ACCESS_PLAN=$DataRoot\config\external-access-plan.json"
+  if(-not [string]::IsNullOrWhiteSpace($LetsEncryptWebHost)){
+    Write-Host "LETSENCRYPT_STATE=$DataRoot\config\windows-letsencrypt.json"
+    Write-Host "LETSENCRYPT_ENVIRONMENT=$LetsEncryptEnvironment"
+  }
   if($credFile){
     Write-Host ''
     Write-Host 'GIDEON WEBADMIN TEMPORARY CREDENTIALS' -ForegroundColor Yellow

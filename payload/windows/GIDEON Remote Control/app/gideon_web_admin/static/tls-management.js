@@ -81,7 +81,11 @@
       Object.entries(current.certificates || {}).forEach(([role, cert]) => {
         const row = document.createElement('p'); row.textContent = role + ': ' + (cert.error || ('vence ' + cert.expires + ' · ' + cert.days_left + ' días')); box.append(row);
       });
-      document.getElementById('tls-renewal').textContent = 'Certbot: ' + (data.result.certbot_installed ? 'instalado' : 'no instalado') + ' · Timer: ' + (data.result.renewal_timer_active ? 'activo' : 'no activo') + '. PEM/PFX y CA privada se renuevan manualmente.';
+      const acme = data.result.acme || {};
+      const task = acme.renewal_task || {};
+      document.getElementById('tls-renewal').textContent = acme.enabled
+        ? 'Let’s Encrypt: win-acme instalado · tarea de renovación: ' + (task.status || 'no comprobada') + '. La clave privada permanece local.'
+        : 'Let’s Encrypt: no configurado · TLS local de GIDEON activo. Configure el dominio mediante OneClick cuando TCP/80 y DNS estén listos.';
       if (data.result.jobs.some(job => ['APPLYING', 'AWAITING_CONFIRMATION'].includes(job.state))) timer = setTimeout(refresh, 5000);
     } catch (_) { message('No se pudo consultar el estado. Si acaba de aplicar, abra la nueva URL para confirmar; si no puede acceder, espere la restauración automática.', true); }
   }

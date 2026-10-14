@@ -53,7 +53,8 @@ remotas son independientes y pueden abrirse sin interrumpir la reproducción.
 - Linux/Ubuntu y Raspberry Pi: Python, `systemd`, Docker/Compose para
   `guacd`, y VLC instalado o autorizado mediante el catálogo de terceros.
 - Windows Server/Pro: PowerShell, Python privado, Hyper-V o Docker Desktop/WSL2
-  según el backend seleccionado, y VLC externo para pantallas físicas.
+  según el backend seleccionado, VLC externo para pantallas físicas y, si se
+  publica un dominio, win-acme para certificados Let’s Encrypt.
 - AWS y Azure: proporcionan la VM, red, disco, DNS y TLS; Gideon configura la
   aplicación dentro del sistema operativo. La red debe restringir WebAdmin y
   mantener RDP, VNC, SSH y `guacd` fuera de Internet pública.

@@ -60,10 +60,24 @@ def _windows_config_status(config):
         gateway = {}
     web_port = port(config.get("listen_port"), 28443)
     gateway_port = port(gateway.get("listen_port"), 29443)
+    acme = {"enabled": False, "configured": False, "client_installed": False,
+            "certificate": {"error": "Integración ACME no configurada."},
+            "renewal_task": {"present": False, "status": "not-configured", "name": ""}}
+    try:
+        from deploy.windows.gideon_windows_acme import status as acme_status
+
+        data_root = gateway_path.parent.parent if gateway_path.is_file() else Path(str(config.get("data_dir") or "")).parent
+        if data_root and str(data_root) not in {".", ""}:
+            acme = acme_status(data_root)
+    except Exception as exc:
+        acme["error"] = "No se pudo consultar el estado ACME: " + type(exc).__name__
+    acme_enabled = bool(acme.get("enabled"))
     current = {
         "web_url": f"https://127.0.0.1:{web_port}",
         "agent_url": str(config.get("gateway_public_url") or config.get("gateway_base_url") or f"https://127.0.0.1:{gateway_port}"),
-        "mode": "TLS administrado por el instalador (Windows)",
+        "mode": "Let’s Encrypt administrado por win-acme (Windows)" if acme_enabled else "TLS administrado por el instalador (Windows)",
+        "web_host": acme.get("web_host", ""),
+        "agent_host": acme.get("gateway_host", ""),
         "web_port": web_port,
         "agent_port": gateway_port,
         "certificates": {
@@ -76,11 +90,14 @@ def _windows_config_status(config):
         "managed_by": "gideon-oneclick",
         "current": current,
         "jobs": [],
+        "acme": acme,
         "certbot_installed": False,
-        "renewal_timer_active": False,
+        "acme_client_installed": bool(acme.get("client_installed")),
+        "renewal_timer_active": bool(acme.get("renewal_task", {}).get("present")),
+        "renewal_task_active": bool(acme.get("renewal_task", {}).get("present")),
         "actions_supported": ["status", "download-ca"],
         "ca_path": str(config.get("gateway_ca_file") or gateway.get("ca_file") or ""),
-        "tls_transport": "HTTPS local verificado; renovación mediante OneClick.",
+        "tls_transport": "HTTPS local verificado; renovación automática con win-acme." if acme_enabled else "HTTPS local verificado; configuración externa mediante OneClick.",
     }
 
 

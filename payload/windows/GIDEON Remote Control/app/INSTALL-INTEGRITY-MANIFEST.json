@@ -390,6 +390,16 @@
       "sha256": "4a9ecd884721e5b874b09e7df7c13faafce4d4fa0414d723b5f0a4c30e2aa2cb"
     },
     {
+      "path": "deploy/windows/Apply-GIDEONWindowsLetsEncrypt.ps1",
+      "size_bytes": 1050,
+      "sha256": "671292b4f799c2235380770fa9075918729b4810afe0c1cd6dd8f32f7767f456"
+    },
+    {
+      "path": "deploy/windows/Configure-GIDEONWindowsLetsEncrypt.ps1",
+      "size_bytes": 8121,
+      "sha256": "f67d0252a98e47095a3471b0203f9e6c731770ebbec7ff69a903113d86907a2e"
+    },
+    {
       "path": "deploy/windows/GENERATE-GIDEON-SUPPORT-BUNDLE.cmd",
       "size_bytes": 477,
       "sha256": "acb9b5ee2b4b8c611841e695a59e755100b7e720e39cfb4b2ec3da3d4c84be41"
@@ -418,6 +428,11 @@
       "path": "deploy/windows/gideon_install_pki.py",
       "size_bytes": 7536,
       "sha256": "6640edc4eb7504435320e264b596d1524702a461f8e41ba8738e694c94e81ccf"
+    },
+    {
+      "path": "deploy/windows/gideon_windows_acme.py",
+      "size_bytes": 15290,
+      "sha256": "6777050a4d9ec351d1bce5a8ad661b3cef27cf16aca2341043f8a8ff507757ef"
     },
     {
       "path": "deploy/windows/gideon_windows_background.py",
@@ -1561,8 +1576,8 @@
     },
     {
       "path": "gideon_web_admin/static/tls-management.js",
-      "size_bytes": 8437,
-      "sha256": "be47645f2f281ae5fc1f7511638aa36f17c0d4d9c58bc7e2b5fc9f359b6339a0"
+      "size_bytes": 8628,
+      "sha256": "9e99a906a4161b444c3a093f225d383e2a2f5921dd8a4c0cc96c6dc7ae9cc2c4"
     },
     {
       "path": "gideon_web_admin/static/ui_hardening.css",
@@ -1821,8 +1836,8 @@
     },
     {
       "path": "gideon_web_admin/templates/tls_management.html",
-      "size_bytes": 11086,
-      "sha256": "8a375b2b5fcc434789d401d617156ba2a6af53076499abc0f488aaff5ff6d92c"
+      "size_bytes": 11873,
+      "sha256": "5ee60a46995ca9833a461a73be157785e7228d17286e19a42b3ea724df97d7ba"
     },
     {
       "path": "gideon_web_admin/templates/transfer_job_detail.html",
@@ -1846,8 +1861,8 @@
     },
     {
       "path": "gideon_web_admin/tls_management.py",
-      "size_bytes": 10795,
-      "sha256": "aa43023af79ab3d543169ac5405c1774b532743c9b3d96f9fabc9037bb232017"
+      "size_bytes": 11993,
+      "sha256": "3c6ab087b0563cadf2c3e17338b3f4f0747bd47ac2948954794cd9fd2ee73e3a"
     },
     {
       "path": "gideon_web_admin/vlc_offline_install.py",
