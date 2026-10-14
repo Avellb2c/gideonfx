@@ -15,7 +15,7 @@ $ManifestPath=Join-Path $BundleRoot 'deployment.manifest.json'
 $ConfigPath=Join-Path $BundleRoot 'master.config.json'
 $manifest=Read-GideonJson $ManifestPath
 $cfg=Read-GideonJson $ConfigPath
-$InstallerRevision='20261014-agent-localtest-20261014'
+$InstallerRevision='20261014-health-retry-20261014'
 $stage='INIT';$backup=$null;$mutex=$null;$transcriptStarted=$false;$credFile=$null
 $machineIdentity='';$bootstrapMarker='';$newMachine=$false
 $guacdBackend='none';$resumeTaskName='GIDEON Remote Control Master Installer Resume'
@@ -1733,7 +1733,14 @@ try{
   Start-GideonServices;Wait-GideonServices
 
   $stage='HEALTH';Write-GideonStep 14 15 'Health checks WebAdmin/Gateway/guacd compatibles con Windows PowerShell 5.1'
-  $webOk=(Test-Web "https://127.0.0.1:$webPort/healthz") -or (Test-Web "https://127.0.0.1:$webPort/")
+  # SCM can report RUNNING a few seconds before Uvicorn has bound TLS. Give
+  # the WebAdmin process a bounded readiness window instead of rolling back a
+  # healthy installation because of a transient startup race.
+  $webOk=$false
+  for($attempt=1;$attempt -le 12 -and -not $webOk;$attempt++){
+    $webOk=(Test-Web "https://127.0.0.1:$webPort/healthz") -or (Test-Web "https://127.0.0.1:$webPort/")
+    if(-not $webOk -and $attempt -lt 12){Start-Sleep -Seconds 2}
+  }
   if(-not $webOk){Fail "WebAdmin no responde en $webPort" 40}
   $gwOk=(Test-Web "https://127.0.0.1:$gatewayPort/health") -or (Test-Web "https://127.0.0.1:$gatewayPort/healthz")
   if(-not $gwOk){Write-GideonWarn "Gateway health no confirmado por HTTP en $gatewayPort; Verify final revisará servicios."}
