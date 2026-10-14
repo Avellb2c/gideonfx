@@ -15,7 +15,7 @@ $ManifestPath=Join-Path $BundleRoot 'deployment.manifest.json'
 $ConfigPath=Join-Path $BundleRoot 'master.config.json'
 $manifest=Read-GideonJson $ManifestPath
 $cfg=Read-GideonJson $ConfigPath
-$InstallerRevision='20261014-service-assets-20261014'
+$InstallerRevision='20261014-agent-localtest-20261014'
 $stage='INIT';$backup=$null;$mutex=$null;$transcriptStarted=$false;$credFile=$null
 $machineIdentity='';$bootstrapMarker='';$newMachine=$false
 $guacdBackend='none';$resumeTaskName='GIDEON Remote Control Master Installer Resume'
@@ -403,6 +403,7 @@ function Ensure-GideonLocalAgentPayload([int]$GatewayPort) {
     enrollment_secret=$enroll
     control_plane=[ordered]@{
       base_url=("https://127.0.0.1:{0}" -f $GatewayPort)
+      connectivity_mode='local_test'
       require_https=$true
       verify_tls=$true
       ca_file=(Join-Path $DataRoot 'pki\root\gideon-root-ca.pem')
