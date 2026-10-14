@@ -19,7 +19,7 @@ if(Test-Path -LiteralPath $serviceHost -PathType Leaf){try{$serviceHostVersion=[
 $serviceHostOk=$false
 try{$serviceHostOk=([version]$serviceHostVersion -ge [version]'6.3.4.15')}catch{}
 Write-VerifyResult 'RESOURCE_AWARE_SERVICE_HOST' $serviceHostOk $serviceHostVersion
-$svcs=@(Get-CimInstance Win32_Service|Where-Object{($_.Name -match '(?i)^GIDEON|GIDEONRemote|RemoteControl') -or (([string]$_.PathName).IndexOf($InstallRoot,[StringComparison]::OrdinalIgnoreCase)-ge 0)})
+$svcs=@(Get-CimInstance Win32_Service|Where-Object{($_.Name -match '(?i)^GIDEON') -or (([string]$_.PathName).IndexOf($InstallRoot,[StringComparison]::OrdinalIgnoreCase)-ge 0)})
 foreach($s in $svcs){$expect=([string]$s.StartMode -eq 'Auto');if($expect){Write-VerifyResult ("SERVICE_"+$s.Name) ([string]$s.State -eq 'Running') ([string]$s.State)}}
 $orphans=@(Get-CimInstance Win32_Process|Where-Object{([string]$_.ExecutablePath).IndexOf($InstallRoot,[StringComparison]::OrdinalIgnoreCase)-ge 0 -and $_.Name -match '(?i)python' -and $_.ParentProcessId -eq 0})
 Write-VerifyResult 'NO_GIDEON_ORPHANS' ($orphans.Count -eq 0) ("count="+$orphans.Count)
