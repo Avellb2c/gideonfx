@@ -507,6 +507,22 @@ function Configure-GideonService($svc){
     'actions=' 'restart/10000/restart/30000/restart/60000' | Out-Null
   & sc.exe failureflag $name 1 | Out-Null
 }
+function Ensure-GideonGuacamoleClient {
+  $source=Join-Path $InstallRoot 'app\agent\remote-client\guacamole-common.min.js'
+  $root=Join-Path $DataRoot 'remote-client';$dest=Join-Path $root 'guacamole-common.min.js';$meta=Join-Path $root 'metadata.json'
+  New-GideonDirectory $root
+  if(-not(Test-Path -LiteralPath $source -PathType Leaf)){Write-GideonWarn "Cliente Guacamole no incluido en el payload: $source";return}
+  $valid=$false
+  if(Test-Path -LiteralPath $dest -PathType Leaf){
+    try{$existing=[Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes($dest));$valid=$existing.Contains('Guacamole.Client') -and $existing.Contains('Guacamole.WebSocketTunnel')}catch{$valid=$false}
+  }
+  if(-not $valid){
+    Copy-Item -LiteralPath $source -Destination $dest -Force
+    Write-GideonInfo "Cliente web Guacamole 1.6.0 preparado en $dest"
+  }else{Write-GideonInfo 'Cliente web Guacamole existente y válido: se conserva la copia aprobada por el operador.'}
+  $hash=(Get-FileHash -LiteralPath $dest -Algorithm SHA256).Hash.ToLowerInvariant()
+  Save-Json ([ordered]@{version='1.6.0';sha256=$hash;size_bytes=(Get-Item -LiteralPath $dest).Length;updated_at=(Get-Date).ToString('o')}) $meta
+}
 function Apply-Acls {
   foreach($p in @($InstallRoot,$DataRoot)){New-GideonDirectory $p}
   # Restablecer primero reactiva la herencia de los archivos que provienen de
@@ -516,7 +532,7 @@ function Apply-Acls {
   & icacls.exe $InstallRoot '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' '/C' '/Q'|Out-Null
   & icacls.exe $DataRoot '/reset' '/T' '/C' '/Q'|Out-Null
   & icacls.exe $DataRoot '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '/C' '/Q'|Out-Null
-  $dirs=@('config','data','logs','security','security\yara','secrets','web','updates','uploads','quarantine','remote_sessions','backups','diagnostics','hyperv')
+  $dirs=@('config','data','logs','security','security\yara','secrets','web','updates','uploads','quarantine','remote_sessions','remote-client','backups','diagnostics','hyperv')
   foreach($d in $dirs){New-GideonDirectory (Join-Path $DataRoot $d)}
   foreach($svc in @($manifest.services)){
     $n=[string]$svc.name
@@ -1574,6 +1590,7 @@ try{
   Repair-GideonWritableTree $InstallRoot
   Write-GideonInfo 'Copiando payload GIDEON con Robocopy en modo protegido; puede tardar si hay muchos archivos.'
   Robocopy-OrFail $srcApp $InstallRoot @('/MIR','/ZB')
+  Ensure-GideonGuacamoleClient
   $srcData=Join-Path $BundleRoot 'payload\data\GIDEON Remote Control'
 
   $stage='RUNTIME';Write-GideonStep 7 15 'Validar runtime Python privado y evitar mezcla de intérpretes'

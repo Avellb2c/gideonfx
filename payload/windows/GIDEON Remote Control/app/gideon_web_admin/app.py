@@ -469,10 +469,13 @@ def create_app(config_path: str | Path | None = None, *, config_override: dict[s
         identity: Any,
         password: str,
         mfa_code: str,
+        *,
+        resource: str = "sensitive-operation",
     ) -> dict[str, int | bool]:
         """Keep Argon2 verification away from the shared asyncio event loop."""
         return await asyncio.to_thread(
-            require_superadmin_step_up, request, identity, password, mfa_code
+            require_superadmin_step_up, request, identity, password, mfa_code,
+            resource=resource,
         )
 
     register_tls_routes(app, config=config, require=require, security=security, template=template)

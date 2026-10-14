@@ -3,16 +3,92 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import datetime as dt
+import hashlib
 import json
 import secrets
 import socket
+import ssl
 import sys
+from pathlib import Path
 
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse, Response
 
 SOCKET_PATH = '/run/gideon-tls-manager/control.sock'
 MAX_BODY = 8 * 1024 * 1024
+
+
+def _windows_file_status(value):
+    """Return a safe, read-only certificate summary for Windows installs."""
+    path = Path(str(value or "")).expanduser() if value else None
+    result = {"path": str(path) if path else "", "sha256": "", "expires": "", "days_left": None}
+    if not path or not path.is_file():
+        result["error"] = "Archivo TLS no encontrado."
+        return result
+    try:
+        data = path.read_bytes()
+        result["sha256"] = hashlib.sha256(data).hexdigest()
+        decoded = ssl._ssl._test_decode_cert(str(path))
+        not_after = str(decoded.get("notAfter") or "").strip()
+        if not_after:
+            expires = dt.datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=dt.timezone.utc)
+            result["expires"] = expires.isoformat()
+            result["days_left"] = int((expires - dt.datetime.now(dt.timezone.utc)).total_seconds() // 86400)
+        result["subject"] = str(decoded.get("subject") or "")
+    except Exception as exc:
+        result["error"] = "No se pudo leer el certificado local: " + type(exc).__name__
+    return result
+
+
+def _windows_config_status(config):
+    """Build the Windows installer-managed TLS status response."""
+    def port(value, default):
+        try:
+            return max(1, min(int(value), 65535))
+        except (TypeError, ValueError):
+            return default
+
+    gateway = {}
+    gateway_path = Path(str(config.get("gateway_config_file") or ""))
+    try:
+        if gateway_path.is_file():
+            raw = json.loads(gateway_path.read_text(encoding="utf-8-sig"))
+            if isinstance(raw, dict):
+                gateway = raw
+    except Exception:
+        gateway = {}
+    web_port = port(config.get("listen_port"), 28443)
+    gateway_port = port(gateway.get("listen_port"), 29443)
+    current = {
+        "web_url": f"https://127.0.0.1:{web_port}",
+        "agent_url": str(config.get("gateway_public_url") or config.get("gateway_base_url") or f"https://127.0.0.1:{gateway_port}"),
+        "mode": "TLS administrado por el instalador (Windows)",
+        "web_port": web_port,
+        "agent_port": gateway_port,
+        "certificates": {
+            "web": _windows_file_status(config.get("tls_certfile")),
+            "gateway": _windows_file_status(gateway.get("tls_certfile")),
+        },
+    }
+    return {
+        "platform": "windows",
+        "managed_by": "gideon-oneclick",
+        "current": current,
+        "jobs": [],
+        "certbot_installed": False,
+        "renewal_timer_active": False,
+        "actions_supported": ["status", "download-ca"],
+        "ca_path": str(config.get("gateway_ca_file") or gateway.get("ca_file") or ""),
+        "tls_transport": "HTTPS local verificado; renovación mediante OneClick.",
+    }
+
+
+def _windows_ca_result(config):
+    path = Path(str(config.get("gateway_ca_file") or ""))
+    if not path.is_file():
+        raise ValueError("La CA local de Windows no está disponible.")
+    return {"ca": base64.b64encode(path.read_bytes()).decode("ascii")}
 
 
 def broker_call(payload):
@@ -49,6 +125,13 @@ def register_tls_routes(app, *, config, require, security, template, call=broker
         return sys.platform == 'linux' and bool(config.get('tls_manager_enabled', False))
 
     async def contact(payload):
+        if sys.platform == "win32":
+            action = str(payload.get("action") or "")
+            if action == "status":
+                return _windows_config_status(config)
+            if action == "download-ca":
+                return _windows_ca_result(config)
+            raise ValueError("En Windows TLS se administra mediante el OneClick; esta acción no requiere el broker de Ubuntu.")
         if not enabled():
             raise ValueError('Gestor TLS disponible en Ubuntu con el OneClick actualizado. No se elevan privilegios desde la web.')
         return await asyncio.to_thread(call, payload)
@@ -63,6 +146,7 @@ def register_tls_routes(app, *, config, require, security, template, call=broker
             error = 'El gestor local no está disponible. Instale o actualice su integración en Ubuntu; consulte la guía del paquete.'
         return template(request, 'tls_management.html', {'title': 'TLS y acceso externo',
                         'tls_status': result, 'tls_error': error, 'tls_enabled': enabled(),
+                        'tls_platform': 'windows' if sys.platform == 'win32' else 'linux',
                         'client_ip': str(request.client.host if request.client else '')})
 
     @app.get('/infrastructure/tls/status')
