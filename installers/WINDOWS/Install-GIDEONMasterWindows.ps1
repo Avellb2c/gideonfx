@@ -1742,6 +1742,22 @@ try{
     if(-not $webOk -and $attempt -lt 12){Start-Sleep -Seconds 2}
   }
   if(-not $webOk){
+    # Windows PowerShell 5.1 can fail the TLS client validation callback even
+    # while Uvicorn is healthy (the service log then shows HTTP 200). Preserve
+    # the installation when the selected, previously-free port is actively
+    # listening; Verify-GIDEONMasterWindows still validates the service set and
+    # the operator can perform the HTTPS browser check with the generated CA.
+    $webTcp=$false
+    try{
+      $tcp=New-Object Net.Sockets.TcpClient
+      $ar=$tcp.BeginConnect('127.0.0.1',[int]$webPort,$null,$null)
+      $webTcp=$ar.AsyncWaitHandle.WaitOne(1500)
+      if($webTcp){$tcp.EndConnect($ar)}
+      $tcp.Close()
+    }catch{$webTcp=$false}
+    if($webTcp){
+      Write-GideonWarn "WebAdmin HTTP no confirmado por el cliente TLS local, pero el listener TCP $webPort está activo; se continúa y Verify final validará los servicios."
+    }else{
     # Keep the child-process reason in the elevated installer transcript before
     # rollback restores the previous tree. This is especially useful when SCM
     # reports RUNNING but the service host could not build/start Python.
@@ -1753,6 +1769,7 @@ try{
       }
     }
     Fail "WebAdmin no responde en $webPort" 40
+    }
   }
   $gwOk=(Test-Web "https://127.0.0.1:$gatewayPort/health") -or (Test-Web "https://127.0.0.1:$gatewayPort/healthz")
   if(-not $gwOk){Write-GideonWarn "Gateway health no confirmado por HTTP en $gatewayPort; Verify final revisará servicios."}
