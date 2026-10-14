@@ -15,7 +15,7 @@ $ManifestPath=Join-Path $BundleRoot 'deployment.manifest.json'
 $ConfigPath=Join-Path $BundleRoot 'master.config.json'
 $manifest=Read-GideonJson $ManifestPath
 $cfg=Read-GideonJson $ConfigPath
-$InstallerRevision='20261014-venv-probe-diagnostics-20261014'
+$InstallerRevision='20261014-acl-inheritance-root-20261014'
 $stage='INIT';$backup=$null;$mutex=$null;$transcriptStarted=$false;$credFile=$null
 $machineIdentity='';$bootstrapMarker='';$newMachine=$false
 $guacdBackend='none';$resumeTaskName='GIDEON Remote Control Master Installer Resume'
@@ -188,7 +188,10 @@ function Resolve-GideonDiagnosticDirectory {
 function Repair-GideonWritableTree {
   param([Parameter(Mandatory=$true)][string]$Root)
   New-GideonDirectory $Root
-  $grant=@($Root,'/inheritance:r','/grant:r','*S-1-5-18:(OI)(CI)F','*S-1-5-32-544:(OI)(CI)F','/T','/C','/Q')
+  # /inheritance:r se aplica sólo a la raíz. Aplicarlo con /T a cada archivo
+  # elimina la herencia de las DLL y puede dejar una DACL vacía (STATUS_ACCESS_DENIED
+  # al cargar Python). Los hijos se corrigen por herencia desde esta raíz.
+  $grant=@($Root,'/inheritance:r','/grant:r','*S-1-5-18:(OI)(CI)F','*S-1-5-32-544:(OI)(CI)F','/C','/Q')
   try{
     # Tomar posesión antes del reset permite reparar archivos que quedaron
     # bajo un propietario o ACL de un servicio eliminado.
@@ -430,19 +433,25 @@ function Configure-GideonService($svc){
 }
 function Apply-Acls {
   foreach($p in @($InstallRoot,$DataRoot)){New-GideonDirectory $p}
-  & icacls.exe $InstallRoot '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' '/T' '/C' '/Q'|Out-Null
-  & icacls.exe $DataRoot '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '/T' '/C' '/Q'|Out-Null
+  # Restablecer primero reactiva la herencia de los archivos que provienen de
+  # una instalación anterior. Las ACL restrictivas se fijan sólo en la raíz;
+  # /T junto con /inheritance:r en archivos deja DLLs sin DACL.
+  & icacls.exe $InstallRoot '/reset' '/T' '/C' '/Q'|Out-Null
+  & icacls.exe $InstallRoot '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' '/C' '/Q'|Out-Null
+  & icacls.exe $DataRoot '/reset' '/T' '/C' '/Q'|Out-Null
+  & icacls.exe $DataRoot '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '/C' '/Q'|Out-Null
   $dirs=@('config','data','logs','security','security\yara','secrets','web','updates','uploads','quarantine','remote_sessions','backups','diagnostics','hyperv')
   foreach($d in $dirs){New-GideonDirectory (Join-Path $DataRoot $d)}
   foreach($svc in @($manifest.services)){
     $n=[string]$svc.name
-    try{& icacls.exe $InstallRoot '/grant' "NT SERVICE\${n}:(OI)(CI)RX" '/T' '/C' '/Q'|Out-Null}catch{}
-    try{& icacls.exe $DataRoot '/grant' "NT SERVICE\${n}:(OI)(CI)M" '/T' '/C' '/Q'|Out-Null}catch{}
-    if($n -match '(?i)Updater') { try{& icacls.exe $InstallRoot '/grant' "NT SERVICE\${n}:(OI)(CI)M" '/T' '/C' '/Q'|Out-Null}catch{} }
+    try{& icacls.exe $InstallRoot '/grant' "NT SERVICE\${n}:(OI)(CI)RX" '/C' '/Q'|Out-Null}catch{}
+    try{& icacls.exe $DataRoot '/grant' "NT SERVICE\${n}:(OI)(CI)M" '/C' '/Q'|Out-Null}catch{}
+    if($n -match '(?i)Updater') { try{& icacls.exe $InstallRoot '/grant' "NT SERVICE\${n}:(OI)(CI)M" '/C' '/Q'|Out-Null}catch{} }
   }
   $secret=Join-Path $DataRoot 'secrets'
-  & icacls.exe $secret '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '/T' '/C' '/Q'|Out-Null
-  foreach($svc in @($manifest.services|Where-Object{([string]$_.name -match '(?i)WebAdmin|Gateway')})){try{& icacls.exe $secret '/grant' ("NT SERVICE\{0}:(OI)(CI)M" -f ([string]$svc.name)) '/T' '/C' '/Q'|Out-Null}catch{}}
+  & icacls.exe $secret '/reset' '/T' '/C' '/Q'|Out-Null
+  & icacls.exe $secret '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '/C' '/Q'|Out-Null
+  foreach($svc in @($manifest.services|Where-Object{([string]$_.name -match '(?i)WebAdmin|Gateway')})){try{& icacls.exe $secret '/grant' ("NT SERVICE\{0}:(OI)(CI)M" -f ([string]$svc.name)) '/C' '/Q'|Out-Null}catch{}}
 }
 
 function Get-GideonLockedArtifact {
