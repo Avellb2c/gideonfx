@@ -15,7 +15,7 @@ $ManifestPath=Join-Path $BundleRoot 'deployment.manifest.json'
 $ConfigPath=Join-Path $BundleRoot 'master.config.json'
 $manifest=Read-GideonJson $ManifestPath
 $cfg=Read-GideonJson $ConfigPath
-$InstallerRevision='20261014-host-profiles-20261014'
+$InstallerRevision='20261014-service-diagnostics-20261014'
 $stage='INIT';$backup=$null;$mutex=$null;$transcriptStarted=$false;$credFile=$null
 $machineIdentity='';$bootstrapMarker='';$newMachine=$false
 $guacdBackend='none';$resumeTaskName='GIDEON Remote Control Master Installer Resume'
@@ -1495,6 +1495,16 @@ function Wait-GideonServices {
     foreach($svc in @($manifest.services|Where-Object{[string]$_.start_mode -eq 'Auto'})){$s=Get-Service -Name ([string]$svc.name) -ErrorAction SilentlyContinue;if(-not $s -or $s.Status -ne 'Running'){$bad += [string]$svc.name}}
     if($bad.Count -eq 0){return}
     Write-Host ("[WAIT] Servicios pendientes: "+($bad -join ', '));Start-Sleep -Seconds 3
+  }
+  # Preserve the actionable child-service error before the outer transaction
+  # performs rollback and restores the previous payload. This is intentionally
+  # emitted only on timeout so normal installs remain quiet.
+  foreach($n in @($bad)){
+    $lp=Join-Path $DataRoot ("logs\services\{0}\service-host.log" -f $n)
+    if(Test-Path -LiteralPath $lp){
+      Write-GideonWarn "SERVICE_DIAGNOSTIC $n (before rollback)"
+      try{Get-Content -LiteralPath $lp -Tail 40 -ErrorAction Stop | ForEach-Object {Write-Host ("[SERVICE $n] "+$_)}}catch{Write-GideonWarn "No se pudo leer diagnóstico de $n`: $($_.Exception.Message)"}
+    }
   }
   Fail 'Uno o más servicios automáticos no llegaron a RUNNING.' 100
 }
