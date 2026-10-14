@@ -356,7 +356,7 @@ function Test-Web([string]$Url){
     return ($r.StatusCode -ge 200 -and $r.StatusCode -lt 500)
   }catch{return $false}finally{[Net.ServicePointManager]::ServerCertificateValidationCallback=$old}
 }
-function Ensure-GideonLocalAgentPayload {
+function Ensure-GideonLocalAgentPayload([int]$GatewayPort) {
   $agentRoot=Join-Path ${env:ProgramFiles} 'GIDEONAgent'
   $sourceApp=Join-Path $InstallRoot 'app'
   $sourceHost=Join-Path $sourceApp 'deploy\agent\windows\prebuilt\GIDEONAgentServiceHost.exe'
@@ -402,7 +402,7 @@ function Ensure-GideonLocalAgentPayload {
     cancel_grace_seconds=8
     enrollment_secret=$enroll
     control_plane=[ordered]@{
-      base_url=("https://127.0.0.1:{0}" -f [int]$gatewayPort)
+      base_url=("https://127.0.0.1:{0}" -f $GatewayPort)
       require_https=$true
       verify_tls=$true
       ca_file=(Join-Path $DataRoot 'pki\root\gideon-root-ca.pem')
@@ -1631,7 +1631,7 @@ try{
   $authoritative=@($manifest.services|ForEach-Object{[string]$_.name})
   $extras=@(Get-CimInstance Win32_Service|Where-Object{(($_.Name -match '(?i)^GIDEON|GIDEONRemote|RemoteControl') -or ($_.DisplayName -match '(?i)GIDEON.*Remote')) -and ($authoritative -notcontains [string]$_.Name)})
   foreach($x in $extras){Write-GideonWarn "Servicio GIDEON no autoritativo detectado: $($x.Name). Se detiene/deshabilita para evitar procesos duplicados; no se elimina.";Stop-Service $x.Name -Force -ErrorAction SilentlyContinue;& sc.exe config $x.Name 'start= disabled'|Out-Null}
-  Ensure-GideonLocalAgentPayload
+  Ensure-GideonLocalAgentPayload -GatewayPort $gatewayPort
   foreach($svc in @($manifest.services)){Configure-GideonService $svc}
 
   $stage='ACL';Write-GideonStep 10 15 'Aplicar aislamiento ACL por Program Files/ProgramData/Service SID'
