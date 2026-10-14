@@ -15,11 +15,12 @@ $ManifestPath=Join-Path $BundleRoot 'deployment.manifest.json'
 $ConfigPath=Join-Path $BundleRoot 'master.config.json'
 $manifest=Read-GideonJson $ManifestPath
 $cfg=Read-GideonJson $ConfigPath
-$InstallerRevision='20261014-guacd-null-config-20261014'
+$InstallerRevision='20261014-agent-payload-20261014'
 $stage='INIT';$backup=$null;$mutex=$null;$transcriptStarted=$false;$credFile=$null
 $machineIdentity='';$bootstrapMarker='';$newMachine=$false
 $guacdBackend='none';$resumeTaskName='GIDEON Remote Control Master Installer Resume'
 $resourceProfile='standard';$EffectiveConfigPath=$ConfigPath;$GideonServiceHostExe=''
+$GideonAgentInstallRoot=''
 
 function Fail([string]$m,[int]$c=1){throw (New-Object System.Exception("GIDEON_INSTALL_FAIL[$c]: $m"))}
 function Ensure-GideonWindowsTime {
@@ -112,14 +113,23 @@ function Set-GideonRelocatedVenvBinding([string]$Root){
   if(-not $seenExecutable){$updated += "executable = $privatePython"}
   if(-not $seenCommand){$updated += "command = $privatePython -m venv $venvRoot"}
   Repair-GideonWritableFile $cfgPath
+  $cfgText=($updated -join [Environment]::NewLine)
   $cfgStage=Join-Path ([IO.Path]::GetTempPath()) ('gideon-pyvenv-'+[guid]::NewGuid().ToString('N'))
   try{
     New-GideonDirectory $cfgStage
-    Write-GideonUtf8NoBom -Path (Join-Path $cfgStage 'pyvenv.cfg') -Text ($updated -join [Environment]::NewLine)
-    Robocopy-OrFail $cfgStage $venvRoot @('/ZB','/IS','/IT')
+    Write-GideonUtf8NoBom -Path (Join-Path $cfgStage 'pyvenv.cfg') -Text $cfgText
+    try{
+      # Direct replacement is deterministic once the individual ACL has been
+      # repaired; keep protected Robocopy as a fallback for locked legacy files.
+      Write-GideonUtf8NoBom -Path $cfgPath -Text $cfgText
+    }catch{
+      Robocopy-OrFail $cfgStage $venvRoot @('/ZB','/IS','/IT')
+    }
   }finally{
     Remove-Item -LiteralPath $cfgStage -Recurse -Force -ErrorAction SilentlyContinue
   }
+  $cfgVerify=(Get-Content -LiteralPath $cfgPath -Raw -ErrorAction Stop)
+  if($cfgVerify -notmatch [regex]::Escape($privateBase)){Fail "No se pudo persistir el binding privado de pyvenv.cfg en $cfgPath" 21}
   # El ejecutable del venv también puede conservar una ACL individual del
   # despliegue anterior. Normalizarlo antes de invocarlo evita que PowerShell
   # devuelva "Program failed to run: Access is denied" aunque el cfg ya esté
@@ -346,9 +356,74 @@ function Test-Web([string]$Url){
     return ($r.StatusCode -ge 200 -and $r.StatusCode -lt 500)
   }catch{return $false}finally{[Net.ServicePointManager]::ServerCertificateValidationCallback=$old}
 }
+function Ensure-GideonLocalAgentPayload {
+  $agentRoot=Join-Path ${env:ProgramFiles} 'GIDEONAgent'
+  $sourceApp=Join-Path $InstallRoot 'app'
+  $sourceHost=Join-Path $sourceApp 'deploy\agent\windows\prebuilt\GIDEONAgentServiceHost.exe'
+  $runtimeSource=Join-Path $InstallRoot 'runtime\python-base'
+  if(-not(Test-Path -LiteralPath $sourceHost -PathType Leaf)){Fail "Host GIDEONAgent ausente: $sourceHost" 73}
+  if(-not(Test-Path -LiteralPath $runtimeSource -PathType Container)){Fail "Runtime Python base ausente para GIDEONAgent: $runtimeSource" 73}
+  New-GideonDirectory $agentRoot
+  # The master payload already contains the complete Agent Python tree. Copy
+  # it into the Agent's canonical service root; its data/identity stays under
+  # ProgramData\GIDEONAgent and is never mixed with WebAdmin state.
+  Robocopy-OrFail $sourceApp $agentRoot @('/ZB')
+  Copy-Item -LiteralPath $sourceHost -Destination (Join-Path $agentRoot 'GIDEONAgentServiceHost.exe') -Force
+  $runtimeRoot=Join-Path $agentRoot 'runtime'
+  $runtimePython=Join-Path $runtimeRoot 'python'
+  New-GideonDirectory $runtimeRoot
+  if(-not(Test-Path -LiteralPath (Join-Path $runtimePython 'python.exe') -PathType Leaf)){
+    try{
+      if(Test-Path -LiteralPath $runtimePython){Remove-Item -LiteralPath $runtimePython -Recurse -Force -ErrorAction Stop}
+      New-Item -ItemType Junction -Path $runtimePython -Target $runtimeSource -Force -ErrorAction Stop | Out-Null
+    }catch{
+      Robocopy-OrFail $runtimeSource $runtimePython @('/ZB')
+    }
+  }
+  if(-not(Test-Path -LiteralPath (Join-Path $runtimePython 'python.exe') -PathType Leaf)){Fail "Runtime Python del Agent no disponible: $runtimePython" 73}
+
+  $agentData=Join-Path ${env:ProgramData} 'GIDEONAgent';New-GideonDirectory $agentData
+  $enroll=''
+  $envFile=Join-Path $DataRoot 'secrets\gateway.env'
+  if(Test-Path -LiteralPath $envFile){
+    foreach($line in @(Get-Content -LiteralPath $envFile -ErrorAction SilentlyContinue)){
+      if($line -match '^GIDEON_AGENT_ENROLL_SECRET=(.+)$'){$enroll=$Matches[1].Trim();break}
+    }
+  }
+  if([string]::IsNullOrWhiteSpace($enroll)){Fail 'No se pudo resolver GIDEON_AGENT_ENROLL_SECRET para el Agent local.' 73}
+  $agentConfig=[ordered]@{
+    schema_version=2
+    site_code='GIDEON-SERVER'
+    site_name=[string]$env:COMPUTERNAME
+    agent_name=(([string]$env:COMPUTERNAME)+'-server')
+    data_dir=$agentData
+    poll_seconds=5
+    status_seconds=5
+    cancel_grace_seconds=8
+    enrollment_secret=$enroll
+    control_plane=[ordered]@{
+      base_url=("https://127.0.0.1:{0}" -f [int]$gatewayPort)
+      require_https=$true
+      verify_tls=$true
+      ca_file=(Join-Path $DataRoot 'pki\root\gideon-root-ca.pem')
+      timeout_seconds=20
+    }
+  }
+  Save-Json $agentConfig (Join-Path $agentRoot 'agent.json')
+  & icacls.exe $agentRoot '/grant:r' '*S-1-5-18:(OI)(CI)RX' '*S-1-5-32-544:(OI)(CI)F' '/C' '/Q' | Out-Null
+  & icacls.exe $agentData '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '/C' '/Q' | Out-Null
+  $script:GideonAgentInstallRoot=$agentRoot
+  Write-GideonPass "AGENT_LOCAL_PAYLOAD=PASS root=$agentRoot runtime=$runtimePython"
+}
 function Configure-GideonService($svc){
   $name=[string]$svc.name;$srcRoot=[string]$manifest.source.install_root
-  if($name -match '^GIDEONRemoteControl(?:Gateway|WebAdmin|Backup|Updater|Diagnostics)?$'){
+  if($name -eq 'GIDEONAgent'){
+    if([string]::IsNullOrWhiteSpace($GideonAgentInstallRoot)){Fail 'Payload local de GIDEONAgent no preparado.' 73}
+    $agentHost=Join-Path $GideonAgentInstallRoot 'GIDEONAgentServiceHost.exe'
+    if(-not(Test-Path -LiteralPath $agentHost -PathType Leaf)){Fail "Host GIDEONAgent no disponible: $agentHost" 73}
+    $bin=('"{0}"' -f $agentHost)
+  }
+  elseif($name -match '^GIDEONRemoteControl(?:Gateway|WebAdmin|Backup|Updater|Diagnostics)?$'){
     if([string]::IsNullOrWhiteSpace($GideonServiceHostExe) -or -not(Test-Path -LiteralPath $GideonServiceHostExe -PathType Leaf)){Fail "Host optimizado no disponible para $name" 72}
     $bin=('"{0}" {1}' -f $GideonServiceHostExe,$name)
   }else{
@@ -1556,6 +1631,7 @@ try{
   $authoritative=@($manifest.services|ForEach-Object{[string]$_.name})
   $extras=@(Get-CimInstance Win32_Service|Where-Object{(($_.Name -match '(?i)^GIDEON|GIDEONRemote|RemoteControl') -or ($_.DisplayName -match '(?i)GIDEON.*Remote')) -and ($authoritative -notcontains [string]$_.Name)})
   foreach($x in $extras){Write-GideonWarn "Servicio GIDEON no autoritativo detectado: $($x.Name). Se detiene/deshabilita para evitar procesos duplicados; no se elimina.";Stop-Service $x.Name -Force -ErrorAction SilentlyContinue;& sc.exe config $x.Name 'start= disabled'|Out-Null}
+  Ensure-GideonLocalAgentPayload
   foreach($svc in @($manifest.services)){Configure-GideonService $svc}
 
   $stage='ACL';Write-GideonStep 10 15 'Aplicar aislamiento ACL por Program Files/ProgramData/Service SID'
