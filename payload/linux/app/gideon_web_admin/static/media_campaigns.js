@@ -447,11 +447,11 @@
           return text(payload.state).toUpperCase();
         }));
         // A terminal transition changes actions, warning text and campaign
-        // availability.  Reload the bounded current library page once rather
-        // than trying to duplicate the server-rendered row in JavaScript.
+        // availability. Refresh only the bounded current library region. A
+        // full navigation used to reset scroll, disclosures and active tabs.
         if (results.some((state) => state && !pendingStates.has(state))) {
           stopped = true;
-          window.location.reload();
+          void refreshMediaLibraryPage();
           return;
         }
       } catch (_) {
@@ -483,7 +483,7 @@
       ).replace("{asset_id}", encodeURIComponent(assetId));
       const refreshOnTerminal = form.dataset.mediaRefreshOnTerminal === "true";
       const finishTerminal = () => {
-        if (refreshOnTerminal) window.setTimeout(() => window.location.reload(), 650);
+        if (refreshOnTerminal) window.setTimeout(() => { void refreshMediaLibraryPage(); }, 250);
       };
       const poll = async (assetId, tries = 0) => {
         try {
@@ -709,6 +709,15 @@
           return;
         }
         searchTimer = window.setTimeout(() => { void loadPage(value, 1); }, 260);
+      });
+      // These search fields live inside the campaign POST form.  Enter must
+      // execute the client-side search, never submit the whole campaign and
+      // replace the page while Marketing is still selecting screens/videos.
+      search.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" || event.isComposing) return;
+        event.preventDefault();
+        event.stopPropagation();
+        search.dispatchEvent(new Event("search"));
       });
       search.addEventListener("search", () => { void loadPage(text(search.value), 1); });
       select.addEventListener("focus", () => {
@@ -1210,6 +1219,14 @@
       }
       searchTimer = window.setTimeout(() => { void loadPage(1); }, 260);
     });
+    // The catalog search is also inside the campaign POST form.  Do not let
+    // the browser interpret Enter as the final campaign submit.
+    search?.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" || event.isComposing) return;
+      event.preventDefault();
+      event.stopPropagation();
+      search.dispatchEvent(new Event("search"));
+    });
     search?.addEventListener("search", () => { void loadPage(1); });
     site?.addEventListener("change", () => { void loadPage(1); });
     state?.addEventListener("change", () => { void loadPage(1); });
@@ -1670,6 +1687,13 @@
     updateOutputs();
   };
 
+  const refreshMediaLibraryPage = async () => {
+    const marker = document.querySelector("[data-media-library-partial]");
+    if (marker && window.GIDEONLive?.refreshPartial) {
+      await window.GIDEONLive.refreshPartial(marker);
+    }
+  };
+
   ready(() => {
     initLocalizedDatePickers();
     initUploadForms();
@@ -1679,5 +1703,13 @@
     initDistribution();
     initScreenOutputSelector();
     initScreenAgentSelector();
+  });
+
+  // Rebind polling and upload controls after the shared partial refresher
+  // replaces the current library region. No full page navigation is needed.
+  document.addEventListener("gideon:partial-updated", (event) => {
+    if (event.detail?.selector !== ".content" || !document.querySelector("[data-media-library-page]")) return;
+    initUploadForms();
+    initLibraryAssetPolling();
   });
 })();

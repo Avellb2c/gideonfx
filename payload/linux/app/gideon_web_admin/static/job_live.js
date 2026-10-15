@@ -44,7 +44,7 @@
         stopped=true;
         const partialMarker = marker.dataset.partialRefreshUrl && window.GIDEONLive ? marker : null;
         if(partialMarker) setTimeout(() => { void window.GIDEONLive.refreshPartial(partialMarker); }, 250);
-        else setTimeout(()=>location.reload(),650); // safe fallback for legacy pages
+        else marker.dataset.terminalRefresh = 'not-needed';
         return;
       }
     }catch(e){

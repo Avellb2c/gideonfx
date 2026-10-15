@@ -11,7 +11,7 @@
     <div class="card-head"><div><h2>Backups</h2><p>Destino externo opcional. El backup local Gideon Rx continúa aislado.</p></div></div>
     <div class="card-pad">
       {% if identity and identity.role == 'SUPERADMIN' %}
-      <form method="post" action="/settings/runtime">
+      <form method="post" action="/settings/runtime" data-ajax-form="true" data-ajax-feedback="#settings-runtime-feedback">
         <input type="hidden" name="csrf" value="{{ identity.csrf_token }}">
         <div class="form-grid">
           <label class="check-row wide"><input type="checkbox" name="backup_enabled" {% if runtime.backup_enabled %}checked{% endif %}><span class="check-main"><strong>Backup automático habilitado</strong><small>Ejecutado por un timer systemd de bajo consumo.</small></span></label>
@@ -29,6 +29,7 @@
           <div class="field"><label>Remitente</label><input class="input" name="smtp_from" value="{{ runtime.smtp_from }}"></div>
         </div>
         <div class="spacer"></div><button class="btn btn-primary" type="submit">Guardar configuración operativa</button>
+        <div id="settings-runtime-feedback" class="alert" role="status" aria-live="polite" hidden></div>
       </form>
       {% else %}
       <div class="alert">Solo un <strong>SUPERADMIN</strong> puede modificar estos parámetros.</div>

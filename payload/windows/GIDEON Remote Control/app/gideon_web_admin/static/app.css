@@ -58,7 +58,7 @@ html[data-theme="dark"]{
   scrollbar-width:none;
   -ms-overflow-style:none;
   overscroll-behavior:contain;
-  scroll-behavior:smooth;
+  scroll-behavior:auto;
 }
 .sidebar .nav::-webkit-scrollbar{
   width:0;
@@ -157,7 +157,8 @@ html[data-theme="dark"]{
 .nav-group>summary::-webkit-details-marker{display:none}
 .nav-section-chevron{font-size:15px;line-height:1;color:#9cc9da;transition:transform .16s ease}
 .nav-group:not([open]) .nav-section-chevron{transform:rotate(-90deg)}
-.nav-group-links{display:flex;flex-direction:column;gap:3px;padding:0 0 3px}
+.nav-group:not([open])>.nav-group-links{display:none}
+.nav-group[open]>.nav-group-links{display:flex;flex-direction:column;gap:3px;padding:0 0 3px}
 .nav-group-links .nav-link{margin:0}
 .nav-subsection{margin:9px 12px 3px;padding-top:8px;border-top:1px solid rgba(255,255,255,.07);color:#8db8c9;font-size:9px;font-weight:800;letter-spacing:.8px;text-transform:uppercase}
 .nav-subsection:first-child{margin-top:1px;padding-top:2px;border-top:0}
@@ -222,7 +223,7 @@ html[data-theme="dark"]{
   --shadow-lg:0 24px 64px rgba(0,0,0,.38);
 }
 html{
-  scroll-behavior:smooth;
+  scroll-behavior:auto;
   text-rendering:optimizeLegibility;
   -webkit-font-smoothing:antialiased;
 }
@@ -279,6 +280,28 @@ body{
   45%{width:55%;transform:translateX(18%)}
   100%{width:28%;transform:translateX(355%)}
 }
+
+/* Shell-first SPA navigation. The layout is painted immediately while the
+   authoritative server-rendered values arrive, avoiding a blank or jumping
+   page when a gateway read is cold. */
+.page-loading-shell{
+  min-height:clamp(360px,calc(100vh - 210px),820px);
+  display:grid;
+  align-content:start;
+  gap:22px;
+  padding:8px 0 42px;
+}
+.page-loading-head{display:grid;gap:8px;max-width:820px}
+.page-loading-kicker{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--brand);font-weight:800}
+.page-loading-head h1{margin:0;font-size:29px;line-height:1.15;color:var(--text);font-weight:760}
+.page-loading-head p{margin:0;color:var(--muted);line-height:1.5}
+.page-loading-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;max-width:1180px}
+.page-loading-card{min-height:128px;padding:22px;border:1px solid var(--border);border-radius:12px;background:color-mix(in srgb,var(--surface) 94%,transparent);display:grid;align-content:start;gap:14px}
+.page-loading-card-large{grid-column:1/-1;min-height:180px}
+.page-loading-skeleton{display:block;height:14px;border-radius:999px;background:linear-gradient(90deg,color-mix(in srgb,var(--border2) 72%,transparent),color-mix(in srgb,var(--brand) 14%,var(--border2)),color-mix(in srgb,var(--border2) 72%,transparent))}
+.page-loading-skeleton-wide{width:78%}.page-loading-skeleton-medium{width:56%}.page-loading-skeleton-short{width:34%;height:11px}
+@media(max-width:760px){.page-loading-grid{grid-template-columns:minmax(0,1fr)}.page-loading-card-large{grid-column:auto}.page-loading-shell{min-height:420px}}
+@media(prefers-reduced-motion:reduce){.global-progress.is-active span{animation:none;width:42%;transform:none}}
 
 /* App chrome */
 .sidebar{
@@ -421,16 +444,6 @@ html[data-theme="light"] .theme-toggle:hover .theme-symbol{transform:rotate(208d
   top:-42px;
   pointer-events:none;
   background:radial-gradient(ellipse,color-mix(in srgb,var(--brand) 5%,transparent),transparent 70%);
-}
-body.ui-ready .content > *{
-  animation:gideon-enter .32s var(--ease) both;
-}
-body.ui-ready .content > *:nth-child(2){animation-delay:.025s}
-body.ui-ready .content > *:nth-child(3){animation-delay:.045s}
-body.ui-ready .content > *:nth-child(4){animation-delay:.065s}
-@keyframes gideon-enter{
-  from{opacity:0;transform:translateY(5px)}
-  to{opacity:1;transform:none}
 }
 .page-head{margin-bottom:24px}
 .page-head h1{
@@ -900,7 +913,7 @@ html,body{
 .sidebar .nav{
   scrollbar-width:thin !important;
   scrollbar-color:color-mix(in srgb,var(--scroll-thumb) 88%,white) transparent !important;
-  scroll-behavior:smooth;
+  scroll-behavior:auto;
 }
 .sidebar .nav::-webkit-scrollbar{
   display:block !important;
@@ -920,7 +933,7 @@ html,body{
 
 .table-wrap,.checkbox-list,.codebox,textarea,pre,.nav,.content{
   scrollbar-color:var(--scroll-thumb) transparent;
-  scroll-behavior:smooth;
+  scroll-behavior:auto;
 }
 .table-wrap{
   overscroll-behavior:contain;

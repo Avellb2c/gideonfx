@@ -4842,9 +4842,14 @@ def create_app(config_path: str | Path | None = None, *, config_override: dict[s
     @app.get("/media/history", response_class=HTMLResponse)
     def media_history_page(request: Request):
         require(request, "media.view")
-        context = media_context(request, include_campaigns=False, include_archived=True)
-        context.update({"title": "Historial de campañas", "history": campaigns.list_history()})
-        return template(request, "media_history.html", context)
+        # History only renders the immutable event log. Do not load the agent,
+        # screen, site or campaign inventories just to build the shared media
+        # context; that made this read-only tab slow and vulnerable to a cold
+        # Gateway delay even though it never displayed those collections.
+        return template(request, "media_history.html", {
+            "title": "Historial de campañas",
+            "history": campaigns.list_history(),
+        })
 
     def media_screen_api_projection(item: dict[str, Any]) -> dict[str, Any]:
         """Return a Marketing-safe inventory record for API consumers.
@@ -6192,6 +6197,8 @@ def create_app(config_path: str | Path | None = None, *, config_override: dict[s
             "smtp_from": smtp_from,
         })
         security.audit(identity.username,"settings.runtime","SUCCESS",f"Backup={values.get('backup_destination_type')}; SMTP={values.get('smtp_enabled')}",request_security.remote_ip(request),role=identity.role)
+        if request.headers.get("x-gideon-ajax", "").strip() == "1":
+            return JSONResponse({"ok": True, "message": "Configuración operativa guardada correctamente."})
         return RedirectResponse("/settings",303)
 
     @app.get("/audit",response_class=HTMLResponse)

@@ -6,6 +6,7 @@
 {% set asset_pagination = asset_catalog.get('pagination', {}) %}
 {% set asset_query = asset_catalog.get('query', filters.query|default('', true)) %}
 {% set asset_labels = {'QUARANTINED':'En revisión', 'ANALYZING':'Analizando', 'READY':'Listo para usar', 'REJECTED':'No compatible', 'ERROR':'Requiere atención', 'ARCHIVED':'Archivado'} %}
+<span data-media-library-page data-media-library-partial="1" data-partial-refresh-url="{{ request.url }}" data-partial-target=".content" hidden></span>
 <div class="page-head">
   <div><h1>Biblioteca</h1><p>El lugar único donde Marketing carga, revisa y reutiliza videos para sus campañas.</p></div>
   {% if identity.can('media.manage') %}<div class="page-actions"><a class="btn btn-primary" href="#cargar-video">Cargar video</a><a class="btn" href="/media/campaigns/new">Nueva campaña</a></div>{% endif %}

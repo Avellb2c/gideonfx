@@ -34,7 +34,7 @@
       {% if identity and identity.can('dashboard.view') %}<a class="nav-link nav-link-setup {{ 'active' if active_path.startswith('/guide') else '' }}" href="/guide/installation" title="Configuración inicial" aria-label="Configuración inicial"><img src="{{ static_url('icons/settings.svg') }}" alt=""><span class="gideon-nav-label">Configuración inicial</span></a>{% endif %}
 
       {% if identity and (identity.can('remote.view') or identity.can('jobs.execute') or identity.can('transfers.view') or identity.can('jobs.view') or identity.can('scripts.view')) %}
-      <details class="nav-group" data-nav-group="operate" open>
+      <details class="nav-group" data-nav-group="operate" {% if active_path.startswith('/remote') or active_path.startswith('/execute') or active_path.startswith('/transfers') or active_path.startswith('/jobs') or active_path.startswith('/scripts') %}open{% endif %}>
         <summary class="nav-section"><span>Operar</span><span class="nav-section-chevron" aria-hidden="true">⌄</span></summary>
         <div class="nav-group-links">
           {% if identity.can('remote.view') %}<a class="nav-link {{ 'active' if active_path.startswith('/remote') else '' }}" href="/remote" title="Control remoto" aria-label="Control remoto"><img src="{{ static_url('icons/remote.svg') }}" alt=""><span class="gideon-nav-label">Control remoto</span></a>{% endif %}
@@ -47,7 +47,7 @@
       {% endif %}
 
       {% if identity and (identity.can('media.view') or identity.can('screens.view')) %}
-      <details class="nav-group" data-nav-group="content" open>
+      <details class="nav-group" data-nav-group="content" {% if active_path.startswith('/media') %}open{% endif %}>
         <summary class="nav-section"><span>Contenido y pantallas</span><span class="nav-section-chevron" aria-hidden="true">⌄</span></summary>
         <div class="nav-group-links">
           {% if identity.can('media.view') %}

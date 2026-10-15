@@ -154,6 +154,14 @@ class MediaCampaignMarketingUiTests(unittest.TestCase):
         ):
             self.assertIn(marker, store)
 
+    def test_history_page_does_not_load_unrelated_media_inventories(self):
+        app = self.read("app.py")
+        start = app.index('@app.get("/media/history"')
+        end = app.index('def media_screen_api_projection', start)
+        route = app[start:end]
+        self.assertIn('"history": campaigns.list_history()', route)
+        self.assertNotIn("media_context(request", route)
+
     def test_screen_inventory_exposes_permitted_logical_archive_and_safe_restore(self):
         screens = self.read("templates/media_screens.html")
         app = self.read("app.py")
@@ -236,8 +244,10 @@ class MediaCampaignMarketingUiTests(unittest.TestCase):
         app = self.read("app.py")
         self.assertIn('data-media-status-url-template="/api/v1/media/assets/{asset_id}"', library)
         self.assertIn('data-media-refresh-on-terminal="true"', library)
+        self.assertIn('data-media-library-partial', library)
         self.assertIn("initLibraryAssetPolling", script)
-        self.assertIn("window.location.reload()", script)
+        self.assertIn("refreshMediaLibraryPage", script)
+        self.assertNotIn("window.location.reload()", script)
         self.assertNotIn('audio_codec="aac",', validation)
         self.assertIn("audio_codec=audio_codec", validation)
         for template in (library, wizard):
@@ -256,6 +266,16 @@ class MediaCampaignMarketingUiTests(unittest.TestCase):
         ):
             self.assertIn(marker, wizard if marker.startswith("data-") else script)
         self.assertNotIn("{% if not screens %}disabled{% endif %}", wizard)
+
+    def test_campaign_searches_do_not_submit_the_parent_form(self):
+        """Searching a picker must not discard the in-progress campaign."""
+        wizard = self.read("templates/media_campaign_wizard.html")
+        app_script = self.read("static/app.js")
+        campaign_script = self.read("static/media_campaigns.js")
+        self.assertEqual(2, wizard.count("data-no-submit-on-enter"))
+        self.assertIn("target?.matches('[data-no-submit-on-enter]')", app_script)
+        self.assertIn('search.addEventListener("keydown"', campaign_script)
+        self.assertIn('search.dispatchEvent(new Event("search"))', campaign_script)
 
     def test_campaign_screen_picker_is_server_paged_and_selected_only(self):
         """Opening a campaign must not hydrate every Screen in the inventory."""

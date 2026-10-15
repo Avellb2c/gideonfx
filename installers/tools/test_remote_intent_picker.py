@@ -100,7 +100,7 @@ class RemoteIntentPickerTests(unittest.TestCase):
                 'if not agent_filter or str(item.get("agent_id") or "") == agent_filter:',
                 backend,
             )
-            self.assertIn("GIDEON muestra todos los Agents enrolados", template)
+        self.assertIn("Gideon Rx muestra todos los Agents enrolados", template)
 
     def test_default_picker_recovers_all_rows_after_browser_form_restore(self):
         """A restored hidden attribute must not turn the default inventory into zero rows."""

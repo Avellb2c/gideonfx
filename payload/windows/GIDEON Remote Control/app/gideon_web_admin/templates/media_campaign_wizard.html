@@ -79,7 +79,7 @@
     <div class="card-head"><div><span class="media-step-label">Pasos 2 y 3</span><h2>Contenido y pantallas</h2><p>Seleccione cada pantalla y el video que recibirá. Cada pantalla puede tener un video diferente.</p></div></div>
     <div class="media-screen-catalog" data-screen-catalog data-screen-catalog-url="/api/v1/media/screens" data-screen-catalog-page-size="12">
       <div class="media-screen-catalog-controls">
-        <div class="field media-screen-catalog-search"><label for="screenCatalogSearch">Buscar pantalla</label><input class="input" id="screenCatalogSearch" type="search" autocomplete="off" placeholder="Nombre, sede o ubicación" data-screen-catalog-search></div>
+        <div class="field media-screen-catalog-search"><label for="screenCatalogSearch">Buscar pantalla</label><input class="input" id="screenCatalogSearch" type="search" autocomplete="off" placeholder="Nombre, sede o ubicación" data-screen-catalog-search data-no-submit-on-enter></div>
         <div class="field"><label for="screenCatalogSite">Sede</label><select class="input" id="screenCatalogSite" data-screen-catalog-site><option value="">Todas las sedes</option>{% for site in sites %}<option value="{{ site.site_code }}">{{ site.site_code }}{% if site.site_name and site.site_name != site.site_code %} · {{ site.site_name }}{% endif %}</option>{% endfor %}</select></div>
         <div class="field"><label for="screenCatalogState">Estado</label><select class="input" id="screenCatalogState" data-screen-catalog-state><option value="">Todas las disponibles</option><option value="READY">Lista</option><option value="OFFLINE">Sin conexión</option><option value="NEEDS_REVIEW">Requiere revisión</option><option value="DISABLED">Desactivada</option></select></div>
         <div class="media-screen-catalog-actions"><button class="btn btn-small" type="button" data-screen-catalog-refresh>Buscar pantallas</button></div>
@@ -102,7 +102,7 @@
           <div class="media-screen-content" data-screen-content>
             <div class="field wide media-screen-asset-picker" data-screen-asset-picker>
               <label for="asset-{{ screen.screen_id }}">Video que verá esta pantalla</label>
-              <input class="input media-screen-asset-search" id="asset-search-{{ screen.screen_id }}" type="search" placeholder="Buscar video por nombre" autocomplete="off" data-screen-asset-search aria-controls="asset-{{ screen.screen_id }}">
+              <input class="input media-screen-asset-search" id="asset-search-{{ screen.screen_id }}" type="search" placeholder="Buscar video por nombre" autocomplete="off" data-screen-asset-search data-no-submit-on-enter aria-controls="asset-{{ screen.screen_id }}">
               <select class="input" id="asset-{{ screen.screen_id }}" name="{{ screen_asset_field }}" data-screen-asset data-selected-asset-id="{{ selected_screen_asset_id }}" data-selected-asset-label="{{ previous.content_title|default('', true) if previous else '' }}">
                 <option value="">Buscar o abrir la lista de videos</option>
                 {% if selected_screen_asset_id %}<option value="{{ selected_screen_asset_id }}" selected data-asset-name="{{ previous.content_title|default('Video seleccionado', true) if previous else 'Video seleccionado' }}" data-asset-state="READY">Video seleccionado · cargando detalle…</option>{% endif %}

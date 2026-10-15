@@ -65,6 +65,63 @@ class GatewayFacade:
             self._last_error = ""
         return value
 
+    def _cached_read_stale_while_revalidate(
+        self,
+        key: str,
+        fetch: Any,
+        *,
+        fresh_seconds: float = 3.0,
+        stale_seconds: float = 180.0,
+    ) -> Any:
+        """Return a recent snapshot immediately while refreshing it once.
+
+        The WebAdmin has several read-only pages that all need the same Agent
+        inventory (Control remoto, Historial, Transferencias, Sedes, etc.).
+        Waiting synchronously for a slow or temporarily unavailable Gateway on
+        every navigation made those pages feel like they were reloading.  A
+        bounded stale snapshot is safe for display-only reads: mutations still
+        use their direct, fail-closed calls.  Only one background refresh is
+        allowed per key so several tabs cannot create a request storm.
+        """
+        now = time.monotonic()
+        with self._cache_lock:
+            cached = self._cache.get(key)
+            age = now - cached[0] if cached else float("inf")
+            if cached and age <= fresh_seconds:
+                return cached[1]
+            if cached and age <= stale_seconds:
+                if key not in self._refreshing_keys:
+                    self._refreshing_keys.add(key)
+
+                    def refresh() -> None:
+                        try:
+                            # Reuse the normal cache path so failures update the
+                            # circuit-breaker metadata consistently.
+                            self._cached_read(
+                                key,
+                                fetch,
+                                fresh_seconds=fresh_seconds,
+                                stale_seconds=stale_seconds,
+                            )
+                        finally:
+                            with self._cache_lock:
+                                self._refreshing_keys.discard(key)
+
+                    threading.Thread(
+                        target=refresh,
+                        name=f"gideon-gateway-refresh-{key.split(':', 1)[0]}",
+                        daemon=True,
+                    ).start()
+                return cached[1]
+        # A cold cache must have a bounded synchronous read so the first page
+        # still has authoritative data when the Gateway is healthy.
+        return self._cached_read(
+            key,
+            fetch,
+            fresh_seconds=fresh_seconds,
+            stale_seconds=stale_seconds,
+        )
+
     def resilience_state(self) -> dict[str, Any]:
         with self._cache_lock:
             return {
@@ -98,22 +155,26 @@ class GatewayFacade:
             return self._client_instance
 
     def health(self) -> dict[str, Any]:
-        return self._cached_read(
+        return self._cached_read_stale_while_revalidate(
             "health", lambda: self.client().json("GET", "/api/v1/admin/health", timeout=4),
             fresh_seconds=2.0, stale_seconds=60.0,
         )
 
     def agents(self) -> list[dict[str, Any]]:
         def fetch() -> list[dict[str, Any]]:
-            data = self.client().json("GET", "/api/v1/admin/agents", timeout=6)
+            data = self.client().json("GET", "/api/v1/admin/agents", timeout=4)
             return [dict(x) for x in (data.get("Agents") or []) if isinstance(x, dict)]
-        return self._cached_read("agents", fetch, fresh_seconds=3.0, stale_seconds=180.0)
+        return self._cached_read_stale_while_revalidate(
+            "agents", fetch, fresh_seconds=3.0, stale_seconds=180.0,
+        )
 
     def releases(self) -> list[dict[str, Any]]:
         def fetch() -> list[dict[str, Any]]:
-            data = self.client().json("GET", "/api/v2/admin/releases", timeout=6)
+            data = self.client().json("GET", "/api/v2/admin/releases", timeout=4)
             return [dict(x) for x in (data.get("Releases") or []) if isinstance(x, dict)]
-        return self._cached_read("releases", fetch, fresh_seconds=5.0, stale_seconds=300.0)
+        return self._cached_read_stale_while_revalidate(
+            "releases", fetch, fresh_seconds=5.0, stale_seconds=300.0,
+        )
 
     def jobs(self, *, limit: int = 300, status: str = "", agent_id: str = "", job_id: str = "") -> list[dict[str, Any]]:
         params = {"limit": max(1, min(int(limit), 2000))}

@@ -419,7 +419,7 @@
   const autoRefresh=document.querySelector('[data-auto-refresh]');
   if(autoRefresh){
     if(autoRefresh.dataset.partialRefreshUrl && window.GIDEONLive) window.GIDEONLive.start(autoRefresh);
-    else {const ms=Math.max(1500,Math.min(15000,Number(autoRefresh.dataset.autoRefresh||3500)));setTimeout(()=>location.reload(),ms);}
+    else autoRefresh.dataset.refreshUnavailable='1';
   }
 
   // RC30.95.9 · Releases live refresh + stable viewport + sidebar scroll UX.
@@ -605,8 +605,249 @@
     }
   }
 
+  function ajaxFeedback(form,message,kind='success'){
+    const selector=form?.dataset?.ajaxFeedback;
+    const box=selector?document.querySelector(selector):null;
+    if(!box) return;
+    box.className=`alert ${kind}`;
+    box.textContent=message||'';
+    box.hidden=!message;
+  }
+
+  function ajaxErrorMessage(data,status){
+    const detail=data?.detail;
+    if(Array.isArray(detail)){
+      const messages=detail.map(item=>String(item?.msg||'')).filter(Boolean);
+      if(messages.length) return messages.join(' · ');
+    }
+    return String(data?.message||detail||`No se pudo guardar la configuración (HTTP ${status})`);
+  }
+
+  async function submitAjaxForm(form,submitter){
+    const beforeWindowY=window.scrollY;
+    const beforeNav=document.querySelector('.sidebar .nav')?.scrollTop||0;
+    setButtonBusy(submitter,true);
+    ajaxFeedback(form,'Guardando configuración…','');
+    try{
+      const response=await fetch(form.action||location.href,{
+        method:(form.method||'POST').toUpperCase(),
+        body:new FormData(form),
+        credentials:'same-origin',
+        redirect:'follow',
+        headers:{'Accept':'application/json','X-GIDEON-AJAX':'1'}
+      });
+      const contentType=response.headers.get('content-type')||'';
+      const data=contentType.includes('application/json')?await response.json():null;
+      if(!response.ok||data?.ok===false) throw new Error(ajaxErrorMessage(data,response.status));
+      if(!data) throw new Error(`Respuesta inesperada HTTP ${response.status}`);
+      ajaxFeedback(form,data.message||'Configuración guardada correctamente.','success');
+      window.scrollTo({top:beforeWindowY,left:0,behavior:'auto'});
+      const nav=document.querySelector('.sidebar .nav');
+      if(nav) nav.scrollTop=beforeNav;
+    }catch(err){
+      ajaxFeedback(form,err?.message||'No se pudo guardar la configuración.','danger');
+      window.scrollTo({top:beforeWindowY,left:0,behavior:'auto'});
+    }finally{
+      setButtonBusy(submitter,false);
+    }
+    return true;
+  }
+
   rememberSidebarScroll();
   rememberReleasesReloadScroll();
+
+  // RC30.96 · Lightweight navigation for read-only WebAdmin screens.
+  // Historically every sidebar click rebuilt the complete document. That was
+  // especially noticeable on lower menu entries (Historial, Auditoría,
+  // Sesiones) because the browser re-ran the whole shell and reset disclosures.
+  // Keep pages with their own connection/session bootstrap on a normal
+  // navigation, while simple server-rendered views swap only `.content`.
+  const SOFT_NAV_EXCLUDED = [
+    '/remote', '/execute', '/installers', '/media/library', '/media/campaigns',
+    '/media/screens', '/media/schedule', '/media/assets', '/infrastructure/tls',
+    '/security/assets', '/system-updates', '/jobs/'
+  ];
+  const SOFT_NAV_CACHE = new Map();
+  const SOFT_NAV_TTL = 15000;
+  const softNavAllowed = (anchor) => {
+    if (!anchor || anchor.target === '_blank' || anchor.hasAttribute('download')) return false;
+    if (anchor.dataset.gideonHardNavigation === 'true') return false;
+    let url;
+    try { url = new URL(anchor.href, location.href); } catch (_) { return false; }
+    if (url.origin !== location.origin || anchor.protocol !== 'https:' && location.protocol === 'https:') return false;
+    if (SOFT_NAV_EXCLUDED.some(prefix => url.pathname === prefix || url.pathname.startsWith(prefix + '/'))) return false;
+    return ['GET', ''].includes(String(anchor.dataset.method || 'GET').toUpperCase());
+  };
+  const softNavKey = (url) => `${url.pathname}${url.search}`;
+  let softNavigationController = null;
+  let softNavigationSequence = 0;
+  const rememberOpenDetails = (root) => {
+    const open = new Set();
+    root?.querySelectorAll('details').forEach((detail, index) => {
+      if (!detail.open) return;
+      const key = detail.dataset.gideonDisclosureKey || detail.id || detail.querySelector(':scope > summary')?.textContent?.trim() || `index:${index}`;
+      open.add(String(key).replace(/\s+/g, ' ').slice(0, 120));
+    });
+    return open;
+  };
+  const restoreOpenDetails = (root, open) => {
+    root?.querySelectorAll('details').forEach((detail, index) => {
+      const key = detail.dataset.gideonDisclosureKey || detail.id || detail.querySelector(':scope > summary')?.textContent?.trim() || `index:${index}`;
+      detail.open = open.has(String(key).replace(/\s+/g, ' ').slice(0, 120));
+    });
+  };
+  const cacheSoftPage = (url, html) => SOFT_NAV_CACHE.set(softNavKey(url), { html, at: Date.now() });
+  const getSoftPage = async (url, signal) => {
+    const cached = SOFT_NAV_CACHE.get(softNavKey(url));
+    if (cached && Date.now() - cached.at < SOFT_NAV_TTL) return cached.html;
+    const response = await fetch(url.href, {
+      credentials: 'same-origin', cache: 'no-store', signal,
+      headers: { Accept: 'text/html', 'X-GIDEON-Navigation': 'soft' }
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const html = await response.text();
+    cacheSoftPage(url, html);
+    return html;
+  };
+  const softNavLabel = (url) => {
+    const link = [...document.querySelectorAll('.sidebar .nav-link, .media-tabs a')].find((candidate) => {
+      try { return new URL(candidate.href, location.href).pathname === url.pathname; } catch (_) { return false; }
+    });
+    return String(link?.getAttribute('aria-label') || link?.textContent || 'la vista')
+      .replace(/\s+/g, ' ').trim().slice(0, 80) || 'la vista';
+  };
+  const createSoftLoadingShell = (label) => {
+    const shell = document.createElement('section');
+    shell.className = 'page-loading-shell';
+    shell.setAttribute('role', 'status');
+    shell.setAttribute('aria-live', 'polite');
+    shell.innerHTML = `
+      <div class="page-loading-head">
+        <span class="page-loading-kicker">Gideon Rx</span>
+        <h1 data-page-loading-title></h1>
+        <p>Preparando la vista. Los estados y valores se actualizarán en segundo plano.</p>
+      </div>
+      <div class="page-loading-grid" aria-hidden="true">
+        <div class="page-loading-card"><span class="page-loading-skeleton page-loading-skeleton-wide"></span><span class="page-loading-skeleton page-loading-skeleton-short"></span></div>
+        <div class="page-loading-card"><span class="page-loading-skeleton page-loading-skeleton-medium"></span><span class="page-loading-skeleton page-loading-skeleton-short"></span></div>
+        <div class="page-loading-card page-loading-card-large"><span class="page-loading-skeleton page-loading-skeleton-wide"></span><span class="page-loading-skeleton page-loading-skeleton-wide"></span><span class="page-loading-skeleton page-loading-skeleton-medium"></span></div>
+      </div>`;
+    const title = shell.querySelector('[data-page-loading-title]');
+    if (title) title.textContent = `Cargando ${label || 'la vista'}`;
+    return shell;
+  };
+  const syncSoftNavStyles = (incoming) => {
+    incoming.querySelectorAll('head link[rel="stylesheet"]').forEach((link) => {
+      const href = link.href;
+      if (!href || [...document.head.querySelectorAll('link[rel="stylesheet"]')].some(existing => existing.href === href)) return;
+      const clone = document.createElement('link');
+      clone.rel = 'stylesheet'; clone.href = href; clone.dataset.gideonSoftStyle = '1';
+      document.head.append(clone);
+    });
+  };
+  const syncSoftNavLinks = (pathname) => {
+    const links = document.querySelectorAll('.sidebar .nav-link, .media-tabs a');
+    let activeSidebar = null;
+    links.forEach((link) => {
+      let linkPath = '';
+      try { linkPath = new URL(link.href, location.href).pathname; } catch (_) {}
+      const selected = Boolean(linkPath && (pathname === linkPath || pathname.startsWith(linkPath + '/')));
+      link.classList.toggle('active', selected);
+      if (selected) {
+        link.setAttribute('aria-current', 'page');
+        // Media tabs are content-local navigation. They must not replace the
+        // sidebar link used to determine which nav group remains open.
+        if (link.matches('.sidebar .nav-link')) activeSidebar = link;
+      }
+      else link.removeAttribute('aria-current');
+    });
+    const activeGroup = activeSidebar?.closest('.nav-group');
+    // Inicio y Configuración inicial viven fuera de un grupo. En esas rutas
+    // no se deben abrir todos los grupos por defecto: eso hacía que las
+    // pestañas inferiores se desplegaran después de cada navegación.
+    document.querySelectorAll('.nav-group[data-nav-group]').forEach((group) => {
+      group.open = Boolean(activeGroup && group === activeGroup);
+    });
+    keepActiveNavVisible();
+  };
+  const softNavigate = async (url, { push = true, label = '' } = {}) => {
+    const current = document.querySelector('.content');
+    if (!current) return false;
+    const navigationId = ++softNavigationSequence;
+    softNavigationController?.abort();
+    const controller = new AbortController();
+    softNavigationController = controller;
+    const beforeScroll = { x: window.scrollX, y: window.scrollY };
+    const beforeNav = document.querySelector('.sidebar .nav')?.scrollTop || 0;
+    const openDetails = rememberOpenDetails(current);
+    const previousHtml = current.innerHTML;
+    // Paint a stable shell before waiting for the server. This keeps the
+    // chrome and layout responsive even when a cold gateway read is slow.
+    current.classList.add('is-loading');
+    current.setAttribute('aria-busy', 'true');
+    current.replaceChildren(createSoftLoadingShell(label || softNavLabel(url)));
+    if (push) history.pushState({ gideonSoft: true }, '', url.href);
+    syncSoftNavLinks(url.pathname);
+    let html;
+    try { html = await getSoftPage(url, controller.signal); }
+    catch (_) {
+      if (controller.signal.aborted || navigationId !== softNavigationSequence) return true;
+      // A failed soft request falls back to the authoritative full navigation.
+      // Restore the previous DOM first so a transient error never leaves a
+      // half-rendered page visible while the browser changes location.
+      current.innerHTML = previousHtml;
+      current.classList.remove('is-loading');
+      current.removeAttribute('aria-busy');
+      return false;
+    }
+    if (controller.signal.aborted || navigationId !== softNavigationSequence) return true;
+    const incoming = new DOMParser().parseFromString(html, 'text/html');
+    const next = incoming.querySelector('.content');
+    if (!next) return false;
+    // Route-specific scripts may start remote sessions or bind complex widgets;
+    // let those pages use their complete, authoritative navigation lifecycle.
+    const baseScripts = new Set(['gideon_live.js', 'app.js', 'step_up.js', 'ui_state.js', 'workflow_simplify.js', 'table_controls.js', 'timezone_display.js', 'navigation_groups.js', 'sidebar_compact.js']);
+    const specialScripts = [...incoming.querySelectorAll('script[src]')].map(script => script.getAttribute('src') || '').filter(Boolean);
+    if (specialScripts.some(src => { const name = src.split('/').pop()?.split('?')[0] || ''; return !baseScripts.has(name); })) return false;
+    if ([...next.querySelectorAll('script')].some(script => !script.src)) return false;
+    syncSoftNavStyles(incoming);
+    current.replaceChildren(...next.childNodes);
+    current.classList.remove('is-loading');
+    current.removeAttribute('aria-busy');
+    document.title = incoming.title || document.title;
+    syncSoftNavLinks(url.pathname);
+    try { window.GIDEON_UI?.reapply?.(); } catch (_) {}
+    restoreOpenDetails(current, openDetails);
+    const nav = document.querySelector('.sidebar .nav');
+    if (nav) nav.scrollTop = beforeNav;
+    // New partial markers (for example an active installer build) must use the
+    // shared non-destructive poller after a soft navigation.
+    document.querySelectorAll('[data-partial-refresh]').forEach(marker => window.GIDEONLive?.start?.(marker));
+    document.dispatchEvent(new CustomEvent('gideon:page-updated', { detail: { url: url.href } }));
+    // A new screen starts at the top; the previous coordinates are kept only
+    // for failure recovery and to avoid a visual jump during the fetch.
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    stopGlobalProgress();
+    return true;
+  };
+  const softNavigationClick = (event) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const anchor = event.target.closest('a[href]');
+    if (!softNavAllowed(anchor)) return;
+    let url;
+    try { url = new URL(anchor.href, location.href); } catch (_) { return; }
+    if (url.pathname === location.pathname && url.search === location.search) return;
+    event.preventDefault();
+    startGlobalProgress();
+    const label = anchor.getAttribute('aria-label') || anchor.textContent;
+    void softNavigate(url, { label }).then(handled => { if (!handled) location.assign(url.href); });
+  };
+  document.addEventListener('click', softNavigationClick, true);
+  window.addEventListener('popstate', () => {
+    const url = new URL(location.href);
+    startGlobalProgress();
+    void softNavigate(url, { push: false }).then(handled => { if (!handled) location.reload(); });
+  });
 
   // Delegated submit handling survives the partial DOM replacement.
   document.addEventListener('submit',e=>{
@@ -616,6 +857,12 @@
     const isReleaseLive=Boolean(form.closest(RELEASE_ROOT));
     if(form.dataset.confirm&&!confirm(form.dataset.confirm)){
       e.preventDefault();
+      return;
+    }
+
+    if(form.dataset.ajaxForm==='true'){
+      e.preventDefault();
+      submitAjaxForm(form,e.submitter||form.querySelector('button[type="submit"],button:not([type])'));
       return;
     }
 
@@ -710,9 +957,6 @@
     });
   }
 
-  // Visible page entry only after CSS/JS is ready.
-  requestAnimationFrame(()=>document.body.classList.add('ui-ready'));
-
   updateThemeUX();
   updateTopbarShadow();
   keepActiveNavVisible();
@@ -772,6 +1016,17 @@
 
   // Existing Releases live forms preventDefault before this listener, so they keep
   // their own in-place spinner and never trigger the page-navigation progress.
+  // Some client-side search controls intentionally live inside a larger POST
+  // form (for example, the campaign screen/video pickers).  A browser's
+  // implicit Enter submit would otherwise discard the in-progress selection
+  // and look like a random page reload.  Their own handlers still perform the
+  // search; this capture guard only cancels the implicit form submit.
+  document.addEventListener('keydown',e=>{
+    if(e.key!=='Enter'||e.isComposing) return;
+    const target=e.target instanceof Element?e.target:null;
+    if(target?.matches('[data-no-submit-on-enter]')) e.preventDefault();
+  },true);
+
   document.addEventListener('submit',e=>{
     if(e.defaultPrevented) return;
     const form=e.target instanceof HTMLFormElement?e.target:null;
@@ -793,115 +1048,7 @@
   });
 
 
-  // RC30.95.12 · Premium smooth wheel engine.
-  const premiumScrollMotion=window.matchMedia?.('(prefers-reduced-motion: reduce)');
-
-  function gideonScrollableAncestor(start,dx,dy){
-    const root=document.scrollingElement||document.documentElement;
-    const horizontal=Math.abs(dx)>Math.abs(dy);
-    let node=start instanceof Element?start:null;
-
-    while(node&&node!==document.body&&node!==document.documentElement){
-      const style=getComputedStyle(node);
-      const oy=style.overflowY;
-      const ox=style.overflowX;
-      const canY=node.scrollHeight>node.clientHeight+1&&/(auto|scroll|overlay)/.test(oy);
-      const canX=node.scrollWidth>node.clientWidth+1&&/(auto|scroll|overlay)/.test(ox);
-
-      if(horizontal&&canX){
-        const max=node.scrollWidth-node.clientWidth;
-        if((dx<0&&node.scrollLeft>0)||(dx>0&&node.scrollLeft<max)) return node;
-      }
-      if(!horizontal&&canY){
-        const max=node.scrollHeight-node.clientHeight;
-        if((dy<0&&node.scrollTop>0)||(dy>0&&node.scrollTop<max)) return node;
-      }
-      node=node.parentElement;
-    }
-    return root;
-  }
-
-  const gideonScrollStates=new WeakMap();
-  function gideonClamp(v,min,max){return Math.max(min,Math.min(max,v));}
-  function gideonEaseOutCubic(t){return 1-Math.pow(1-t,3);}
-
-  function gideonSmoothScrollBy(el,dx,dy){
-    const root=document.scrollingElement||document.documentElement;
-    const isRoot=el===root;
-    const currentX=isRoot?window.scrollX:el.scrollLeft;
-    const currentY=isRoot?window.scrollY:el.scrollTop;
-    const maxX=Math.max(0,(isRoot?root.scrollWidth:el.scrollWidth)-(isRoot?window.innerWidth:el.clientWidth));
-    const maxY=Math.max(0,(isRoot?root.scrollHeight:el.scrollHeight)-(isRoot?window.innerHeight:el.clientHeight));
-
-    let state=gideonScrollStates.get(el);
-    if(!state){
-      state={raf:0,targetX:currentX,targetY:currentY,startX:currentX,startY:currentY,start:0};
-      gideonScrollStates.set(el,state);
-    }
-
-    state.startX=currentX;
-    state.startY=currentY;
-    state.targetX=gideonClamp((state.raf?state.targetX:currentX)+dx,0,maxX);
-    state.targetY=gideonClamp((state.raf?state.targetY:currentY)+dy,0,maxY);
-    state.start=performance.now();
-
-    if(state.raf) cancelAnimationFrame(state.raf);
-
-    const distance=Math.hypot(state.targetX-currentX,state.targetY-currentY);
-    const duration=gideonClamp(150+distance*.12,160,280);
-
-    const frame=now=>{
-      const p=gideonClamp((now-state.start)/duration,0,1);
-      const eased=gideonEaseOutCubic(p);
-      const x=state.startX+(state.targetX-state.startX)*eased;
-      const y=state.startY+(state.targetY-state.startY)*eased;
-
-      if(isRoot) window.scrollTo(x,y);
-      else{
-        el.scrollLeft=x;
-        el.scrollTop=y;
-      }
-
-      if(p<1) state.raf=requestAnimationFrame(frame);
-      else state.raf=0;
-    };
-    state.raf=requestAnimationFrame(frame);
-  }
-
-  document.addEventListener('wheel',e=>{
-    if(e.defaultPrevented||e.ctrlKey||e.metaKey) return;
-    if(premiumScrollMotion?.matches) return;
-
-    const target=e.target instanceof Element?e.target:null;
-    if(!target) return;
-
-    if(target.closest(
-      '.remote-display,.remote-viewer-shell,#remoteViewport,'+
-      'textarea,select,input[type="range"],input[type="number"],iframe,canvas,'+
-      '[data-native-scroll],[contenteditable="true"]'
-    )) return;
-
-    let dx=e.deltaX;
-    let dy=e.deltaY;
-
-    if(e.shiftKey&&Math.abs(dx)<Math.abs(dy)){
-      dx=dy;
-      dy=0;
-    }
-
-    if(e.deltaMode===1){
-      dx*=18;dy*=18;
-    }else if(e.deltaMode===2){
-      dx*=window.innerWidth;dy*=window.innerHeight;
-    }
-
-    if(Math.abs(dx)<.01&&Math.abs(dy)<.01) return;
-
-    const scroller=gideonScrollableAncestor(target,dx,dy);
-    if(!scroller) return;
-
-    e.preventDefault();
-    gideonSmoothScrollBy(scroller,dx,dy);
-  },{passive:false,capture:true});
-
+  // Scrolling intentionally uses the browser's native wheel/touch/keyboard
+  // behavior. A global custom wheel handler made nested tables, the sidebar,
+  // and SPA transitions compete for scroll ownership and caused visual jumps.
 })();

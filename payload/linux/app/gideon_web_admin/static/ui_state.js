@@ -1,6 +1,8 @@
 (() => {
   'use strict';
-  const PREFIX = 'gideon.ui.v4';
+  // v5 intentionally ignores stale disclosure state from previous layouts.
+  // A visual preference must never reopen an unrelated panel after navigation.
+  const PREFIX = 'gideon.ui.v5';
   const groups = [];
 
   const storage = {
@@ -69,6 +71,11 @@
 
   function applyDetails() {
     document.querySelectorAll('details').forEach((el, index) => {
+      // The sidebar groups are navigation state, not page disclosures. They
+      // have their own route-aware controller; restoring them from the
+      // disclosure store caused every SPA navigation to reopen and then close
+      // sections after the active route had already been selected.
+      if (el.matches('.nav-group[data-nav-group]')) return;
       const key = disclosureKey(el, index);
       const stored = storage.get(key);
       // Fail closed for advanced disclosures. For all others, closed is the stable default

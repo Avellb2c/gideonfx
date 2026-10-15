@@ -23,7 +23,7 @@ gideon_collect_diagnostics(){
 
   {
     echo "============================================================"
-    echo "GIDEON REMOTE CONTROL AGENT - INSTALLATION DIAGNOSTIC"
+    echo "GIDEON RX AGENT - INSTALLATION DIAGNOSTIC"
     echo "============================================================"
     echo "Timestamp: $(date --iso-8601=seconds 2>/dev/null || date)"
     echo "Reason: $reason"
