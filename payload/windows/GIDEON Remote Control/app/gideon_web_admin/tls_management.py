@@ -1,4 +1,4 @@
-"""Authenticated WebAdmin adapter for the narrow Ubuntu TLS broker."""
+"""Authenticated WebAdmin adapter for Linux TLS broker and Windows ACME."""
 from __future__ import annotations
 
 import asyncio
@@ -10,7 +10,9 @@ import re
 import secrets
 import socket
 import ssl
+import subprocess
 import sys
+import uuid
 from pathlib import Path
 
 from fastapi import HTTPException, Request
@@ -19,6 +21,8 @@ from fastapi.responses import JSONResponse, Response
 SOCKET_PATH = '/run/gideon-tls-manager/control.sock'
 MAX_BODY = 8 * 1024 * 1024
 WINDOWS_PLAN_NAME = "windows-letsencrypt-plan.json"
+WINDOWS_JOB_NAME = "windows-letsencrypt-job.json"
+WINDOWS_JOB_WRAPPER = "gideon_windows_acme_job.py"
 WINDOWS_FQDN = re.compile(
     r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
     r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$"
@@ -118,7 +122,7 @@ def _validate_windows_plan(params):
 
 
 def _windows_save_plan(config, params):
-    """Persist a future OneClick plan only; never downloads or requests a certificate."""
+    """Persist an editable ACME plan without requesting a certificate."""
     value = _validate_windows_plan(params)
     path = _windows_data_root(config) / "config" / WINDOWS_PLAN_NAME
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -126,6 +130,113 @@ def _windows_save_plan(config, params):
     temp.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     temp.replace(path)
     return _windows_plan_status(config)
+
+
+def _windows_job_path(config):
+    return _windows_data_root(config) / "config" / WINDOWS_JOB_NAME
+
+
+def _windows_job_status(config):
+    """Read the public state of the detached Windows ACME operation."""
+    empty = {"id": "", "state": "IDLE", "web_host": "", "gateway_host": "",
+             "environment": "", "started_utc": "", "finished_utc": "", "log_path": "", "error": ""}
+    path = _windows_job_path(config)
+    try:
+        value = json.loads(path.read_text(encoding="utf-8-sig"))
+        if not isinstance(value, dict):
+            return empty
+        return {key: str(value.get(key) or "") for key in empty}
+    except (OSError, ValueError, TypeError):
+        return empty
+
+
+def _windows_install_root():
+    """Resolve the OneClick installation root from this package location."""
+    return Path(__file__).resolve().parents[2]
+
+
+def _windows_write_job(config, value):
+    path = _windows_job_path(config)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_name(f".{path.name}.tmp")
+    temp.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temp.replace(path)
+
+
+def _windows_public_job(config):
+    value = _windows_job_status(config)
+    if value.get("error"):
+        value["error"] = value["error"][:700]
+    return value
+
+
+def _windows_start_apply(config, params, actor):
+    """Start the allow-listed Windows ACME OneClick operation detached from WebAdmin.
+
+    The existing PowerShell integrator performs the privileged work, including
+    win-acme issuance, atomic configuration updates, service restart and hook
+    rollback.  WebAdmin only validates inputs and starts this narrow wrapper;
+    it never accepts an arbitrary command or script path from the browser.
+    """
+    value = _validate_windows_plan(params)
+    previous = _windows_job_status(config)
+    if previous.get("state") in {"QUEUED", "RUNNING"}:
+        raise ValueError("Ya hay una operación Let’s Encrypt de Windows en curso.")
+    install_root = _windows_install_root()
+    wrapper = install_root / "app" / "deploy" / "windows" / WINDOWS_JOB_WRAPPER
+    script = install_root / "app" / "deploy" / "windows" / "Configure-GIDEONWindowsLetsEncrypt.ps1"
+    if not wrapper.is_file() or not script.is_file():
+        raise ValueError("La integración ACME de Windows no está instalada en este OneClick.")
+    data_root = _windows_data_root(config).resolve()
+    log_dir = data_root / "acme" / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    job_id = uuid.uuid4().hex
+    log_path = log_dir / f"windows-letsencrypt-{job_id}.log"
+    job = {
+        "id": job_id,
+        "state": "QUEUED",
+        "actor": str(actor or ""),
+        "web_host": value["web_host"],
+        "gateway_host": value["gateway_host"],
+        "email": value["email"],
+        "environment": value["environment"],
+        "started_utc": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        "finished_utc": "",
+        "log_path": str(log_path),
+        "error": "",
+    }
+    _windows_write_job(config, job)
+    command = [
+        sys.executable, str(wrapper),
+        "--install-root", str(install_root),
+        "--data-root", str(data_root),
+        "--web-host", value["web_host"],
+        "--gateway-host", value["gateway_host"],
+        "--email", value["email"],
+        "--environment", value["environment"],
+        "--job-path", str(_windows_job_path(config)),
+        "--log-path", str(log_path),
+    ]
+    creationflags = (getattr(subprocess, "DETACHED_PROCESS", 0)
+                     | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+                     | getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    try:
+        with log_path.open("a", encoding="utf-8", newline="") as log:
+            process = subprocess.Popen(
+                command, cwd=str(install_root), stdin=subprocess.DEVNULL,
+                stdout=log, stderr=subprocess.STDOUT, close_fds=True,
+                creationflags=creationflags,
+            )
+    except (OSError, ValueError) as exc:
+        job["state"] = "FAILED"
+        job["finished_utc"] = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+        job["error"] = "No se pudo iniciar la operación ACME: " + type(exc).__name__
+        _windows_write_job(config, job)
+        raise ValueError(job["error"]) from exc
+    job["state"] = "RUNNING"
+    job["pid"] = str(process.pid)
+    _windows_write_job(config, job)
+    return _windows_public_job(config)
 
 
 def _windows_config_status(config):
@@ -160,6 +271,7 @@ def _windows_config_status(config):
         acme["error"] = "No se pudo consultar el estado ACME: " + type(exc).__name__
     acme_enabled = bool(acme.get("enabled"))
     planned = _windows_plan_status(config)
+    windows_job = _windows_public_job(config)
     current = {
         "web_url": f"https://127.0.0.1:{web_port}",
         "agent_url": str(config.get("gateway_public_url") or config.get("gateway_base_url") or f"https://127.0.0.1:{gateway_port}"),
@@ -183,8 +295,9 @@ def _windows_config_status(config):
         "acme_client_installed": bool(acme.get("client_installed")),
         "renewal_timer_active": bool(acme.get("renewal_task", {}).get("present")),
         "renewal_task_active": bool(acme.get("renewal_task", {}).get("present")),
-        "actions_supported": ["status", "download-ca", "save-plan"],
+        "actions_supported": ["status", "download-ca", "save-plan", "apply-plan"],
         "planned": planned,
+        "windows_job": windows_job,
         "ca_path": str(config.get("gateway_ca_file") or gateway.get("ca_file") or ""),
         "tls_transport": "HTTPS local verificado; renovación automática con win-acme." if acme_enabled else "HTTPS local verificado; configuración externa mediante OneClick.",
     }
@@ -239,7 +352,9 @@ def register_tls_routes(app, *, config, require, security, template, call=broker
                 return _windows_ca_result(config)
             if action == "save-plan":
                 return _windows_save_plan(config, payload.get("params"))
-            raise ValueError("En Windows TLS se administra mediante el OneClick; esta acción no requiere el broker de Ubuntu.")
+            if action == "apply-plan":
+                return _windows_start_apply(config, payload.get("params"), payload.get("actor"))
+            raise ValueError("Acción TLS de Windows no disponible.")
         if not enabled():
             raise ValueError('Gestor TLS disponible en Ubuntu con el OneClick actualizado. No se elevan privilegios desde la web.')
         return await asyncio.to_thread(call, payload)
@@ -281,7 +396,7 @@ def register_tls_routes(app, *, config, require, security, template, call=broker
         identity = authorize(request)
         if request.url.scheme != 'https':
             raise HTTPException(400, 'La administración de certificados requiere HTTPS.')
-        if action not in {'prepare', 'apply', 'confirm', 'cancel', 'save-plan'}:
+        if action not in {'prepare', 'apply', 'confirm', 'cancel', 'save-plan', 'apply-plan'}:
             raise HTTPException(404, 'Acción TLS no disponible.')
         token = request.headers.get('x-csrf-token', '')
         if not token or not secrets.compare_digest(token, identity.csrf_token):
@@ -312,7 +427,7 @@ def register_tls_routes(app, *, config, require, security, template, call=broker
             if action == 'prepare':
                 payload.update(params=data.get('params'), uploads=data.get('uploads', {}), passwords=data.get('passwords', {}),
                                client_ip=str(request.client.host if request.client else ''))
-            elif action == 'save-plan':
+            elif action in {'save-plan', 'apply-plan'}:
                 payload['params'] = data.get('params')
             else:
                 payload['id'] = data.get('id')

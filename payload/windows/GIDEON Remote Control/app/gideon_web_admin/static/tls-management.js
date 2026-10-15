@@ -40,7 +40,8 @@
   }
   const labels = { PREPARED: 'Validada; pendiente de aplicar', APPLYING: 'Aplicando; puede interrumpirse la conexión',
     AWAITING_CONFIRMATION: 'Confirme acceso por la nueva URL', CONFIRMED: 'Confirmada', ROLLED_BACK: 'Configuración anterior restaurada',
-    FAILED: 'No aplicada', EXPIRED: 'Preparación caducada', CANCELLED: 'Preparación cancelada' };
+    FAILED: 'No aplicada', EXPIRED: 'Preparación caducada', CANCELLED: 'Preparación cancelada',
+    QUEUED: 'En cola para aplicar', RUNNING: 'Aplicando en Windows', SUCCEEDED: 'Aplicación completada', IDLE: 'Sin operación' };
   function renderJobs(rows) {
     if (!jobs) return;
     jobs.replaceChildren();
@@ -95,11 +96,17 @@
         : 'Let’s Encrypt: no configurado · TLS local de GIDEON activo. Configure el dominio mediante OneClick cuando TCP/80 y DNS estén listos.';
       if (windowsPlanStatus) {
         const plan = data.result.planned || {};
-        windowsPlanStatus.textContent = plan.configured
-          ? 'Borrador guardado el ' + (plan.saved_utc || '—') + ' para ' + (plan.web_host || '—') + '.'
-          : 'No hay una configuración futura guardada.';
+        const windowsJob = data.result.windows_job || {};
+        if (windowsJob.state && windowsJob.state !== 'IDLE') {
+          windowsPlanStatus.textContent = (labels[windowsJob.state] || windowsJob.state) + ' para ' + (windowsJob.web_host || '—') + '.' + (windowsJob.error ? ' ' + windowsJob.error : '');
+        } else {
+          windowsPlanStatus.textContent = plan.configured
+            ? 'Borrador guardado el ' + (plan.saved_utc || '—') + ' para ' + (plan.web_host || '—') + '.'
+            : 'No hay una configuración guardada.';
+        }
       }
-      if ((data.result.jobs || []).some(job => ['APPLYING', 'AWAITING_CONFIRMATION'].includes(job.state))) timer = setTimeout(refresh, 5000);
+      const windowsJobState = (data.result.windows_job || {}).state;
+      if ((data.result.jobs || []).some(job => ['APPLYING', 'AWAITING_CONFIRMATION'].includes(job.state)) || ['QUEUED', 'RUNNING'].includes(windowsJobState)) timer = setTimeout(refresh, 5000);
     } catch (_) { message('No se pudo consultar el estado. Si acaba de aplicar, abra la nueva URL para confirmar; si no puede acceder, espere la restauración automática.', true); }
   }
   document.getElementById('tls-refresh').addEventListener('click', refresh);
@@ -143,14 +150,15 @@
   if (windowsPlan) windowsPlan.addEventListener('submit', async event => {
     event.preventDefault(); const button = event.submitter; button.disabled = true;
     const fields = new FormData(windowsPlan);
+    const action = button.value || 'save-plan';
     try {
-      message('Guardando configuración futura…');
-      await post('save-plan', {
+      message(action === 'apply-plan' ? 'Iniciando aplicación real en Windows…' : 'Guardando borrador…');
+      await post(action, {
         params: {web_host: fields.get('web_host'), gateway_host: fields.get('gateway_host') || '',
           email: fields.get('email'), environment: fields.get('environment'), agree_acme_tos: fields.has('agree_acme_tos')},
         current_password: fields.get('current_password'), mfa_code: fields.get('mfa_code')
       });
-      message('Configuración futura guardada. No se solicitó ningún certificado.');
+      message(action === 'apply-plan' ? 'Aplicación real iniciada. Consulte el estado; la conexión puede reiniciarse durante el cambio.' : 'Borrador guardado. No se solicitó ningún certificado.');
       await refresh();
     } catch (error) { message(error.message, true); }
     finally { button.disabled = false; windowsPlan.querySelectorAll('input[type=password],input[name=mfa_code]').forEach(input => { input.value = ''; }); }

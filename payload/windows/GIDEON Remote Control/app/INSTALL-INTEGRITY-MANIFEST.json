@@ -435,6 +435,11 @@
       "sha256": "6777050a4d9ec351d1bce5a8ad661b3cef27cf16aca2341043f8a8ff507757ef"
     },
     {
+      "path": "deploy/windows/gideon_windows_acme_job.py",
+      "size_bytes": 4101,
+      "sha256": "0cdf1934b444bb399da28c9bbe196203a2473a284d77e6ef2d05181a05db57d9"
+    },
+    {
       "path": "deploy/windows/gideon_windows_background.py",
       "size_bytes": 6190,
       "sha256": "2cda24e230396d6c80fdf5c7fd78686d4d014a0d2645a725c9aa0f1d7df110d2"
@@ -1576,8 +1581,8 @@
     },
     {
       "path": "gideon_web_admin/static/tls-management.js",
-      "size_bytes": 10193,
-      "sha256": "53acd22b821fb4c8e35af199bfc88b0526a8d5deb06b2605a13e8477333c4bc1"
+      "size_bytes": 10996,
+      "sha256": "1aff1c37f205e3129c8b83e88a348e746b0e104e9860d956b86de6f8c59dd08d"
     },
     {
       "path": "gideon_web_admin/static/ui_hardening.css",
@@ -1836,8 +1841,8 @@
     },
     {
       "path": "gideon_web_admin/templates/tls_management.html",
-      "size_bytes": 14408,
-      "sha256": "f938dc8f5a43b76134d41443c1c5f21bf8de88172d6c5a1377fdaeeb68e7efe7"
+      "size_bytes": 14867,
+      "sha256": "2e30d1cf6dc4c746dad8192f0c9373bbda02d8ba8df523d3d9d9fbc3ab8f97fd"
     },
     {
       "path": "gideon_web_admin/templates/transfer_job_detail.html",
@@ -1861,8 +1866,8 @@
     },
     {
       "path": "gideon_web_admin/tls_management.py",
-      "size_bytes": 15743,
-      "sha256": "b41d3eaa4173d3704697247502df03223ff47dc691b2c3ebcc3ed395927a9e1a"
+      "size_bytes": 20546,
+      "sha256": "fa8037257251ad336970f5f2ebb5e0ef10bc081319d7665ca50198622e3d8b2d"
     },
     {
       "path": "gideon_web_admin/vlc_offline_install.py",
