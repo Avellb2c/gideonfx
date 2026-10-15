@@ -3,5 +3,13 @@
 .guide-config-grid .guide-choice{min-height:76px}
 .guide-manual-note{margin:0 20px 20px!important}
 .guide-manual-note strong{margin-right:6px}
+.operational-steps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 22px;padding:4px 20px 12px}
+.operational-steps section{display:grid;grid-template-columns:34px minmax(0,1fr);gap:12px;padding:17px 0;border-bottom:1px solid var(--border)}
+.operational-steps section:nth-last-child(-n+2){border-bottom:0}
+.operational-steps h3{margin:0 0 5px;font-size:15px}
+.operational-steps p{margin:0 0 8px;color:var(--muted);line-height:1.5}
+.step-result{display:block;color:var(--text);line-height:1.45}
+.step-result strong{color:var(--success,#55d39a)}
 @media(max-width:1000px){.guide-config-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:620px){.guide-config-grid{padding:14px}}
+@media(max-width:1000px){.operational-steps{grid-template-columns:1fr}.operational-steps section:nth-last-child(-n+2){border-bottom:1px solid var(--border)}.operational-steps section:last-child{border-bottom:0}}
+@media(max-width:620px){.guide-config-grid{padding:14px}.operational-steps{padding-left:14px;padding-right:14px}}

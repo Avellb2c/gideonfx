@@ -1246,8 +1246,8 @@
     },
     {
       "path": "gideon_web_admin/app.py",
-      "size_bytes": 373984,
-      "sha256": "cef830e35788f7fd44c515efa270ee8f5355290290e5e8b39e902d6539994c7c"
+      "size_bytes": 373985,
+      "sha256": "5135e9fd1f548e27a5fa713abc132829f79a3fc6b9126afc432dda1a20a60c05"
     },
     {
       "path": "gideon_web_admin/auth.py",
@@ -1391,8 +1391,8 @@
     },
     {
       "path": "gideon_web_admin/static/configuration_initial.css",
-      "size_bytes": 453,
-      "sha256": "8dce0228b86abed806fc8453a6a3bf2e9bc0dcbac76ae299ba7df1eb777e65a8"
+      "size_bytes": 1280,
+      "sha256": "24d42d123dc9e57f713f8b15c4dc483d59cd57026986200d40dd5a92fcc37283"
     },
     {
       "path": "gideon_web_admin/static/dashboard.css",
@@ -1681,8 +1681,8 @@
     },
     {
       "path": "gideon_web_admin/templates/installation_guide.html",
-      "size_bytes": 11428,
-      "sha256": "208b4451a202ed38d5c3615b1192d1a4f6dde84494af7f46487595a15ad7eb56"
+      "size_bytes": 15144,
+      "sha256": "e627a803eaa98583f3f1d794b04d29bb9d639c210ab6ce6d015fd7e31cb36cef"
     },
     {
       "path": "gideon_web_admin/templates/installers.html",

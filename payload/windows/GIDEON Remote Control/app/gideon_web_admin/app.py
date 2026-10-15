@@ -852,7 +852,7 @@ def create_app(config_path: str | Path | None = None, *, config_override: dict[s
     def installation_guide(request: Request):
         """Render the safe, operator-facing installation and cloud guide."""
         require(request, "dashboard.view")
-        return template(request, "installation_guide.html", {"title": "Guía de instalación"})
+        return template(request, "installation_guide.html", {"title": "Configuración inicial"})
 
     @app.get("/agents", response_class=HTMLResponse)
     def agents_page(request: Request, q: str = "", status: str = "all", platform: str = "all", sort: str = "site"):
